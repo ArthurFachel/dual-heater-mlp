@@ -9,6 +9,7 @@ from experiments.split_mnist import (
     SplitMNISTConfig,
     build_paired_models,
     run_split_mnist,
+    run_split_mnist_multi_seed,
 )
 
 
@@ -71,12 +72,26 @@ def test_tiny_split_mnist_run_produces_curves_and_artifacts(tmp_path):
         hidden_dims=(8,),
         batch_size=4,
         epochs_per_task=1,
-        methods=("vanilla", "slowheat", "slowheat_adaptive"),
+        replay_per_class=1,
+        replay_batch_size=2,
+        methods=(
+            "vanilla",
+            "slowheat_beta_10",
+            "hard_freeze",
+            "replay",
+            "distillation",
+        ),
     )
 
     results = run_split_mnist(config, _tiny_tasks(config), output_dir=tmp_path)
 
-    assert results.keys() == {"vanilla", "slowheat", "slowheat_adaptive"}
+    assert results.keys() == {
+        "vanilla",
+        "slowheat_beta_10",
+        "hard_freeze",
+        "replay",
+        "distillation",
+    }
     for result in results.values():
         matrix = np.asarray(
             [
@@ -85,12 +100,53 @@ def test_tiny_split_mnist_run_produces_curves_and_artifacts(tmp_path):
             ]
         )
         assert matrix.shape == (5, 5)
+        task_aware_matrix = np.asarray(
+            [
+                [np.nan if value is None else value for value in row]
+                for row in result["task_aware_accuracy_matrix"]
+            ]
+        )
+        assert task_aware_matrix.shape == (5, 5)
+        assert np.isfinite(task_aware_matrix[np.tril_indices(5)]).all()
         assert len(result["stage_average_accuracy"]) == 5
         assert len(result["stage_average_forgetting"]) == 5
-    assert len(results["slowheat_adaptive"]["capacity_history"]) == 5
+        assert np.isfinite(result["classifier_gap"])
+    assert len(results["hard_freeze"]["capacity_history"]) == 5
     assert (tmp_path / "summary.csv").is_file()
     saved = json.loads((tmp_path / "results.json").read_text())
     assert saved.keys() == results.keys()
+
+
+def test_multi_seed_runner_aggregates_means_and_paired_differences(
+    tmp_path, monkeypatch
+):
+    config = SplitMNISTConfig(
+        seed=2,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        methods=("vanilla", "slowheat_beta_100"),
+    )
+
+    monkeypatch.setattr(
+        "experiments.split_mnist.load_split_mnist",
+        lambda current, **_: _tiny_tasks(current),
+    )
+    aggregate = run_split_mnist_multi_seed(
+        config,
+        seeds=[2, 3],
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "results",
+    )
+
+    assert aggregate["seeds"] == [2, 3]
+    assert aggregate["methods"].keys() == {"vanilla", "slowheat_beta_100"}
+    summary = aggregate["methods"]["slowheat_beta_100"]["final_average_accuracy"]
+    assert summary.keys() == {"mean", "std", "ci95_normal_half_width"}
+    assert np.isfinite(list(summary.values())).all()
+    assert "slowheat_beta_100" in aggregate["paired_differences_vs_vanilla"]
+    assert (tmp_path / "results" / "aggregate.csv").is_file()
+    assert (tmp_path / "results" / "aggregate.json").is_file()
 
 
 @pytest.mark.parametrize(

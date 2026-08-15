@@ -21,7 +21,7 @@ research = [
     "matplotlib>=3.8",
     "pandas>=2.0",
     "scipy>=1.10",
-    "torchvision>=0.16",
+    "torchvision>=0.16,<0.26",
     "PyYAML>=6.0",
 ]
 dev = [

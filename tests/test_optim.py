@@ -46,16 +46,12 @@ def test_adamw_fractional_mask_scales_the_final_preconditioned_update():
 
 def test_sgd_fractional_mask_scales_momentum_and_decay_update():
     native_parameter = torch.nn.Parameter(torch.tensor([1.0]))
-    native = torch.optim.SGD(
-        [native_parameter], lr=0.1, momentum=0.9, weight_decay=0.2
-    )
+    native = torch.optim.SGD([native_parameter], lr=0.1, momentum=0.9, weight_decay=0.2)
     native_parameter.grad = torch.tensor([2.0])
     native.step()
 
     masked_parameter = torch.nn.Parameter(torch.tensor([1.0]))
-    masked = SlowHeatSGD(
-        [masked_parameter], lr=0.1, momentum=0.9, weight_decay=0.2
-    )
+    masked = SlowHeatSGD([masked_parameter], lr=0.1, momentum=0.9, weight_decay=0.2)
     masked.register_plasticity_mask(masked_parameter, torch.tensor([0.1]))
     masked_parameter.grad = torch.tensor([2.0])
     masked.step()
@@ -282,6 +278,28 @@ def test_factorized_mask_protects_rows_and_columns():
     applied = before - target.weight.detach()
     expected = torch.tensor([[0.1, 1.0], [0.1, 0.1]])
     assert torch.allclose(applied, expected)
+
+
+def test_factorized_hard_mask_exactly_freezes_protected_rows_and_columns():
+    source = SlowHeatLinear(2, 2, slow_strength=100.0)
+    target = SlowHeatLinear(2, 2, slow_strength=100.0)
+    source.slow_heat.copy_(torch.tensor([1.0, 0.0]))
+    target.slow_heat.copy_(torch.tensor([0.0, 1.0]))
+    optimizer = SlowHeatSGD(
+        [*source.parameters(), *target.parameters()],
+        lr=1.0,
+    )
+    optimizer.register_slow_heat_module(target, input_module=source, hard=True)
+    before = target.weight.detach().clone()
+    bias_before = target.bias.detach().clone()
+    target.weight.grad = torch.ones_like(target.weight)
+    target.bias.grad = torch.ones_like(target.bias)
+
+    optimizer.step()
+
+    applied = before - target.weight.detach()
+    assert torch.equal(applied, torch.tensor([[0.0, 1.0], [0.0, 0.0]]))
+    assert torch.equal(bias_before - target.bias.detach(), torch.tensor([1.0, 0.0]))
 
 
 def test_follow_update_policy_masks_adam_moment_state():
