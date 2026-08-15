@@ -60,6 +60,13 @@ PYTHONPATH=src:. python -m experiments.run_split_mnist_5seeds --device cpu
 Per-seed outputs and `aggregate.csv` are written to
 `results/split_mnist_5seeds/` by default.
 
+The frozen independent-confirmation protocol and expanded baseline suite are
+in `notebooks/split_mnist_confirmatory_suite.ipynb`. That notebook exposes
+DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF, balanced replay,
+equal-epoch/equal-example comparisons, early stopping and compute accounting
+through one interface. Read `docs/confirmatory_protocol.md` before running it;
+the notebook is committed without executed cells.
+
 The complete chronological record of Split-MNIST tests, statistical
 conclusions and the meaning of structured method names such as
 `slowheat_replay_hidden_beta_30_budget_0.25` is available in

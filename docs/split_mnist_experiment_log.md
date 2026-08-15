@@ -608,3 +608,88 @@ SplitMNISTConfig(
 
 Essa configuração é a melhor hipótese experimental atual. Ela não deve ser
 alterada usando os resultados das próximas seeds confirmatórias.
+
+## 11. Protocolo implementado para a próxima etapa (não executado)
+
+Em 2026-08-15, as recomendações da seção 9 foram transformadas em código e em
+um notebook único. Nenhum resultado novo é reportado nesta seção: as células
+foram entregues sem execução e os artefatos confirmatórios ainda não existem.
+
+### Confirmação congelada
+
+O módulo `experiments/confirmatory_split_mnist.py` fixa antes da execução:
+
+- candidato `slowheat_replay_hidden_beta_30_budget_0.25`;
+- referência `replay`;
+- dez épocas, memória de 20 exemplos por classe, beta `30`, budget `0.25` e
+  proteção apenas das camadas ocultas;
+- 20 seeds novas declaradas no código e no arquivo
+  `configs/split_mnist_confirmation_preregistration.json`;
+- `final_average_accuracy` como único endpoint primário;
+- diferença sempre definida como candidato menos referência;
+- IC e teste Student-t pareados, bootstrap pareado com 10.000 reamostragens,
+  contagens de sinais e teste exato de sinais;
+- proibição explícita de reajuste depois de observar resultados
+  confirmatórios.
+
+O runner cria `preregistration.lock.json` com modo de criação exclusiva antes
+do treino. Uma segunda tentativa no mesmo diretório falha em vez de substituir
+silenciosamente o pré-registro.
+
+Os artefatos brutos das explorações de 8, 19 e 20 seeds citadas neste log não
+estão versionados. Por isso, a verificação automática de não sobreposição cobre
+as seeds explicitamente presentes no repositório e, conservadoramente, toda a
+sequência `11, 22, ..., 220`. As seeds confirmatórias foram escolhidas em uma
+faixa distante. Uma alegação mais forte exige recuperar e comparar os JSONs
+brutos anteriores antes de executar a confirmação.
+
+### Baselines em interface comum
+
+O notebook `notebooks/split_mnist_confirmatory_suite.ipynb` pode executar em
+uma única chamada serial e pareada:
+
+- vanilla e replay;
+- DER++;
+- ER-ACE;
+- A-GEM;
+- EWC online;
+- SI;
+- LwF calibrada pela fração de classes antigas/novas;
+- replay com loss balanceada entre lote atual e lote de memória;
+- replay com mais épocas;
+- replay com early stopping pela média de validação das tarefas vistas;
+- o candidato SlowHeat congelado.
+
+Todos recebem a mesma inicialização, agenda de exemplos atuais e índices de
+replay dentro de uma seed. Os hiperparâmetros dos novos baselines são
+declarados no objeto de configuração e salvos com cada execução; eles são
+controles secundários e não podem ser ajustados usando as seeds confirmatórias.
+
+### Fairness, custo e ablações
+
+Além da comparação por dez épocas, há uma execução com teto exato de 20.000
+exemplos de learner por tarefa, contando lote atual mais replay. Os resultados
+passaram a registrar:
+
+- exemplos atuais, exemplos de replay e forwards adicionais do professor;
+- número de passos e tempo dentro de `optimizer.step()`;
+- tempo de consolidação SlowHeat e calibração da cabeça;
+- FLOPs aproximados do forward/backward;
+- overhead aproximado de hooks, regularizadores, consolidação e aplicação de
+  máscaras.
+
+A convenção de FLOPs é salva junto com cada resultado; os valores são
+estimativas comparativas, não medições de hardware.
+
+As ablações executáveis incluem hidden-only sem replay, budget adaptativo,
+saída parcialmente protegida, calibração da cabeça global, memórias de
+`5/10/20/50/100` exemplos por classe e replay com redução global de learning
+rate. Cinco ordens fixas de classes e MLPs maiores também foram adicionados.
+
+O engine foi generalizado para dimensões e quantidades de classes arbitrárias.
+Adapters separados agora expõem Permuted-MNIST como domain-incremental e Split
+CIFAR-100/TinyImageNet como class-incremental, evitando reutilizar a semântica
+incorreta de corte contíguo de logits. TinyImageNet exige um dataset local com
+`train/` e `val/` organizados por classe em formato ImageFolder; não há download
+automático. Essas extensões são diagnósticos secundários e permanecem não
+executadas.

@@ -500,6 +500,7 @@ class SlowHeatMLP(nn.Sequential):
         slow_strength: float = 3.0,
         plasticity_budget: float = 0.25,
         protect_output: bool = True,
+        output_slow_strength: float | None = None,
     ):
         layers: list[nn.Module] = []
         for i in range(len(dims) - 2):
@@ -516,7 +517,11 @@ class SlowHeatMLP(nn.Sequential):
                 SlowHeatLinear(
                     dims[-2],
                     dims[-1],
-                    slow_strength=slow_strength,
+                    slow_strength=(
+                        slow_strength
+                        if output_slow_strength is None
+                        else output_slow_strength
+                    ),
                     plasticity_budget=plasticity_budget,
                 )
             )

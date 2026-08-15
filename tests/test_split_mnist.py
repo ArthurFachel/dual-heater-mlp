@@ -127,6 +127,66 @@ def test_tiny_split_mnist_run_produces_curves_and_artifacts(tmp_path):
     assert saved.keys() == results.keys()
 
 
+def test_requested_baselines_share_one_runner_and_report_costs(tmp_path):
+    methods = (
+        "replay",
+        "derpp",
+        "er_ace",
+        "agem",
+        "ewc",
+        "si",
+        "lwf_calibrated",
+        "replay_balanced",
+        "slowheat_replay_hidden_beta_30_budget_0.25",
+    )
+    config = SplitMNISTConfig(
+        seed=7,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        replay_per_class=1,
+        replay_batch_size=2,
+        methods=methods,
+    )
+
+    results = run_split_mnist(config, _tiny_tasks(config), output_dir=tmp_path)
+
+    assert tuple(results) == methods
+    for result in results.values():
+        assert result["cost"]["learner_examples_processed"] > 0
+        assert result["cost"]["estimated_total_flops"] > 0
+        assert result["cost"]["optimizer_steps"] > 0
+
+
+def test_noncanonical_class_order_masks_unseen_global_logits():
+    config = SplitMNISTConfig(
+        seed=9,
+        class_order=(8, 9, 6, 7, 4, 5, 2, 3, 0, 1),
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        methods=("vanilla",),
+    )
+
+    result = run_split_mnist(config, _tiny_tasks(config))["vanilla"]
+
+    assert np.asarray(result["accuracy_matrix"], dtype=object).shape == (5, 5)
+    assert np.isfinite(result["metrics"]["final_average_accuracy"])
+
+
+def test_domain_incremental_config_reuses_all_classes_per_task():
+    config = SplitMNISTConfig(
+        class_order=tuple(range(10)),
+        classes_per_task=10,
+        scenario="domain_incremental",
+        domain_task_count=5,
+    )
+
+    config.validate()
+
+    assert config.task_count == 5
+
+
 def test_multi_seed_runner_aggregates_means_and_paired_differences(
     tmp_path, monkeypatch
 ):
