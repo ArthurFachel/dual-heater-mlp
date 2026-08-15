@@ -60,6 +60,11 @@ PYTHONPATH=src:. python -m experiments.run_split_mnist_5seeds --device cpu
 Per-seed outputs and `aggregate.csv` are written to
 `results/split_mnist_5seeds/` by default.
 
+The complete chronological record of Split-MNIST tests, statistical
+conclusions and the meaning of structured method names such as
+`slowheat_replay_hidden_beta_30_budget_0.25` is available in
+`docs/split_mnist_experiment_log.md`.
+
 ## Minimal usage
 
 ```python
