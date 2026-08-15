@@ -46,7 +46,9 @@ The ready-to-run Split-MNIST class-incremental notebook is
 method at `beta = 10, 30, 100` with vanilla AdamW, exact hard-freeze, replay,
 distillation and combined variants. It reports class-incremental and task-aware
 matrices, locates classifier interference, plots the stability-plasticity
-trade-off and aggregates five paired seeds.
+trade-off and aggregates five paired seeds. It also compares 1, 5 and 10
+epochs for replay and hidden-only SlowHeat + replay variants with lower beta,
+larger plasticity budgets and paired differences against replay.
 
 The same five-seed protocol can be launched without Jupyter:
 

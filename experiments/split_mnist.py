@@ -36,7 +36,17 @@ SUPPORTED_METHODS = {
     "slowheat_distillation",
 }
 
-_BETA_METHOD = re.compile(r"slowheat_beta_(\d+(?:\.\d+)?)$")
+_STRUCTURED_METHOD = re.compile(
+    r"slowheat"
+    r"(?:_(?P<auxiliary>replay|distillation))?"
+    r"(?:_(?P<scope>hidden))?"
+    r"_beta_(?P<beta>\d+(?:\.\d+)?)"
+    r"(?:_budget_(?P<budget>\d+(?:\.\d+)?))?$"
+)
+
+
+def _structured_match(method: str) -> re.Match[str] | None:
+    return _STRUCTURED_METHOD.fullmatch(method)
 
 
 def _is_slowheat(method: str) -> bool:
@@ -44,16 +54,34 @@ def _is_slowheat(method: str) -> bool:
 
 
 def _uses_replay(method: str) -> bool:
-    return method in {"replay", "slowheat_replay"}
+    match = _structured_match(method)
+    return method in {"replay", "slowheat_replay"} or (
+        match is not None and match.group("auxiliary") == "replay"
+    )
 
 
 def _uses_distillation(method: str) -> bool:
-    return method in {"distillation", "slowheat_distillation"}
+    match = _structured_match(method)
+    return method in {"distillation", "slowheat_distillation"} or (
+        match is not None and match.group("auxiliary") == "distillation"
+    )
 
 
 def _method_strength(method: str, default: float) -> float:
-    match = _BETA_METHOD.fullmatch(method)
-    return float(match.group(1)) if match else default
+    match = _structured_match(method)
+    return float(match.group("beta")) if match else default
+
+
+def _method_budget(method: str, default: float) -> float:
+    match = _structured_match(method)
+    if match is None or match.group("budget") is None:
+        return default
+    return float(match.group("budget"))
+
+
+def _protects_output(method: str) -> bool:
+    match = _structured_match(method)
+    return match is None or match.group("scope") != "hidden"
 
 
 @dataclass(frozen=True)
@@ -154,11 +182,19 @@ class SplitMNISTConfig:
         unknown = {
             method
             for method in self.methods
-            if method not in SUPPORTED_METHODS
-            and _BETA_METHOD.fullmatch(method) is None
+            if method not in SUPPORTED_METHODS and _structured_match(method) is None
         }
         if unknown:
             raise ValueError(f"métodos desconhecidos: {sorted(unknown)}")
+        invalid_budgets = {
+            method
+            for method in self.methods
+            if not 0.0 <= _method_budget(method, self.plasticity_budget) <= 1.0
+        }
+        if invalid_budgets:
+            raise ValueError(
+                f"budgets embutidos fora de [0, 1]: {sorted(invalid_budgets)}"
+            )
 
 
 @dataclass(frozen=True)
@@ -293,14 +329,16 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
                 model: nn.Module = _vanilla_mlp(dims)
             else:
                 budget = (
-                    0.0 if method == "slowheat_unbudgeted" else config.plasticity_budget
+                    0.0
+                    if method == "slowheat_unbudgeted"
+                    else _method_budget(method, config.plasticity_budget)
                 )
                 model = SlowHeatMLP(
                     *dims,
                     act="relu",
                     slow_strength=_method_strength(method, config.slow_strength),
                     plasticity_budget=budget,
-                    protect_output=True,
+                    protect_output=_protects_output(method),
                 )
             with torch.no_grad():
                 for name, parameter in model.named_parameters():
@@ -707,6 +745,7 @@ def run_split_mnist_multi_seed(
     output_dir: str | Path,
     download: bool = True,
     verbose: bool = False,
+    paired_references: tuple[str, ...] = ("vanilla", "replay"),
 ) -> dict[str, Any]:
     """Run paired Split-MNIST experiments and aggregate repeated seeds."""
 
@@ -733,7 +772,6 @@ def run_split_mnist_multi_seed(
     aggregate: dict[str, Any] = {
         "seeds": seeds,
         "methods": {},
-        "paired_differences_vs_vanilla": {},
     }
     csv_rows: list[dict[str, Any]] = []
     for method in base_config.methods:
@@ -748,19 +786,23 @@ def run_split_mnist_multi_seed(
             row[f"{metric}_ci95"] = summary["ci95_normal_half_width"]
         csv_rows.append(row)
 
-    if "vanilla" in base_config.methods:
+    for reference in paired_references:
+        if reference not in base_config.methods:
+            continue
+        comparison_key = f"paired_differences_vs_{reference}"
+        aggregate[comparison_key] = {}
         for method in base_config.methods:
-            if method == "vanilla":
+            if method == reference:
                 continue
-            aggregate["paired_differences_vs_vanilla"][method] = {}
+            aggregate[comparison_key][method] = {}
             for metric in AGGREGATE_METRICS:
                 differences = [
                     _result_metric(raw[seed][method], metric)
-                    - _result_metric(raw[seed]["vanilla"], metric)
+                    - _result_metric(raw[seed][reference], metric)
                     for seed in seeds
                 ]
-                aggregate["paired_differences_vs_vanilla"][method][metric] = (
-                    _aggregate_summary(differences)
+                aggregate[comparison_key][method][metric] = _aggregate_summary(
+                    differences
                 )
 
     with (output_path / "aggregate.json").open("w", encoding="utf-8") as handle:
@@ -779,3 +821,64 @@ def run_split_mnist_multi_seed(
         writer.writeheader()
         writer.writerows(csv_rows)
     return aggregate
+
+
+def run_split_mnist_epoch_sweep(
+    base_config: SplitMNISTConfig,
+    *,
+    epochs: list[int],
+    seeds: list[int],
+    data_dir: str | Path,
+    output_dir: str | Path,
+    download: bool = True,
+    verbose: bool = False,
+    paired_references: tuple[str, ...] = ("replay",),
+) -> dict[str, Any]:
+    """Compare methods at multiple training budgets using identical seeds."""
+
+    if (
+        not epochs
+        or len(set(epochs)) != len(epochs)
+        or any(value < 1 for value in epochs)
+    ):
+        raise ValueError("epochs deve conter inteiros positivos e únicos")
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    sweep: dict[str, Any] = {"epochs": epochs, "results": {}}
+    rows: list[dict[str, Any]] = []
+
+    for index, epoch_count in enumerate(epochs):
+        if verbose:
+            print(
+                f"[Split-MNIST] épocas {index + 1}/{len(epochs)}: {epoch_count}",
+                flush=True,
+            )
+        config = replace(base_config, epochs_per_task=epoch_count)
+        aggregate = run_split_mnist_multi_seed(
+            config,
+            seeds=seeds,
+            data_dir=data_dir,
+            output_dir=output_path / f"epochs_{epoch_count}",
+            download=download if index == 0 else False,
+            verbose=verbose,
+            paired_references=paired_references,
+        )
+        sweep["results"][str(epoch_count)] = aggregate
+        for method in config.methods:
+            row: dict[str, Any] = {"epochs": epoch_count, "method": method}
+            for metric in AGGREGATE_METRICS:
+                summary = aggregate["methods"][method][metric]
+                row[f"{metric}_mean"] = summary["mean"]
+                row[f"{metric}_std"] = summary["std"]
+                row[f"{metric}_ci95"] = summary["ci95_normal_half_width"]
+            rows.append(row)
+
+    with (output_path / "epoch_sweep.json").open("w", encoding="utf-8") as handle:
+        json.dump(sweep, handle, indent=2, sort_keys=True, allow_nan=False)
+    with (output_path / "epoch_sweep.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    return sweep

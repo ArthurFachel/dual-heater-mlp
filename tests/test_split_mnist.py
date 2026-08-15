@@ -9,6 +9,7 @@ from experiments.split_mnist import (
     SplitMNISTConfig,
     build_paired_models,
     run_split_mnist,
+    run_split_mnist_epoch_sweep,
     run_split_mnist_multi_seed,
 )
 
@@ -55,7 +56,11 @@ def _tiny_tasks(config: SplitMNISTConfig) -> list[MNISTTask]:
 def test_split_mnist_models_have_paired_trainable_initialization():
     config = SplitMNISTConfig(
         hidden_dims=(8,),
-        methods=("vanilla", "slowheat"),
+        methods=(
+            "vanilla",
+            "slowheat",
+            "slowheat_replay_hidden_beta_3_budget_0.50",
+        ),
     )
 
     models = build_paired_models(config)
@@ -64,6 +69,11 @@ def test_split_mnist_models_have_paired_trainable_initialization():
     slowheat = dict(models["slowheat"].named_parameters())
     assert vanilla.keys() == slowheat.keys()
     assert all(torch.equal(vanilla[name], slowheat[name]) for name in vanilla)
+    hidden_only = models["slowheat_replay_hidden_beta_3_budget_0.50"]
+    assert isinstance(hidden_only[-1], torch.nn.Linear)
+    assert all(
+        layer.plasticity_budget == 0.5 for layer in hidden_only.get_slow_layers()
+    )
 
 
 def test_tiny_split_mnist_run_produces_curves_and_artifacts(tmp_path):
@@ -149,12 +159,45 @@ def test_multi_seed_runner_aggregates_means_and_paired_differences(
     assert (tmp_path / "results" / "aggregate.json").is_file()
 
 
+def test_epoch_sweep_writes_long_form_metrics_and_replay_comparisons(
+    tmp_path, monkeypatch
+):
+    config = SplitMNISTConfig(
+        seed=2,
+        hidden_dims=(8,),
+        batch_size=4,
+        replay_per_class=1,
+        replay_batch_size=2,
+        methods=("replay", "slowheat_replay_hidden_beta_3_budget_0.50"),
+    )
+    monkeypatch.setattr(
+        "experiments.split_mnist.load_split_mnist",
+        lambda current, **_: _tiny_tasks(current),
+    )
+
+    sweep = run_split_mnist_epoch_sweep(
+        config,
+        epochs=[1, 2],
+        seeds=[2, 3],
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "sweep",
+    )
+
+    assert sweep["epochs"] == [1, 2]
+    assert sweep["results"].keys() == {"1", "2"}
+    for result in sweep["results"].values():
+        assert "paired_differences_vs_replay" in result
+    assert (tmp_path / "sweep" / "epoch_sweep.csv").is_file()
+    assert (tmp_path / "sweep" / "epoch_sweep.json").is_file()
+
+
 @pytest.mark.parametrize(
     "updates",
     [
         {"class_order": (0, 1, 2)},
         {"plasticity_budget": 1.1},
         {"methods": ("unknown",)},
+        {"methods": ("slowheat_replay_hidden_beta_3_budget_1.20",)},
     ],
 )
 def test_split_mnist_config_rejects_invalid_protocol(updates):
