@@ -1,0 +1,8 @@
+{
+  "python": "3.13.7",
+  "pytorch": "2.10.0+cu128",
+  "numpy": "2.4.2",
+  "device": "CPU only",
+  "git_state": "uncommitted research/harden-slowheat",
+  "command": "OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:. python -m experiments.multi_seed --config configs/synthetic_ablation_pilot.json --seeds 11 22 33 --output-dir results/synthetic_ablation_pilot"
+}

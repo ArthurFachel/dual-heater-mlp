@@ -1,0 +1,25 @@
+{
+  "seed": 42,
+  "n_features": 16,
+  "classes_per_task": 2,
+  "task_count": 3,
+  "train_per_class": 32,
+  "test_per_class": 16,
+  "hidden_dims": [32, 16],
+  "batch_size": 16,
+  "steps_per_task": 20,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "slow_strength": 3.0,
+  "reduced_lr_factor": 0.1,
+  "methods": [
+    "vanilla",
+    "reduced_lr",
+    "slowheat_max",
+    "slowheat_mean",
+    "slowheat_sum",
+    "slowheat_none",
+    "slowheat_max_sgd",
+    "slowheat_max_legacy_adamw"
+  ]
+}

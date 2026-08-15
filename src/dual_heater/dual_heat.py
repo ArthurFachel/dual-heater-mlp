@@ -1,5 +1,5 @@
 """
-dual_heat_module.py — v3: Inibição lateral + decay ativo + pós-inibição + EWC
+DualHeat v3: inibição lateral + decay ativo + modulação local de plasticidade
                            + slow heat com memória limitada (forgetting)
 
 Novidade vs v2 (única mudança de comportamento):
@@ -36,19 +36,18 @@ Pipeline por passo (inalterado, exceto passo 4):
   2. output = z / (1 + γ·mean_others)    (inibição lateral divisiva)
   3. fast_heat = max(0, α·|output| + (1-α)·fast_heat − δ)
   4. slow_heat += (|output| − slow_heat) / min(n, slow_window)
-  5. grad /= (1 + β·slow_heat)           (EWC gradient hook)
+  5. grad /= (1 + β·slow_heat)           (hook legado de gradiente)
 """
 
+
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-from typing import List, Optional
+from torch import Tensor, nn
 
 
 class DualHeatLinear(nn.Module):
     """
-    Linear layer com inibição lateral + EWC per-neuron + slow heat com
+    Linear layer com inibição lateral + importância por neurônio + slow heat com
     memória limitada (forgetting) opcional.
 
     Parâmetros
@@ -64,7 +63,7 @@ class DualHeatLinear(nn.Module):
             neurônio com |output| médio < δ/(1-α) → heat = 0.
 
     slow_strength : float (0.0-5.0)
-        β — força EWC: grad /= (1 + β·slow_heat).
+        β — força de modulação: grad /= (1 + β·slow_heat).
         Default 2.0 (CL-optimized).
 
     slow_window : int | None
@@ -73,7 +72,7 @@ class DualHeatLinear(nn.Module):
         esquece — média amostral verdadeira desde o início do treino).
         Um inteiro (ex: 2000) limita a memória: depois de `slow_window`
         passos, o slow_heat passa a rastrear aproximadamente só os
-        últimos `slow_window` passos, e a proteção EWC de um neurônio
+        últimos `slow_window` passos, e a proteção de um neurônio
         decai naturalmente se ele parar de ser usado.
         Regra prática: escolha slow_window na ordem de grandeza do
         número de passos de treino por task (ou um pouco maior, se
@@ -87,11 +86,19 @@ class DualHeatLinear(nn.Module):
         fast_strength: float = 2.0,
         fast_decay_rate: float = 0.04,
         slow_strength: float = 2.0,
-        slow_window: Optional[int] = None,
+        slow_window: int | None = None,
         importance: str = "activation",
         bias: bool = True,
     ):
         super().__init__()
+        if not 0.0 <= fast_decay < 1.0:
+            raise ValueError("fast_decay deve estar no intervalo [0, 1)")
+        if fast_strength < 0.0:
+            raise ValueError("fast_strength deve ser >= 0")
+        if fast_decay_rate < 0.0:
+            raise ValueError("fast_decay_rate deve ser >= 0")
+        if slow_strength < 0.0:
+            raise ValueError("slow_strength deve ser >= 0")
         if slow_window is not None and slow_window < 1:
             raise ValueError("slow_window deve ser >= 1 ou None")
         if importance not in {"activation", "sensitivity"}:
@@ -120,10 +127,10 @@ class DualHeatLinear(nn.Module):
         self.register_buffer("slow_heat", torch.zeros(out_features))
         self.register_buffer("slow_n", torch.ones(1))
 
-        # EWC gradient hook
-        self.weight.register_hook(self._ewc_hook())
+        # Hook legado de modulação do gradiente
+        self.weight.register_hook(self._gradient_mask_hook())
         if bias:
-            self.bias.register_hook(self._ewc_hook())
+            self.bias.register_hook(self._gradient_mask_hook())
 
     def forward(self, x: Tensor) -> Tensor:
         # 1. Pré-ativação
@@ -155,7 +162,7 @@ class DualHeatLinear(nn.Module):
                 n_eff = min(n_true, self.slow_window) if self.slow_window else n_true
                 if self.importance == "activation":
                     self.slow_heat.add_((post_mag - self.slow_heat) / n_eff)
-                self.slow_n += 1
+                    self.slow_n += 1
 
             if self.importance == "sensitivity" and output.requires_grad:
                 output.register_hook(self._sensitivity_hook(output.detach()))
@@ -167,14 +174,16 @@ class DualHeatLinear(nn.Module):
         def hook(grad: Tensor) -> Tensor:
             with torch.no_grad():
                 reduce_dims = tuple(range(grad.dim() - 1))
-                signal = (grad.detach().abs() * activation.abs()).mean(dim=reduce_dims)
-                n_true = max(float(self.slow_n.item()) - 1.0, 1.0)
+                signal = (grad.detach().abs() * activation.abs()).sum(dim=reduce_dims)
+                assert isinstance(self.slow_n, Tensor)
+                n_true = float(self.slow_n.item())
                 n_eff = min(n_true, self.slow_window) if self.slow_window else n_true
                 self.slow_heat.add_((signal - self.slow_heat) / n_eff)
+                self.slow_n += 1
             return grad
         return hook
 
-    def _ewc_hook(self):
+    def _gradient_mask_hook(self):
         """Escala gradiente por 1/(1 + β·slow_heat)."""
         def hook(grad: Tensor) -> Tensor:
             if self.slow_strength <= 0.0:
@@ -224,7 +233,7 @@ def _act(name: str) -> nn.Module:
 
 
 class DualHeatMLP(nn.Sequential):
-    """MLP com DualHeatLinear v3 (inibição lateral + EWC + forgetting) nas ocultas."""
+    """MLP com DualHeatLinear v3 nas camadas ocultas."""
     def __init__(
         self,
         *dims: int,
@@ -233,11 +242,11 @@ class DualHeatMLP(nn.Sequential):
         fast_strength: float = 2.0,
         fast_decay_rate: float = 0.04,
         slow_strength: float = 2.0,
-        slow_window: Optional[int] = None,
+        slow_window: int | None = None,
         importance: str = "activation",
         protect_output: bool = False,
     ):
-        layers: List[nn.Module] = []
+        layers: list[nn.Module] = []
         for i in range(len(dims) - 2):
             layers.append(
                 DualHeatLinear(
@@ -267,8 +276,8 @@ class DualHeatMLP(nn.Sequential):
             layers.append(nn.Linear(dims[-2], dims[-1]))
         super().__init__(*layers)
 
-    def get_dual_layers(self) -> List[DualHeatLinear]:
+    def get_dual_layers(self) -> list[DualHeatLinear]:
         return [m for m in self.modules() if isinstance(m, DualHeatLinear)]
 
-    def get_lr_scales(self) -> List[Tensor]:
+    def get_lr_scales(self) -> list[Tensor]:
         return [m.get_lr_scales() for m in self.get_dual_layers()]
