@@ -5,8 +5,10 @@ from __future__ import annotations
 import csv
 import json
 import math
+import re
 import time
-from dataclasses import asdict, dataclass
+from copy import deepcopy
+from dataclasses import asdict, dataclass, replace
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -27,7 +29,31 @@ SUPPORTED_METHODS = {
     "slowheat_unidirectional",
     "slowheat_unbudgeted",
     "slowheat_none",
+    "hard_freeze",
+    "replay",
+    "distillation",
+    "slowheat_replay",
+    "slowheat_distillation",
 }
+
+_BETA_METHOD = re.compile(r"slowheat_beta_(\d+(?:\.\d+)?)$")
+
+
+def _is_slowheat(method: str) -> bool:
+    return method.startswith("slowheat_") or method in {"slowheat", "hard_freeze"}
+
+
+def _uses_replay(method: str) -> bool:
+    return method in {"replay", "slowheat_replay"}
+
+
+def _uses_distillation(method: str) -> bool:
+    return method in {"distillation", "slowheat_distillation"}
+
+
+def _method_strength(method: str, default: float) -> float:
+    match = _BETA_METHOD.fullmatch(method)
+    return float(match.group(1)) if match else default
 
 
 @dataclass(frozen=True)
@@ -50,6 +76,10 @@ class SplitMNISTConfig:
     adaptive_rate: float = 0.20
     adaptive_minimum: float = 0.10
     adaptive_maximum: float = 0.80
+    replay_per_class: int = 20
+    replay_batch_size: int = 64
+    distillation_strength: float = 1.0
+    distillation_temperature: float = 2.0
     methods: tuple[str, ...] = (
         "vanilla",
         "slowheat",
@@ -72,6 +102,8 @@ class SplitMNISTConfig:
             "batch_size": self.batch_size,
             "epochs_per_task": self.epochs_per_task,
             "validation_per_class": self.validation_per_class,
+            "replay_per_class": self.replay_per_class,
+            "replay_batch_size": self.replay_batch_size,
         }
         for name, value in integers.items():
             if value < 1:
@@ -93,6 +125,8 @@ class SplitMNISTConfig:
             "adaptive_rate": self.adaptive_rate,
             "adaptive_minimum": self.adaptive_minimum,
             "adaptive_maximum": self.adaptive_maximum,
+            "distillation_strength": self.distillation_strength,
+            "distillation_temperature": self.distillation_temperature,
         }
         for name, value in finite_values.items():
             if not math.isfinite(value):
@@ -111,9 +145,18 @@ class SplitMNISTConfig:
             raise ValueError("adaptive_rate deve ser >= 0")
         if not 0.0 <= self.adaptive_minimum <= self.adaptive_maximum <= 1.0:
             raise ValueError("limites adaptativos inválidos")
+        if self.distillation_strength < 0.0:
+            raise ValueError("distillation_strength deve ser >= 0")
+        if self.distillation_temperature <= 0.0:
+            raise ValueError("distillation_temperature deve ser > 0")
         if not self.methods or len(set(self.methods)) != len(self.methods):
             raise ValueError("methods deve ser não vazio e sem duplicatas")
-        unknown = set(self.methods) - SUPPORTED_METHODS
+        unknown = {
+            method
+            for method in self.methods
+            if method not in SUPPORTED_METHODS
+            and _BETA_METHOD.fullmatch(method) is None
+        }
         if unknown:
             raise ValueError(f"métodos desconhecidos: {sorted(unknown)}")
 
@@ -246,18 +289,16 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
         models: dict[str, nn.Module] = {}
         for method in config.methods:
             torch.manual_seed(config.seed)
-            if method == "vanilla":
+            if not _is_slowheat(method):
                 model: nn.Module = _vanilla_mlp(dims)
             else:
                 budget = (
-                    0.0
-                    if method == "slowheat_unbudgeted"
-                    else config.plasticity_budget
+                    0.0 if method == "slowheat_unbudgeted" else config.plasticity_budget
                 )
                 model = SlowHeatMLP(
                     *dims,
                     act="relu",
-                    slow_strength=config.slow_strength,
+                    slow_strength=_method_strength(method, config.slow_strength),
                     plasticity_budget=budget,
                     protect_output=True,
                 )
@@ -273,16 +314,14 @@ def _build_optimizer(
     model: nn.Module,
     config: SplitMNISTConfig,
 ) -> torch.optim.Optimizer:
-    if method == "vanilla":
+    if not _is_slowheat(method):
         return torch.optim.AdamW(
             model.parameters(),
             lr=config.learning_rate,
             weight_decay=config.weight_decay,
         )
     state_policy = (
-        "native"
-        if method == "slowheat_native_state"
-        else config.optimizer_state_policy
+        "native" if method == "slowheat_native_state" else config.optimizer_state_policy
     )
     optimizer = SlowHeatAdamW(
         model.parameters(),
@@ -295,7 +334,7 @@ def _build_optimizer(
         for layer in model.get_slow_layers():
             optimizer.register_slow_heat_module(layer)
     else:
-        optimizer.register_slow_heat_model(model)
+        optimizer.register_slow_heat_model(model, hard=method == "hard_freeze")
     return optimizer
 
 
@@ -316,6 +355,27 @@ def _accuracy(
         predictions = model(batch_x)[..., :seen_class_count].argmax(dim=-1)
         correct += int((predictions == batch_y).sum().item())
     return correct / len(inputs)
+
+
+@torch.no_grad()
+def _task_aware_accuracy(
+    model: nn.Module,
+    task: MNISTTask,
+    *,
+    device: str,
+) -> float:
+    """Evaluate within-task discrimination with the task classes supplied."""
+
+    model.eval()
+    classes = torch.tensor(task.classes, device=device)
+    correct = 0
+    for start in range(0, len(task.test_x), 1_024):
+        batch_x = task.test_x[start : start + 1_024].to(device)
+        batch_y = task.test_y[start : start + 1_024].to(device)
+        local = model(batch_x).index_select(-1, classes).argmax(dim=-1)
+        predictions = classes[local]
+        correct += int((predictions == batch_y).sum().item())
+    return correct / len(task.test_x)
 
 
 def _stage_curves(matrix: np.ndarray) -> tuple[list[float], list[float]]:
@@ -341,6 +401,43 @@ def _json_matrix(matrix: np.ndarray) -> list[list[float | None]]:
     ]
 
 
+def _replay_memory(
+    tasks: list[MNISTTask],
+    *,
+    before_stage: int,
+    samples_per_class: int,
+) -> tuple[Tensor, Tensor] | None:
+    if before_stage == 0:
+        return None
+    inputs: list[Tensor] = []
+    targets: list[Tensor] = []
+    for task in tasks[:before_stage]:
+        for label in task.classes:
+            indices = torch.nonzero(task.train_y == label, as_tuple=False).flatten()
+            selected = indices[:samples_per_class]
+            inputs.append(task.train_x[selected])
+            targets.append(task.train_y[selected])
+    return torch.cat(inputs), torch.cat(targets)
+
+
+def _distillation_loss(
+    student_logits: Tensor,
+    teacher: nn.Module,
+    inputs: Tensor,
+    *,
+    old_class_count: int,
+    temperature: float,
+) -> Tensor:
+    with torch.no_grad():
+        teacher_logits = teacher(inputs)[..., :old_class_count]
+        targets = F.softmax(teacher_logits / temperature, dim=-1)
+    predictions = F.log_softmax(
+        student_logits[..., :old_class_count] / temperature,
+        dim=-1,
+    )
+    return F.kl_div(predictions, targets, reduction="batchmean") * temperature**2
+
+
 def run_split_mnist(
     config: SplitMNISTConfig,
     tasks: list[MNISTTask],
@@ -363,12 +460,34 @@ def run_split_mnist(
                 seed=config.seed + task_index,
             )
         )
+    replay_memories = [
+        _replay_memory(
+            tasks,
+            before_stage=stage,
+            samples_per_class=config.replay_per_class,
+        )
+        for stage in range(config.task_count)
+    ]
+    replay_schedules = [
+        (
+            make_batch_schedule(
+                sample_count=len(memory[0]),
+                batch_size=config.replay_batch_size,
+                steps=len(schedules[stage]),
+                seed=config.seed + 10_000 + stage,
+            )
+            if memory is not None
+            else None
+        )
+        for stage, memory in enumerate(replay_memories)
+    ]
     models = build_paired_models(config)
     results: dict[str, dict[str, Any]] = {}
 
     for method, model in models.items():
         optimizer = _build_optimizer(method, model, config)
         matrix = np.full((config.task_count, config.task_count), np.nan)
+        task_aware_matrix = np.full((config.task_count, config.task_count), np.nan)
         baseline_scores = np.asarray(
             [
                 _accuracy(
@@ -385,6 +504,7 @@ def run_split_mnist(
         training_losses: list[list[float]] = []
         validation_acquisition: list[float] = []
         capacity_history: list[list[dict[str, float]]] = []
+        teacher: nn.Module | None = None
         started = time.perf_counter()
 
         for stage, task in enumerate(tasks):
@@ -398,12 +518,31 @@ def run_split_mnist(
             )
             model.train()
             stage_losses: list[float] = []
-            for indices in schedules[stage]:
-                batch_x = task.train_x[indices].to(config.device)
-                batch_y = task.train_y[indices].to(config.device)
+            replay_schedule = replay_schedules[stage]
+            replay_memory = replay_memories[stage]
+            for step_index, indices in enumerate(schedules[stage]):
+                current_x = task.train_x[indices].to(config.device)
+                current_y = task.train_y[indices].to(config.device)
+                train_x = current_x
+                train_y = current_y
+                if _uses_replay(method) and replay_memory is not None:
+                    assert replay_schedule is not None
+                    replay_indices = replay_schedule[step_index]
+                    replay_x = replay_memory[0][replay_indices].to(config.device)
+                    replay_y = replay_memory[1][replay_indices].to(config.device)
+                    train_x = torch.cat((current_x, replay_x))
+                    train_y = torch.cat((current_y, replay_y))
                 optimizer.zero_grad(set_to_none=True)
-                logits = model(batch_x)[..., :seen_class_count]
-                loss = F.cross_entropy(logits, batch_y)
+                logits = model(train_x)[..., :seen_class_count]
+                loss = F.cross_entropy(logits, train_y)
+                if _uses_distillation(method) and teacher is not None:
+                    loss = loss + config.distillation_strength * _distillation_loss(
+                        logits[: len(current_x)],
+                        teacher,
+                        current_x,
+                        old_class_count=stage * config.classes_per_task,
+                        temperature=config.distillation_temperature,
+                    )
                 loss.backward()
                 optimizer.step()
                 stage_losses.append(float(loss.detach().item()))
@@ -439,6 +578,16 @@ def run_split_mnist(
                     seen_class_count=seen_class_count,
                     device=config.device,
                 )
+                task_aware_matrix[stage, task_index] = _task_aware_accuracy(
+                    model,
+                    tasks[task_index],
+                    device=config.device,
+                )
+
+            if _uses_distillation(method):
+                teacher = deepcopy(model).eval()
+                for parameter in teacher.parameters():
+                    parameter.requires_grad_(False)
 
         elapsed = time.perf_counter() - started
         metrics = compute_cl_metrics(
@@ -446,9 +595,11 @@ def run_split_mnist(
             pretrain_scores=pretrain_scores,
             baseline_scores=baseline_scores,
         )
+        task_aware_metrics = compute_cl_metrics(task_aware_matrix)
         average_accuracy, average_forgetting = _stage_curves(matrix)
         results[method] = {
             "accuracy_matrix": _json_matrix(matrix),
+            "task_aware_accuracy_matrix": _json_matrix(task_aware_matrix),
             "stage_average_accuracy": average_accuracy,
             "stage_average_forgetting": average_forgetting,
             "validation_acquisition": validation_acquisition,
@@ -458,6 +609,11 @@ def run_split_mnist(
             "capacity_history": capacity_history,
             "elapsed_seconds": elapsed,
             "metrics": asdict(metrics),
+            "task_aware_metrics": asdict(task_aware_metrics),
+            "classifier_gap": (
+                task_aware_metrics.final_average_accuracy
+                - metrics.final_average_accuracy
+            ),
         }
 
     if output_dir is not None:
@@ -476,6 +632,9 @@ def run_split_mnist(
                 "average_forgetting",
                 "backward_transfer",
                 "forward_transfer",
+                "task_aware_final_accuracy",
+                "task_aware_forgetting",
+                "classifier_gap",
                 "elapsed_seconds",
             ]
             writer = csv.DictWriter(handle, fieldnames=fields)
@@ -494,7 +653,129 @@ def run_split_mnist(
                                 "forward_transfer",
                             )
                         },
+                        "task_aware_final_accuracy": result["task_aware_metrics"][
+                            "final_average_accuracy"
+                        ],
+                        "task_aware_forgetting": result["task_aware_metrics"][
+                            "average_forgetting"
+                        ],
+                        "classifier_gap": result["classifier_gap"],
                         "elapsed_seconds": result["elapsed_seconds"],
                     }
                 )
     return results
+
+
+AGGREGATE_METRICS = {
+    "final_average_accuracy": ("metrics", "final_average_accuracy"),
+    "average_forgetting": ("metrics", "average_forgetting"),
+    "backward_transfer": ("metrics", "backward_transfer"),
+    "forward_transfer": ("metrics", "forward_transfer"),
+    "task_aware_final_accuracy": ("task_aware_metrics", "final_average_accuracy"),
+    "task_aware_forgetting": ("task_aware_metrics", "average_forgetting"),
+    "classifier_gap": (None, "classifier_gap"),
+    "elapsed_seconds": (None, "elapsed_seconds"),
+}
+
+
+def _aggregate_summary(values: list[float]) -> dict[str, float]:
+    array = np.asarray(values, dtype=np.float64)
+    mean = float(np.mean(array))
+    std = float(np.std(array, ddof=1)) if len(array) > 1 else 0.0
+    return {
+        "mean": mean,
+        "std": std,
+        "ci95_normal_half_width": (
+            float(1.96 * std / np.sqrt(len(array))) if len(array) > 1 else 0.0
+        ),
+    }
+
+
+def _result_metric(result: dict[str, Any], metric: str) -> float:
+    section, key = AGGREGATE_METRICS[metric]
+    value = result[key] if section is None else result[section][key]
+    if value is None:
+        raise ValueError(f"métrica {metric} não está disponível")
+    return float(value)
+
+
+def run_split_mnist_multi_seed(
+    base_config: SplitMNISTConfig,
+    *,
+    seeds: list[int],
+    data_dir: str | Path,
+    output_dir: str | Path,
+    download: bool = True,
+    verbose: bool = False,
+) -> dict[str, Any]:
+    """Run paired Split-MNIST experiments and aggregate repeated seeds."""
+
+    if not seeds or len(set(seeds)) != len(seeds):
+        raise ValueError("seeds deve ser não vazio e conter valores únicos")
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    raw: dict[int, dict[str, dict[str, Any]]] = {}
+    for index, seed in enumerate(seeds):
+        if verbose:
+            print(f"[Split-MNIST] seed {index + 1}/{len(seeds)}: {seed}", flush=True)
+        config = replace(base_config, seed=seed)
+        tasks = load_split_mnist(
+            config,
+            data_dir=data_dir,
+            download=download if index == 0 else False,
+        )
+        raw[seed] = run_split_mnist(
+            config,
+            tasks,
+            output_dir=output_path / f"seed_{seed}",
+        )
+
+    aggregate: dict[str, Any] = {
+        "seeds": seeds,
+        "methods": {},
+        "paired_differences_vs_vanilla": {},
+    }
+    csv_rows: list[dict[str, Any]] = []
+    for method in base_config.methods:
+        aggregate["methods"][method] = {}
+        row: dict[str, Any] = {"method": method}
+        for metric in AGGREGATE_METRICS:
+            values = [_result_metric(raw[seed][method], metric) for seed in seeds]
+            summary = _aggregate_summary(values)
+            aggregate["methods"][method][metric] = summary
+            row[f"{metric}_mean"] = summary["mean"]
+            row[f"{metric}_std"] = summary["std"]
+            row[f"{metric}_ci95"] = summary["ci95_normal_half_width"]
+        csv_rows.append(row)
+
+    if "vanilla" in base_config.methods:
+        for method in base_config.methods:
+            if method == "vanilla":
+                continue
+            aggregate["paired_differences_vs_vanilla"][method] = {}
+            for metric in AGGREGATE_METRICS:
+                differences = [
+                    _result_metric(raw[seed][method], metric)
+                    - _result_metric(raw[seed]["vanilla"], metric)
+                    for seed in seeds
+                ]
+                aggregate["paired_differences_vs_vanilla"][method][metric] = (
+                    _aggregate_summary(differences)
+                )
+
+    with (output_path / "aggregate.json").open("w", encoding="utf-8") as handle:
+        json.dump(aggregate, handle, indent=2, sort_keys=True, allow_nan=False)
+    with (output_path / "multi_seed_config.json").open("w", encoding="utf-8") as handle:
+        json.dump(
+            {"base_config": asdict(base_config), "seeds": seeds},
+            handle,
+            indent=2,
+            sort_keys=True,
+        )
+    with (output_path / "aggregate.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(csv_rows[0]))
+        writer.writeheader()
+        writer.writerows(csv_rows)
+    return aggregate

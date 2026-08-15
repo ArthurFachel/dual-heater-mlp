@@ -80,6 +80,7 @@ class _PlasticityMaskMixin:
         module: torch.nn.Module,
         *,
         input_module: torch.nn.Module | None = None,
+        hard: bool = False,
     ) -> None:
         """Atomically register factorized masks derived from SlowHeat layers.
 
@@ -102,7 +103,9 @@ class _PlasticityMaskMixin:
         if isinstance(typed_module.bias, Parameter):
             parameters.append(typed_module.bias)
         if not all(self._parameter_position(item) is not None for item in parameters):
-            raise ValueError("todos os parâmetros do módulo devem pertencer ao optimizer")
+            raise ValueError(
+                "todos os parâmetros do módulo devem pertencer ao optimizer"
+            )
 
         typed_input: _SlowHeatModule | None = None
         input_position: tuple[int, int] | None = None
@@ -118,44 +121,61 @@ class _PlasticityMaskMixin:
                     "o peso do input_module deve pertencer ao mesmo optimizer"
                 )
             if typed_module.weight.ndim < 2:
-                raise ValueError("proteção fatorada requer parâmetro com ao menos 2 dims")
+                raise ValueError(
+                    "proteção fatorada requer parâmetro com ao menos 2 dims"
+                )
             if typed_module.weight.shape[1] != typed_input.slow_heat.numel():
                 raise ValueError(
                     "a importância de entrada não corresponde à dimensão do parâmetro"
                 )
 
+        def module_factor(source: _SlowHeatModule) -> Tensor:
+            if hard:
+                return (source.slow_heat <= 0.0).to(dtype=source.slow_heat.dtype)
+            return source.get_lr_scales()
+
         def weight_mask() -> Tensor:
-            output_factor = typed_module.get_lr_scales().reshape(
+            output_factor = module_factor(typed_module).reshape(
                 (-1,) + (1,) * (typed_module.weight.ndim - 1)
             )
             if typed_input is None:
                 return output_factor
-            input_factor = typed_input.get_lr_scales().reshape(
+            input_factor = module_factor(typed_input).reshape(
                 (1, -1) + (1,) * (typed_module.weight.ndim - 2)
             )
             return torch.minimum(output_factor, input_factor)
 
         def bias_mask() -> Tensor:
-            return typed_module.get_lr_scales()
+            return module_factor(typed_module)
+
+        if input_position is None:
+            weight_kind = "slowheat_hard_weight" if hard else "slowheat_weight"
+        else:
+            prefix = "slowheat_hard" if hard else "slowheat"
+            weight_kind = (
+                f"{prefix}_weight_factorized_from_"
+                f"{input_position[0]}_{input_position[1]}"
+            )
 
         typed_module.gradient_masking = False
         self.register_plasticity_mask(
             typed_module.weight,
             weight_mask,
-            kind=(
-                f"slowheat_weight_factorized_from_{input_position[0]}_{input_position[1]}"
-                if input_position is not None
-                else "slowheat_weight"
-            ),
+            kind=weight_kind,
         )
         if isinstance(typed_module.bias, Parameter):
             self.register_plasticity_mask(
                 typed_module.bias,
                 bias_mask,
-                kind="slowheat_bias",
+                kind="slowheat_hard_bias" if hard else "slowheat_bias",
             )
 
-    def register_slow_heat_model(self, model: torch.nn.Module) -> None:
+    def register_slow_heat_model(
+        self,
+        model: torch.nn.Module,
+        *,
+        hard: bool = False,
+    ) -> None:
         """Register a sequential SlowHeat model with factorized connectivity."""
 
         getter = getattr(model, "get_slow_layers", None)
@@ -180,7 +200,11 @@ class _PlasticityMaskMixin:
                 raise ValueError("camadas SlowHeat não formam uma cadeia compatível")
         previous = None
         for layer in layers:
-            self.register_slow_heat_module(layer, input_module=previous)
+            self.register_slow_heat_module(
+                layer,
+                input_module=previous,
+                hard=hard,
+            )
             previous = layer
 
     def clear_plasticity_masks(self) -> None:

@@ -43,8 +43,20 @@ python -m pip install -e '.[research]'
 
 The ready-to-run Split-MNIST class-incremental notebook is
 `notebooks/functional_slowheat_split_mnist.ipynb`. It compares the complete
-method with vanilla AdamW and component ablations, plots task trajectories and
-accuracy matrices, and runs a small `slow_strength × plasticity_budget` sweep.
+method at `beta = 10, 30, 100` with vanilla AdamW, exact hard-freeze, replay,
+distillation and combined variants. It reports class-incremental and task-aware
+matrices, locates classifier interference, plots the stability-plasticity
+trade-off and aggregates five paired seeds.
+
+The same five-seed protocol can be launched without Jupyter:
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES='' \
+PYTHONPATH=src:. python -m experiments.run_split_mnist_5seeds --device cpu
+```
+
+Per-seed outputs and `aggregate.csv` are written to
+`results/split_mnist_5seeds/` by default.
 
 ## Minimal usage
 
