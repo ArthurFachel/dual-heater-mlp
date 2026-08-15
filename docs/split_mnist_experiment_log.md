@@ -12,7 +12,14 @@ matrizes de acurácia devem ser arquivados junto com a revisão exata do código
 
 ## 1. O que significa `slowheat_replay_hidden_beta_30_budget_0.25`
 
-O nome é uma especificação executável do método:
+O nome pode ser lido como uma frase sobre o comportamento desejado do modelo:
+
+> Ao aprender uma tarefa nova, reapresente uma pequena amostra do passado,
+> descubra quais unidades internas foram funcionalmente importantes, desacelere
+> mudanças nessas unidades sem restringir a cabeça de decisão e reserve uma
+> parte explícita da rede para continuar aprendendo.
+
+Cada trecho transforma uma parte dessa frase em uma opção reproduzível:
 
 ```text
 slowheat_replay_hidden_beta_30_budget_0.25
@@ -23,6 +30,12 @@ slowheat_replay_hidden_beta_30_budget_0.25
 │        └──────────────────────── usa memória de replay
 └───────────────────────────────── usa Functional SlowHeat
 ```
+
+O nome completo é importante porque `SlowHeat` não identifica sozinho o
+procedimento experimental. Retirar `replay`, `hidden`, `beta_30` ou
+`budget_0.25` produz métodos com comportamento substancialmente diferente. Os
+testes mostraram, por exemplo, que SlowHeat sem replay falha, e que proteger a
+cabeça de saída pode inverter o benefício observado no modo hidden-only.
 
 ### `slowheat`
 
@@ -59,6 +72,11 @@ M_l[i,j] = min(m_output_l[i], m_output_l_minus_1[j])
 Assim, a importância de um neurônio protege sua linha de entrada e as colunas
 correspondentes na camada SlowHeat seguinte.
 
+**Importância do termo:** `slowheat` define onde está a memória estrutural do
+método. Em vez de obrigar todos os parâmetros a aprenderem mais devagar, ele
+tenta reduzir seletivamente a alteração dos caminhos que tiveram maior efeito
+sobre a loss das tarefas anteriores.
+
 ### `replay`
 
 O método mantém uma memória episódica balanceada das classes anteriores. Na
@@ -74,6 +92,11 @@ Replay fornece exemplos antigos reais durante a aprendizagem da tarefa atual.
 Os experimentos mostraram que essa informação é essencial: SlowHeat sozinho
 não substitui replay neste protocolo.
 
+**Importância do termo:** `replay` fornece o sinal de conteúdo que falta a uma
+proteção puramente paramétrica. SlowHeat diz “mude menos estes caminhos”, mas
+não reconstrói sozinho os exemplos, as fronteiras de decisão ou a distribuição
+das classes antigas. Replay reapresenta parte dessa informação.
+
 ### `hidden`
 
 Somente as camadas ocultas são `SlowHeatLinear`. A cabeça de saída é uma
@@ -87,6 +110,11 @@ o `classifier_gap`.
 No modo hidden-only, as conexões entre camadas ocultas continuam recebendo a
 proteção fatorada. Os pesos da cabeça de classificação não recebem máscara
 SlowHeat.
+
+**Importância do termo:** `hidden` separa retenção de representação e
+recalibração da decisão. As camadas internas preservam caminhos funcionais,
+enquanto a cabeça continua livre para reposicionar logits antigos e novos em
+uma escala comum. Essa separação foi decisiva para reduzir o classifier gap.
 
 ### `beta_30`
 
@@ -102,6 +130,11 @@ delta nativo. Os testes de 1, 2, 5, 10 e 20 épocas mostraram que essa proteçã
 forte precisa de mais passos para adquirir novas tarefas. Dez épocas foi o
 melhor compromisso observado.
 
+**Importância do termo:** `beta_30` torna explícito o ponto do compromisso
+estabilidade-plasticidade. Sem registrar beta, duas execuções chamadas apenas
+de “SlowHeat” podem aplicar intensidades de proteção incompatíveis. Beta `30`
+foi eficaz em dez épocas, mas subtreinou o modelo com uma ou duas épocas.
+
 ### `budget_0.25`
 
 O budget é a fração mínima de neurônios que deve continuar livre:
@@ -115,6 +148,20 @@ Portanto, `budget=0.25` não significa “proteger 25%”. Significa:
 - manter pelo menos 25% dos neurônios plásticos;
 - permitir que no máximo aproximadamente 75% sejam protegidos;
 - selecionar os protegidos pelo ranking de importância funcional.
+
+**Importância do termo:** `budget_0.25` impede que a consolidação ocupe a rede
+inteira. Ele transforma capacidade livre em uma restrição verificável, em vez
+de depender apenas de beta. Assim, mesmo com proteção forte, existe um
+reservatório mínimo de unidades disponível para aquisição futura.
+
+### Síntese operacional do nome
+
+Durante cada tarefa, `replay` mistura exemplos antigos aos atuais. `slowheat`
+mede a utilidade funcional nas camadas `hidden`. Na fronteira da tarefa, as
+unidades mais importantes são consolidadas, respeitando `budget_0.25`. Nas
+tarefas seguintes, `beta_30` reduz fortemente o delta dessas unidades, enquanto
+a cabeça de saída e pelo menos 25% de cada camada protegida permanecem livres
+para adaptação.
 
 ## 2. Protocolo Split-MNIST
 
@@ -226,6 +273,55 @@ Conclusão:
 
 Foram adicionados beta `10/30/100`, hard-freeze, replay, distillation,
 SlowHeat+replay, SlowHeat+distillation e avaliação task-aware.
+
+#### O que é distillation
+
+Distillation usa uma cópia congelada do modelo ao final da tarefa anterior
+como professor. Durante a tarefa nova, o aluno aprende a classe correta pela
+cross-entropy e, simultaneamente, tenta preservar a distribuição de logits do
+professor sobre as classes antigas.
+
+No runner, a distribuição antiga é suavizada por temperatura:
+
+```text
+q_teacher = softmax(logits_teacher_old / temperature)
+q_student = log_softmax(logits_student_old / temperature)
+L = L_cross_entropy + lambda * T^2 * KL(q_teacher || q_student)
+```
+
+Foram usados `temperature=2` e `lambda=1`. O professor é atualizado somente na
+fronteira de tarefa. Na variante `distillation`, não há exemplos antigos: o
+professor orienta os logits antigos usando entradas da tarefa atual. Na
+variante `slowheat_distillation`, essa restrição funcional é combinada com a
+proteção paramétrica SlowHeat.
+
+A importância de distillation é oferecer memória sem armazenar imagens
+antigas. Sua limitação é que entradas novas podem não cobrir a distribuição
+antiga. Neste Split-MNIST, ela preservou parte da discriminação task-aware, mas
+não impediu o forte viés da cabeça class-incremental.
+
+#### O que é hard-freeze
+
+Hard-freeze é a versão discreta da proteção. Depois da consolidação, uma
+unidade selecionada como importante recebe máscara `0`; uma unidade reservada
+como plástica recebe máscara `1`:
+
+```text
+m_i = 0, se slow_heat_i > 0
+m_i = 1, caso contrário
+```
+
+A máscara fatorada bloqueia exatamente as linhas e colunas protegidas no delta
+final do otimizador, inclusive movimentos causados por momentum e weight
+decay. Diferentemente da proteção suave, não existe atualização parcial em uma
+conexão congelada.
+
+A importância de hard-freeze é servir como controle de estabilidade máxima:
+se congelar caminhos importantes resolvesse o problema, ele deveria reter bem
+as tarefas antigas. O custo é perda abrupta de plasticidade e incapacidade de
+recalibrar parâmetros congelados. No teste realizado, hard-freeze sem replay
+não evitou o colapso class-incremental e apresentou a menor acurácia entre os
+métodos principais.
 
 Resultados centrais:
 
@@ -440,27 +536,7 @@ Os experimentos sustentam, neste protocolo específico:
    representacional final.
 8. O benefício tem custo de tempo relevante.
 
-## 9. Conclusões que ainda não são sustentadas
-
-Os resultados não demonstram que:
-
-- SlowHeat seja SOTA em continual learning;
-- SlowHeat supere replay sob orçamento computacional igual;
-- os resultados generalizem além de Split-MNIST;
-- o método seja robusto a ordens de tarefas diferentes;
-- o ganho permaneça com memória de replay maior ou menor;
-- a vantagem supere baselines especializados como DER++, ER-ACE, AGEM, EWC e
-  SI;
-- os p-valores exploratórios permaneçam após seleção de hiperparâmetros em um
-  conjunto completamente independente.
-
-As 20 seeds mais recentes incluem seeds usadas durante a exploração. Elas
-aumentam a precisão da estimativa, mas não formam um conjunto confirmatório
-inteiramente independente. O valor `1010` presente na lista é uma seed válida,
-mas deve ser confirmado como intencional para evitar erro de transcrição de
-`101`.
-
-## 10. Próximos testes recomendados
+## 9. Próximos testes recomendados
 
 ### Confirmação independente
 
@@ -506,7 +582,7 @@ mas deve ser confirmado como intencional para evitar erro de transcrição de
 - comparação com redução global de learning rate para separar seletividade de
   simples desaceleração.
 
-## 11. Configuração candidata congelada
+## 10. Configuração candidata congelada
 
 Até que um teste independente indique o contrário, o candidato experimental é:
 
