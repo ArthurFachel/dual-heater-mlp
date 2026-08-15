@@ -39,6 +39,8 @@ class SyntheticConfig:
     learning_rate: float = 1e-3
     weight_decay: float = 1e-4
     slow_strength: float = 3.0
+    plasticity_budget: float = 0.25
+    optimizer_state_policy: str = "follow_update"
     reduced_lr_factor: float = 0.1
     methods: tuple[str, ...] = ("vanilla", "reduced_lr", "slowheat_max")
 
@@ -65,6 +67,7 @@ class SyntheticConfig:
             "learning_rate": self.learning_rate,
             "weight_decay": self.weight_decay,
             "slow_strength": self.slow_strength,
+            "plasticity_budget": self.plasticity_budget,
             "reduced_lr_factor": self.reduced_lr_factor,
         }
         for name, value in float_values.items():
@@ -76,6 +79,12 @@ class SyntheticConfig:
             raise ValueError("weight_decay deve ser >= 0")
         if self.slow_strength < 0.0:
             raise ValueError("slow_strength deve ser >= 0")
+        if not 0.0 <= self.plasticity_budget <= 1.0:
+            raise ValueError("plasticity_budget deve estar em [0, 1]")
+        if self.optimizer_state_policy not in {"native", "follow_update"}:
+            raise ValueError(
+                "optimizer_state_policy deve ser 'native' ou 'follow_update'"
+            )
         if not 0.0 < self.reduced_lr_factor <= 1.0:
             raise ValueError("reduced_lr_factor deve estar em (0, 1]")
         if not self.methods:
@@ -91,6 +100,9 @@ class SyntheticConfig:
             "slowheat_none",
             "slowheat_max_sgd",
             "slowheat_max_legacy_adamw",
+            "slowheat_max_native_state",
+            "slowheat_max_unidirectional",
+            "slowheat_max_unbudgeted",
         }
         unknown = set(self.methods) - supported
         if unknown:
@@ -124,10 +136,17 @@ def build_paired_models(config: SyntheticConfig) -> dict[str, nn.Module]:
             if method in {"vanilla", "reduced_lr"}:
                 model: nn.Module = _vanilla_mlp(dims)
             elif method.startswith("slowheat_"):
+                budget = (
+                    0.0
+                    if method == "slowheat_max_unbudgeted"
+                    else config.plasticity_budget
+                )
                 model = SlowHeatMLP(
                     *dims,
                     act="gelu",
                     slow_strength=config.slow_strength,
+                    plasticity_budget=budget,
+                    protect_output=True,
                 )
             else:  # guarded by validate
                 raise AssertionError(method)
@@ -213,9 +232,15 @@ def _make_tasks(config: SyntheticConfig) -> list[tuple[Tensor, Tensor, Tensor, T
 
 
 @torch.no_grad()
-def _accuracy(model: nn.Module, inputs: Tensor, targets: Tensor) -> float:
+def _accuracy(
+    model: nn.Module,
+    inputs: Tensor,
+    targets: Tensor,
+    *,
+    seen_class_count: int,
+) -> float:
     model.eval()
-    predictions = model(inputs).argmax(dim=-1)
+    predictions = model(inputs)[..., :seen_class_count].argmax(dim=-1)
     return float((predictions == targets).float().mean().item())
 
 
@@ -233,16 +258,26 @@ def _build_optimizer(
                 model.parameters(),
                 lr=learning_rate,
                 weight_decay=config.weight_decay,
+                state_policy=config.optimizer_state_policy,
             )
         else:
+            state_policy = (
+                "native"
+                if method == "slowheat_max_native_state"
+                else config.optimizer_state_policy
+            )
             optimizer = SlowHeatAdamW(
                 model.parameters(),
                 lr=learning_rate,
                 weight_decay=config.weight_decay,
+                state_policy=state_policy,
             )
         assert isinstance(model, SlowHeatMLP)
-        for layer in model.get_slow_layers():
-            optimizer.register_slow_heat_module(layer)
+        if method == "slowheat_max_unidirectional":
+            for layer in model.get_slow_layers():
+                optimizer.register_slow_heat_module(layer)
+        else:
+            optimizer.register_slow_heat_model(model)
         return optimizer
     return torch.optim.AdamW(
         model.parameters(),
@@ -285,7 +320,15 @@ def run_experiment(
         optimizer = _build_optimizer(method, model, config)
         matrix = np.full((config.task_count, config.task_count), np.nan)
         baseline_scores = np.asarray(
-            [_accuracy(model, task[2], task[3]) for task in tasks],
+            [
+                _accuracy(
+                    model,
+                    task[2],
+                    task[3],
+                    seen_class_count=(task_index + 1) * config.classes_per_task,
+                )
+                for task_index, task in enumerate(tasks)
+            ],
             dtype=np.float64,
         )
         pretrain_scores = np.empty(config.task_count, dtype=np.float64)
@@ -297,12 +340,15 @@ def run_experiment(
                 model,
                 tasks[stage][2],
                 tasks[stage][3],
+                seen_class_count=(stage + 1) * config.classes_per_task,
             )
             model.train()
             task_losses: list[float] = []
             for indices in schedules[stage]:
                 optimizer.zero_grad(set_to_none=True)
-                loss = F.cross_entropy(model(train_x[indices]), train_y[indices])
+                seen_class_count = (stage + 1) * config.classes_per_task
+                logits = model(train_x[indices])[..., :seen_class_count]
+                loss = F.cross_entropy(logits, train_y[indices])
                 loss.backward()
                 optimizer.step()
                 task_losses.append(float(loss.detach().item()))
@@ -323,6 +369,7 @@ def run_experiment(
                     model,
                     tasks[task_index][2],
                     tasks[task_index][3],
+                    seen_class_count=(stage + 1) * config.classes_per_task,
                 )
 
         elapsed = time.perf_counter() - started
@@ -338,6 +385,14 @@ def run_experiment(
             "training_losses": losses,
             "elapsed_seconds": elapsed,
             "metrics": asdict(metrics),
+            "capacity": (
+                [
+                    layer.capacity_metrics()
+                    for layer in model.get_slow_layers()
+                ]
+                if isinstance(model, SlowHeatMLP)
+                else None
+            ),
         }
 
     with (output_path / "config.json").open("w", encoding="utf-8") as handle:

@@ -1,6 +1,11 @@
-# Synthetic ablation pilot (3 seeds)
+# Synthetic ablation pilot (3 seeds, superseded implementation)
 
 > Diagnostic CPU-only pilot. This is not publication evidence.
+
+> These artifacts predate functional `|z*dL/dz|` importance, factorized
+> row/column masks, capacity budgeting, output-head protection, future-logit
+> masking and `follow_update` optimizer-state semantics. They must not be used
+> as results for the current implementation.
 
 The raw matrices, losses, configs and per-seed summaries are archived in
 `artifacts/synthetic_ablation_pilot/`. The run predates a commit identifier and

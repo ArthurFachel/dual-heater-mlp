@@ -1,18 +1,37 @@
-# SlowHeat Revisited: MAX-Consolidated Neuron Importance and Optimizer-Aware Plasticity in Continual Learning
+# Functional SlowHeat: Scale-Invariant Neuron Utility, Factorized Protection and Capacity-Aware Plasticity
 
 ## Status
 
-Technical manuscript draft. The implementation and methodological analysis are validated by unit tests and a small diagnostic pilot. The efficacy of the method is not yet established on standard continual-learning benchmarks.
+Technical manuscript draft. The current implementation is validated by unit
+and integration tests, but its efficacy is not yet established on standard
+continual-learning benchmarks. The three-seed pilot in Section 5 predates the
+functional-importance, factorized-protection, capacity-budget and optimizer-state
+changes; it is retained only as historical motivation and must not be reported
+as evidence for the current method.
 
 ## Abstract
 
-Neuron-level importance masks are an appealing way to regulate the stability-plasticity trade-off without replay. However, multiplying raw gradients by an importance-dependent factor does not generally produce an equivalent learning-rate reduction under adaptive optimizers. Adam and AdamW normalize gradients through moment estimates, and AdamW's decoupled weight decay can update parameters independently of a masked gradient. We revisit SlowHeat, a local continual-learning mechanism that tracks activation magnitude within each task and consolidates neuron importance across tasks with an elementwise maximum. We separate importance estimation from optimizer semantics and introduce an optimizer-aware implementation that applies the plasticity mask to the final preconditioned update, including weight decay. We also replace a Task-0-only retention measure with a complete stage-by-task evaluation matrix and standard average accuracy, forgetting, backward-transfer and forward-transfer calculations. In a three-seed synthetic diagnostic pilot, optimizer-aware MAX consolidation reduced observed forgetting but substantially reduced final average accuracy, exposing a stability-plasticity trade-off rather than a general improvement. These findings motivate controlled tuning and comparison against specialized baselines before efficacy claims are made.
+Neuron-level importance masks are an appealing way to regulate the
+stability-plasticity trade-off without replay, but activation magnitude is not
+invariant to function-preserving neuron reparameterization and row-only masks do
+not protect outgoing connectivity. Functional SlowHeat estimates normalized
+first-order neuron utility with `|z dL/dz|`, consolidates persistent evidence,
+derives protection under an explicit plastic-capacity budget and applies a
+factorized mask to both incoming rows and downstream columns. Optimizer-aware
+AdamW and SGD wrappers apply the mask to the final parameter delta and, under
+the default policy, to tensor-valued optimizer-state deltas. The method is
+implemented and covered by falsification tests, but has not yet been evaluated
+against specialized baselines on standard benchmarks. No efficacy or
+state-of-the-art claim is made.
 
 ## 1. Motivation
 
 Continual learners must preserve performance on previously learned tasks while retaining enough plasticity to acquire new ones. Parameter-importance methods typically protect parts of a model that matter for old tasks. Examples include Elastic Weight Consolidation (EWC), Synaptic Intelligence (SI), activation-based neuron importance and uncertainty-guided learning-rate adaptation.
 
-SlowHeat explores a simpler local mechanism. Each protected layer maintains one importance value per output neuron. During a task, the layer tracks the magnitude of its pre-activation. At a task boundary, the current estimate is consolidated into persistent memory. The original prototype used an elementwise maximum to prevent a strongly used neuron from losing protection when later tasks do not activate it.
+SlowHeat explores a local mechanism with one persistent value per output
+neuron. The original prototype tracked pre-activation magnitude. The current
+method instead tracks normalized first-order functional utility during backward
+and treats the original statistic as a required ablation.
 
 The initial implementation and benchmark were not sufficient to support an efficacy claim. They mixed an imprecise forgetting metric, unmatched model initialization and raw-gradient masking under AdamW. This article is therefore framed around methodological correction and diagnostic evidence, not around a claim that SlowHeat outperforms established continual-learning methods.
 
@@ -20,13 +39,20 @@ The initial implementation and benchmark were not sufficient to support an effic
 
 ### 2.1 Within-task importance
 
-For output unit `i` at optimization step `s`, let `z_i^(s)` be its pre-activation. SlowHeat tracks an online estimate:
+For output unit `i` at optimization step `s`, let `z_i^(s)` be its
+pre-activation. Functional SlowHeat tracks:
 
 ```text
-h_task,i <- EMA(mean(|z_i|))
+u_i <- sum_samples |z_i * dL/dz_i|
+u_normalized,i <- u_i / (mean_j(u_j) + epsilon)
+h_task,i <- EMA(u_normalized,i)
 ```
 
-For linear layers, the reduction covers every leading dimension and preserves the last output dimension. This supports both ordinary `[batch, features]` inputs and sequence-shaped `[batch, sequence, features]` inputs. Convolutional layers reduce batch and spatial dimensions while preserving channels.
+For linear layers, the reduction covers every leading dimension and preserves
+the last output dimension. Convolutional layers reduce batch and spatial
+dimensions while preserving channels. Under reciprocal reparameterization of a
+positively homogeneous unit, `z` scales by `c` and `dL/dz` by `1/c`, leaving
+their product unchanged. A dead ReLU receives zero utility.
 
 ### 2.2 Task-boundary consolidation
 
@@ -36,7 +62,12 @@ The main SlowHeat rule is:
 h_slow,i <- max(h_slow,i, h_task,i)
 ```
 
-The maximum is monotonic and preserves the strongest importance recorded for each unit. It is not intrinsically novel: cumulative maximum masks have precedents, including Hard Attention to the Task. The plausible contribution is the specific combination of continuous local activation importance, task-local tracking, MAX consolidation and explicit optimizer-aware plasticity control.
+The maximum is monotonic and preserves the strongest recorded evidence. It is
+not intrinsically novel. After evidence consolidation, a rank-based budget
+selects at most `floor((1-p)N)` protected units, where `p` is the minimum
+plastic fraction. Selected evidence is normalized to `[0,1]`. A bounded
+validation-driven controller may increase `p` when acquisition is below a
+predeclared target; test accuracy may not drive this controller.
 
 The implementation also supports mean and sum consolidation for controlled ablations. These alternatives are experimental controls, not recommended defaults.
 
@@ -50,7 +81,11 @@ m_i = 1 / (1 + beta * h_slow,i)
 
 where `beta >= 0` controls protection strength. `m_i = 1` permits the native update. Values near zero strongly protect the corresponding output row and bias.
 
-This mechanism is not EWC. It contains no Fisher information, old-parameter snapshot or quadratic restoring force.
+For `W_l[i,j]`, the final factor is the minimum of the destination-neuron and
+source-neuron plasticity factors. This protects both a neuron's incoming row and
+its outgoing columns without storing per-weight importance. The mechanism is
+not EWC: it contains no Fisher information, old-parameter snapshot or quadratic
+restoring force.
 
 ## 3. Why Raw Gradient Scaling Is Not AdamW Update Scaling
 
@@ -85,7 +120,10 @@ This contract is directly testable:
 - mask `0.1` produces one tenth of the final native update;
 - optimizer state survives checkpoint round trips.
 
-The implementation keeps AdamW moment updates even when the final parameter movement is masked. This is an explicit design choice and should be compared with state-masking alternatives.
+The default `follow_update` policy applies the same interpolation to
+tensor-valued optimizer-state deltas. The `native` policy retains unmasked
+moment evolution as an explicit ablation. Scalar AdamW step counters remain
+global, a limitation of using the native PyTorch optimizer state layout.
 
 ## 4. Experimental Corrections
 
@@ -125,7 +163,7 @@ Average forgetting excludes the final task because it has no subsequent task ove
 
 Backward transfer compares final performance with performance immediately after learning each old task. Forward transfer uses performance immediately before training a future task minus a separately measured random-initialization baseline. Accuracy after training the new task is not forward transfer.
 
-## 5. Diagnostic Pilot
+## 5. Historical Diagnostic Pilot (Superseded Method)
 
 The CPU-only pilot used three seeds, three tasks, two classes per task and 20 optimizer steps per task. It was designed to verify the protocol and expose confounds, not to estimate benchmark performance.
 
@@ -168,19 +206,30 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 3. Add Split MNIST as a debugging benchmark, then Split CIFAR-10 and Split CIFAR-100.
 4. Compare with EWC, SI, MAS, activation-based importance, UCB, HAT, SLNID, replay and joint training.
 5. Report final average accuracy, average forgetting, BWT, FWT, per-task trajectories, runtime and peak memory.
-6. Ablate MAX, mean, sum, no consolidation, legacy gradient masking, optimizer-aware masking and global learning-rate reduction.
-7. Sweep `beta` and plot the Pareto frontier between final accuracy and forgetting instead of optimizing either metric alone.
-8. Evaluate whether optimizer state should evolve when a parameter's final update is masked.
-9. Repeat efficiency measurements after warm-up on the same hardware and software stack.
+6. Ablate functional versus activation importance, factorized versus row-only
+   masking, fixed/adaptive/no capacity budget and protected/unprotected output.
+7. Ablate MAX, mean, sum, no consolidation, legacy gradient masking,
+   optimizer-aware masking and global learning-rate reduction.
+8. Compare `follow_update` and `native` optimizer-state policies.
+9. Sweep `beta` and the capacity budget and plot the Pareto frontier between
+   final accuracy and forgetting instead of optimizing either metric alone.
+10. Repeat efficiency measurements after warm-up on the same hardware and
+    software stack.
 
 ## 8. Safe Claims
 
 Currently supported:
 
 - Raw gradient scaling is not equivalent to explicit final-update scaling under AdamW.
-- The corrected implementation masks the complete AdamW/SGD update, including weight decay.
+- The corrected implementation masks the complete AdamW/SGD update, including
+  weight decay, and can make tensor-valued state follow the applied update.
+- Functional utility passes reciprocal ReLU reparameterization and dead-unit
+  falsification tests.
+- Factorized masks protect incoming rows and downstream columns, while the
+  budget guarantees a minimum plastic fraction up to integer rounding.
 - The benchmark now uses paired initialization, fixed batches and a complete accuracy matrix.
-- In a tiny synthetic pilot, stronger protection reduced measured forgetting while reducing final accuracy.
+- In a historical pilot of the superseded method, stronger protection reduced
+  measured forgetting while reducing final accuracy.
 
 Not currently supported:
 

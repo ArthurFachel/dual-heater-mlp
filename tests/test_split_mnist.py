@@ -1,0 +1,109 @@
+import json
+
+import numpy as np
+import pytest
+import torch
+
+from experiments.split_mnist import (
+    MNISTTask,
+    SplitMNISTConfig,
+    build_paired_models,
+    run_split_mnist,
+)
+
+
+def _tiny_tasks(config: SplitMNISTConfig) -> list[MNISTTask]:
+    generator = torch.Generator().manual_seed(config.seed)
+    centers = torch.randn(10, 784, generator=generator)
+    tasks = []
+    for task_index in range(config.task_count):
+        start = task_index * config.classes_per_task
+        classes = config.class_order[start : start + config.classes_per_task]
+
+        def split(
+            samples: int,
+            task_classes: tuple[int, ...] = tuple(classes),
+        ) -> tuple[torch.Tensor, torch.Tensor]:
+            inputs = []
+            targets = []
+            for label in task_classes:
+                inputs.append(
+                    centers[label]
+                    + 0.1 * torch.randn(samples, 784, generator=generator)
+                )
+                targets.append(torch.full((samples,), label, dtype=torch.long))
+            return torch.cat(inputs), torch.cat(targets)
+
+        train_x, train_y = split(2)
+        validation_x, validation_y = split(1)
+        test_x, test_y = split(1)
+        tasks.append(
+            MNISTTask(
+                classes=tuple(classes),
+                train_x=train_x,
+                train_y=train_y,
+                validation_x=validation_x,
+                validation_y=validation_y,
+                test_x=test_x,
+                test_y=test_y,
+            )
+        )
+    return tasks
+
+
+def test_split_mnist_models_have_paired_trainable_initialization():
+    config = SplitMNISTConfig(
+        hidden_dims=(8,),
+        methods=("vanilla", "slowheat"),
+    )
+
+    models = build_paired_models(config)
+
+    vanilla = dict(models["vanilla"].named_parameters())
+    slowheat = dict(models["slowheat"].named_parameters())
+    assert vanilla.keys() == slowheat.keys()
+    assert all(torch.equal(vanilla[name], slowheat[name]) for name in vanilla)
+
+
+def test_tiny_split_mnist_run_produces_curves_and_artifacts(tmp_path):
+    config = SplitMNISTConfig(
+        seed=3,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        methods=("vanilla", "slowheat", "slowheat_adaptive"),
+    )
+
+    results = run_split_mnist(config, _tiny_tasks(config), output_dir=tmp_path)
+
+    assert results.keys() == {"vanilla", "slowheat", "slowheat_adaptive"}
+    for result in results.values():
+        matrix = np.asarray(
+            [
+                [np.nan if value is None else value for value in row]
+                for row in result["accuracy_matrix"]
+            ]
+        )
+        assert matrix.shape == (5, 5)
+        assert len(result["stage_average_accuracy"]) == 5
+        assert len(result["stage_average_forgetting"]) == 5
+    assert len(results["slowheat_adaptive"]["capacity_history"]) == 5
+    assert (tmp_path / "summary.csv").is_file()
+    saved = json.loads((tmp_path / "results.json").read_text())
+    assert saved.keys() == results.keys()
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"class_order": (0, 1, 2)},
+        {"plasticity_budget": 1.1},
+        {"methods": ("unknown",)},
+    ],
+)
+def test_split_mnist_config_rejects_invalid_protocol(updates):
+    values = {**SplitMNISTConfig().__dict__, **updates}
+    config = SplitMNISTConfig(**values)
+
+    with pytest.raises(ValueError):
+        config.validate()

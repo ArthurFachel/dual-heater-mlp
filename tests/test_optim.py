@@ -261,3 +261,77 @@ def test_generic_masks_reject_invalid_values_and_shapes(mask, message):
 
     with pytest.raises(ValueError, match=message):
         optimizer.step()
+
+
+def test_factorized_mask_protects_rows_and_columns():
+    source = SlowHeatLinear(2, 2, slow_strength=9.0)
+    target = SlowHeatLinear(2, 2, slow_strength=9.0)
+    source.slow_heat.copy_(torch.tensor([1.0, 0.0]))
+    target.slow_heat.copy_(torch.tensor([0.0, 1.0]))
+    optimizer = SlowHeatSGD(
+        [*source.parameters(), *target.parameters()],
+        lr=1.0,
+    )
+    optimizer.register_slow_heat_module(target, input_module=source)
+    before = target.weight.detach().clone()
+    target.weight.grad = torch.ones_like(target.weight)
+    target.bias.grad = torch.ones_like(target.bias)
+
+    optimizer.step()
+
+    applied = before - target.weight.detach()
+    expected = torch.tensor([[0.1, 1.0], [0.1, 0.1]])
+    assert torch.allclose(applied, expected)
+
+
+def test_follow_update_policy_masks_adam_moment_state():
+    parameter = torch.nn.Parameter(torch.tensor([1.0, 1.0]))
+    optimizer = SlowHeatAdamW(
+        [parameter],
+        lr=0.1,
+        weight_decay=0.0,
+        state_policy="follow_update",
+    )
+    optimizer.register_plasticity_mask(parameter, torch.tensor([0.0, 1.0]))
+    parameter.grad = torch.ones_like(parameter)
+
+    optimizer.step()
+
+    state = optimizer.state[parameter]
+    assert parameter[0] == 1.0
+    assert state["exp_avg"][0] == 0.0
+    assert state["exp_avg_sq"][0] == 0.0
+    assert state["exp_avg"][1] != 0.0
+    assert state["exp_avg_sq"][1] != 0.0
+
+
+def test_native_state_policy_keeps_moments_for_blocked_parameter():
+    parameter = torch.nn.Parameter(torch.tensor([1.0]))
+    optimizer = SlowHeatAdamW(
+        [parameter],
+        lr=0.1,
+        weight_decay=0.0,
+        state_policy="native",
+    )
+    optimizer.register_plasticity_mask(parameter, torch.tensor([0.0]))
+    parameter.grad = torch.ones_like(parameter)
+
+    optimizer.step()
+
+    assert parameter.item() == 1.0
+    assert optimizer.state[parameter]["exp_avg"].item() != 0.0
+
+
+def test_checkpoint_rejects_different_optimizer_state_policy():
+    parameter = torch.nn.Parameter(torch.tensor([1.0]))
+    first = SlowHeatAdamW([parameter], lr=0.1, state_policy="follow_update")
+    state = deepcopy(first.state_dict())
+    restored_parameter = torch.nn.Parameter(torch.tensor([1.0]))
+    restored = SlowHeatAdamW(
+        [restored_parameter],
+        lr=0.1,
+        state_policy="native",
+    )
+
+    with pytest.raises(ValueError, match="state_policy"):
+        restored.load_state_dict(state)

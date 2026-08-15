@@ -48,6 +48,24 @@ def test_batch_schedule_is_deterministic_and_reused_by_method():
     assert all(torch.equal(a, b) for a, b in zip(first, second))
 
 
+def test_future_classifier_rows_receive_no_gradient_before_their_stage():
+    config = SyntheticConfig(
+        n_features=4,
+        classes_per_task=2,
+        task_count=2,
+        hidden_dims=(6,),
+        methods=("slowheat_max",),
+    )
+    model = build_paired_models(config)["slowheat_max"]
+    logits = model(torch.randn(5, 4))
+    targets = torch.tensor([0, 1, 0, 1, 0])
+
+    torch.nn.functional.cross_entropy(logits[:, :2], targets).backward()
+
+    output_weight = model[-1].weight
+    assert torch.count_nonzero(output_weight.grad[2:]) == 0
+
+
 def test_tiny_experiment_writes_complete_reproducibility_artifacts(tmp_path):
     config = SyntheticConfig(
         seed=3,
@@ -87,6 +105,9 @@ def test_all_optimizer_and_consolidation_ablations_complete_a_cpu_step(tmp_path)
         "slowheat_mean",
         "slowheat_sum",
         "slowheat_none",
+        "slowheat_max_native_state",
+        "slowheat_max_unidirectional",
+        "slowheat_max_unbudgeted",
         "slowheat_max_sgd",
         "slowheat_max_legacy_adamw",
     )
