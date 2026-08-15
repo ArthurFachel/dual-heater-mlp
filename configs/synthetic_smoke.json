@@ -11,5 +11,7 @@
   "learning_rate": 0.001,
   "weight_decay": 0.0001,
   "slow_strength": 3.0,
+  "plasticity_budget": 0.25,
+  "optimizer_state_policy": "follow_update",
   "methods": ["vanilla", "reduced_lr", "slowheat_max"]
 }

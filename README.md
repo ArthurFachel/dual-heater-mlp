@@ -6,14 +6,20 @@ Research code for neuron-level plasticity mechanisms in continual learning.
 
 ## Current focus
 
-The current research direction is **SlowHeat with task-boundary MAX consolidation** and explicit optimizer-aware update masking.
+The current research direction is **Functional SlowHeat**: scale-invariant
+neuron utility, factorized path protection, capacity budgeting and explicit
+optimizer-state semantics.
 
 SlowHeat maintains one importance value per output unit:
 
-1. During a task, it tracks pre-activation magnitude.
-2. At a task boundary, it consolidates the task statistic into persistent importance.
-3. Persistent importance produces a plasticity factor.
-4. `SlowHeatAdamW` or `SlowHeatSGD` applies that factor to the optimizer’s final parameter update.
+1. During backward it tracks normalized first-order utility
+   `|z * dL/dz|`, not activation magnitude alone.
+2. At a task boundary it consolidates utility into persistent evidence.
+3. A layer-wise rank budget guarantees a minimum fraction of plastic neurons.
+4. Factorized masks protect both the incoming row and outgoing columns of an
+   important neuron.
+5. `SlowHeatAdamW` or `SlowHeatSGD` applies the mask to both the final parameter
+   delta and, by default, tensor-valued optimizer-state deltas.
 
 The mechanism is not EWC. It does not use Fisher information, old-parameter anchors or a quadratic restoring penalty.
 
@@ -29,24 +35,41 @@ Development dependencies:
 python -m pip install -e '.[dev]'
 ```
 
+Research notebook dependencies:
+
+```bash
+python -m pip install -e '.[research]'
+```
+
+The ready-to-run Split-MNIST class-incremental notebook is
+`notebooks/functional_slowheat_split_mnist.ipynb`. It compares the complete
+method with vanilla AdamW and component ablations, plots task trajectories and
+accuracy matrices, and runs a small `slow_strength × plasticity_budget` sweep.
+
 ## Minimal usage
 
 ```python
-from dual_heater import SlowHeatAdamW, SlowHeatLinear
+from dual_heater import SlowHeatAdamW, SlowHeatMLP
 
-layer = SlowHeatLinear(128, 64, slow_strength=3.0)
+model = SlowHeatMLP(
+    128, 64, 32, 10,
+    slow_strength=3.0,
+    plasticity_budget=0.25,
+    protect_output=True,
+)
 optimizer = SlowHeatAdamW(
-    layer.parameters(),
+    model.parameters(),
     lr=1e-3,
     weight_decay=1e-2,
+    state_policy="follow_update",
 )
-optimizer.register_slow_heat_module(layer)
+optimizer.register_slow_heat_model(model)
 ```
 
 After each task:
 
 ```python
-layer.consolidate(strategy="max")
+model.consolidate(strategy="max")
 ```
 
 Available experimental consolidation strategies:
@@ -55,7 +78,12 @@ Available experimental consolidation strategies:
 - `mean`: running mean across task statistics;
 - `sum`: unnormalized accumulated importance.
 
-These strategies produce different importance scales. Comparing them with the same `slow_strength` does not guarantee matched regularization strength.
+The persistent evidence is converted to a `[0, 1]` protection vector after
+each consolidation, so at least `plasticity_budget` of every layer remains
+unprotected. `adapt_capacity()` can update that budget from a separately held
+out validation acquisition score. Test-set scores must not drive the controller.
+
+See `docs/functional_slowheat.md` for the method contract.
 
 ## Why optimizer-aware masking is necessary
 
@@ -75,7 +103,10 @@ The corrected optimizers:
 
 Mask `1` preserves the native update. Mask `0` blocks it.
 
-Optimizer moments still evolve from unmasked gradients. This is an explicit experimental design choice, not a proven optimal rule. It requires ablation against state-masking alternatives.
+With the default `state_policy="follow_update"`, tensor-valued moment deltas
+are interpolated by the same mask as the parameter delta. The ablation
+`state_policy="native"` retains the previous behavior in which moments evolve
+from the native optimizer trajectory.
 
 See `docs/optimizer_semantics.md`.
 
@@ -95,7 +126,11 @@ The API validates matrix shape, finitude and accuracy range `[0,1]`.
 
 ## Reproducible synthetic protocol
 
-The canonical synthetic runner is class-incremental with one shared output head. Inference receives no task ID, but SlowHeat receives oracle task-boundary events to call `consolidate()`:
+The canonical synthetic runner is class-incremental with one shared output
+head. Inference receives no task ID, but SlowHeat receives oracle task-boundary
+events to call `consolidate()`. Logits for future classes are masked during
+training and evaluation, leaving their classifier rows untouched until their
+classes arrive:
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES='' \
@@ -125,7 +160,9 @@ See `docs/reproducibility.md`.
 
 ## Diagnostic pilot
 
-A tiny three-seed CPU pilot was used to validate wiring and expose confounds. It is not publication evidence.
+A tiny three-seed CPU pilot was used to validate the previous activation-based
+implementation and expose confounds. It is historical diagnostic evidence and
+must not be presented as a result of Functional SlowHeat.
 
 Main observation:
 
@@ -142,19 +179,33 @@ See `docs/synthetic_ablation_pilot.md`.
 
 - No standard image or language continual-learning benchmark has been completed with the corrected optimizer.
 - No specialized replay, EWC, SI, MAS, UCB, HAT, NAI or SLNID baseline is implemented in the corrected protocol.
-- The shared classifier is currently unprotected in `SlowHeatMLP`.
+- The output classifier is protected by default, but classifier expansion and
+  alignment have not yet been evaluated on a standard benchmark.
 - The pilot uses only three seeds and a simple Gaussian dataset.
 - Raw pilot artifacts are generated under ignored `results/` directories and must be archived with environment and Git metadata before publication.
 - LoRA output masking does not guarantee independent protection of every output because `lora_A` is shared across outputs.
 - The forward inhibition mechanism is a train-only regularizer; evaluation uses the uninhibited function.
-- Runtime and memory scalability have not been established. Importance state is per unit, but applying masks and cloning optimizer deltas touches protected parameters and requires temporary parameter-scale memory.
+- Runtime and memory scalability have not been established. Persistent
+  importance state is per unit, but parameter and optimizer-state snapshots
+  require temporary parameter-scale memory.
+- The adaptive capacity API requires a held-out validation signal; the
+  synthetic runner currently uses a fixed predeclared budget to avoid test
+  leakage.
+- Functional importance is first-order and local. It is scale-invariant under
+  reciprocal homogeneous-neuron reparameterization, but it is not a causal or
+  second-order importance oracle.
 
 ## Safe claims
 
 Supported:
 
 - raw-gradient scaling is not equivalent to final-update scaling under AdamW;
-- the corrected wrappers mask the complete AdamW/SGD parameter delta;
+- the corrected wrappers mask the complete AdamW/SGD parameter delta and can
+  make tensor-valued optimizer state follow that mask;
+- `|z * dL/dz|` passes a reciprocal ReLU reparameterization test and assigns
+  zero utility to a dead ReLU unit;
+- factorized registration protects output rows and downstream input columns;
+- capacity budgeting enforces a minimum realized plastic fraction;
 - the synthetic runner pairs initialization and minibatches;
 - a tiny diagnostic pilot exposed a stability-plasticity trade-off.
 
