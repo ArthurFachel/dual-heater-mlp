@@ -246,8 +246,18 @@ def load_split_tiny_imagenet(
         ]
     )
     root = Path(data_dir)
-    train_dataset = ImageFolder(root / "train", transform=transform)
-    test_dataset = ImageFolder(root / "val", transform=transform)
+    train_dir = root / "train"
+    validation_dir = root / "val"
+    missing = [path for path in (train_dir, validation_dir) if not path.is_dir()]
+    if missing:
+        formatted = ", ".join(str(path) for path in missing)
+        raise FileNotFoundError(
+            "TinyImageNet não encontrado ou não preparado. Diretórios ausentes: "
+            f"{formatted}. Defina TINY_IMAGENET_DIR com a raiz real; train/ e "
+            "val/ devem conter uma subpasta por classe (formato ImageFolder)."
+        )
+    train_dataset = ImageFolder(train_dir, transform=transform)
+    test_dataset = ImageFolder(validation_dir, transform=transform)
     if train_dataset.class_to_idx != test_dataset.class_to_idx:
         raise ValueError(
             "train/ e val/ devem usar a mesma estrutura ImageFolder por classe"
