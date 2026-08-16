@@ -219,6 +219,43 @@ def test_multi_seed_runner_aggregates_means_and_paired_differences(
     assert (tmp_path / "results" / "aggregate.json").is_file()
 
 
+def test_multi_seed_resume_reuses_completed_matching_seeds(tmp_path, monkeypatch):
+    config = SplitMNISTConfig(
+        seed=2,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        methods=("vanilla", "replay"),
+    )
+    monkeypatch.setattr(
+        "experiments.split_mnist.load_split_mnist",
+        lambda current, **_: _tiny_tasks(current),
+    )
+    output_dir = tmp_path / "resume"
+    first = run_split_mnist_multi_seed(
+        config,
+        seeds=[2, 3],
+        data_dir=tmp_path / "data",
+        output_dir=output_dir,
+    )
+
+    def unexpected_loader(*args, **kwargs):
+        raise AssertionError("loader não deve ser chamado para seeds completas")
+
+    monkeypatch.setattr(
+        "experiments.split_mnist.load_split_mnist", unexpected_loader
+    )
+    resumed = run_split_mnist_multi_seed(
+        config,
+        seeds=[2, 3],
+        data_dir=tmp_path / "data",
+        output_dir=output_dir,
+        resume=True,
+    )
+
+    assert resumed["methods"] == first["methods"]
+
+
 def test_epoch_sweep_writes_long_form_metrics_and_replay_comparisons(
     tmp_path, monkeypatch
 ):

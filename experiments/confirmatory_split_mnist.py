@@ -116,17 +116,37 @@ def run_confirmation(
     device: str = "cpu",
     download: bool = True,
     verbose: bool = True,
+    resume: bool = True,
 ) -> dict[str, Any]:
-    """Write the lock manifest first, then run the frozen paired experiment."""
+    """Run or safely resume the frozen paired experiment.
+
+    An existing identical lock is accepted only in resume mode. Completed
+    seeds with matching saved configurations are reused; a different lock or
+    per-seed configuration fails closed.
+    """
 
     validate_preregistration()
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     manifest = preregistration_manifest()
-    with (output_path / "preregistration.lock.json").open(
-        "x", encoding="utf-8"
-    ) as handle:
-        json.dump(manifest, handle, indent=2, sort_keys=True)
+    lock_path = output_path / "preregistration.lock.json"
+    if lock_path.exists():
+        with lock_path.open(encoding="utf-8") as handle:
+            existing_manifest = json.load(handle)
+        serialized_manifest = json.loads(json.dumps(manifest))
+        if existing_manifest != serialized_manifest:
+            raise RuntimeError(
+                "preregistration.lock.json difere do protocolo atual; "
+                "use outro diretório e não sobrescreva o lock"
+            )
+        if not resume:
+            raise FileExistsError(
+                f"pré-registro já existe em {lock_path}; use resume=True para "
+                "reutilizar seeds concluídas"
+            )
+    else:
+        with lock_path.open("x", encoding="utf-8") as handle:
+            json.dump(manifest, handle, indent=2, sort_keys=True)
     return run_split_mnist_multi_seed(
         replace(FROZEN_CONFIG, device=device),
         seeds=list(CONFIRMATORY_SEEDS),
@@ -135,4 +155,5 @@ def run_confirmation(
         download=download,
         verbose=verbose,
         paired_references=(REFERENCE,),
+        resume=resume,
     )

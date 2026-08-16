@@ -1384,6 +1384,7 @@ def run_split_mnist_multi_seed(
     verbose: bool = False,
     paired_references: tuple[str, ...] = ("vanilla", "replay"),
     task_loader: Callable[..., list[MNISTTask]] | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Run paired Split-MNIST experiments and aggregate repeated seeds."""
 
@@ -1393,9 +1394,35 @@ def run_split_mnist_multi_seed(
     output_path.mkdir(parents=True, exist_ok=True)
     raw: dict[int, dict[str, dict[str, Any]]] = {}
     for index, seed in enumerate(seeds):
+        config = replace(base_config, seed=seed)
+        seed_path = output_path / f"seed_{seed}"
+        saved_config_path = seed_path / "config.json"
+        saved_results_path = seed_path / "results.json"
+        if resume and saved_config_path.is_file():
+            with saved_config_path.open(encoding="utf-8") as handle:
+                saved_config = json.load(handle)
+            expected_config = json.loads(json.dumps(asdict(config)))
+            if saved_config != expected_config:
+                raise RuntimeError(
+                    f"configuração salva da seed {seed} difere do pré-registro"
+                )
+        if resume and saved_results_path.is_file():
+            if not saved_config_path.is_file():
+                raise RuntimeError(
+                    f"seed {seed} possui results.json sem config.json; "
+                    "não é seguro reutilizá-la"
+                )
+            with saved_results_path.open(encoding="utf-8") as handle:
+                raw[seed] = json.load(handle)
+            if verbose:
+                print(
+                    f"[Split-MNIST] seed {index + 1}/{len(seeds)}: "
+                    f"{seed} (reutilizada)",
+                    flush=True,
+                )
+            continue
         if verbose:
             print(f"[Split-MNIST] seed {index + 1}/{len(seeds)}: {seed}", flush=True)
-        config = replace(base_config, seed=seed)
         loader = load_split_mnist if task_loader is None else task_loader
         tasks = loader(
             config,
@@ -1405,7 +1432,7 @@ def run_split_mnist_multi_seed(
         raw[seed] = run_split_mnist(
             config,
             tasks,
-            output_dir=output_path / f"seed_{seed}",
+            output_dir=seed_path,
         )
 
     aggregate: dict[str, Any] = {
