@@ -240,6 +240,18 @@ def test_multi_seed_resume_reuses_completed_matching_seeds(tmp_path, monkeypatch
         output_dir=output_dir,
     )
 
+    # Simulate artifacts written before replay/logit memory accounting existed.
+    for seed in (2, 3):
+        results_path = output_dir / f"seed_{seed}" / "results.json"
+        legacy_results = json.loads(results_path.read_text(encoding="utf-8"))
+        for result in legacy_results.values():
+            result["cost"].pop("replay_memory_bytes", None)
+            result["cost"].pop("stored_logits_bytes", None)
+        results_path.write_text(
+            json.dumps(legacy_results),
+            encoding="utf-8",
+        )
+
     def unexpected_loader(*args, **kwargs):
         raise AssertionError("loader não deve ser chamado para seeds completas")
 
@@ -255,6 +267,8 @@ def test_multi_seed_resume_reuses_completed_matching_seeds(tmp_path, monkeypatch
     )
 
     assert resumed["methods"] == first["methods"]
+    assert resumed["methods"]["vanilla"]["replay_memory_bytes"]["mean"] == 0
+    assert resumed["methods"]["replay"]["replay_memory_bytes"]["mean"] > 0
 
 
 def test_epoch_sweep_writes_long_form_metrics_and_replay_comparisons(

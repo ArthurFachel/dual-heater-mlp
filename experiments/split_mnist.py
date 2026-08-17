@@ -806,6 +806,30 @@ def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, 
     return record
 
 
+def _backfill_cost_metadata(
+    result: dict[str, Any],
+    *,
+    method: str,
+    config: SplitMNISTConfig,
+) -> None:
+    """Add deterministic cost fields missing from older saved artifacts."""
+
+    cost = result.setdefault("cost", {})
+    remembered_samples = config.replay_per_class * len(config.class_order)
+    replay_bytes = (
+        remembered_samples * (config.input_dim * 4 + 8)
+        if _uses_replay(method)
+        else 0
+    )
+    logit_bytes = (
+        remembered_samples * len(config.class_order) * 4
+        if _uses_derpp(method)
+        else 0
+    )
+    cost.setdefault("replay_memory_bytes", replay_bytes)
+    cost.setdefault("stored_logits_bytes", logit_bytes)
+
+
 def run_split_mnist(
     config: SplitMNISTConfig,
     tasks: list[MNISTTask],
@@ -1445,6 +1469,8 @@ def run_split_mnist_multi_seed(
                 )
             with saved_results_path.open(encoding="utf-8") as handle:
                 raw[seed] = json.load(handle)
+            for method, result in raw[seed].items():
+                _backfill_cost_metadata(result, method=method, config=config)
             if verbose:
                 print(
                     f"[Split-MNIST] seed {index + 1}/{len(seeds)}: "
@@ -1465,6 +1491,8 @@ def run_split_mnist_multi_seed(
             tasks,
             output_dir=seed_path,
         )
+        for method, result in raw[seed].items():
+            _backfill_cost_metadata(result, method=method, config=config)
 
     aggregate: dict[str, Any] = {
         "seeds": seeds,
