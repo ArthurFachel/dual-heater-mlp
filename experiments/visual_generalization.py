@@ -269,8 +269,12 @@ def load_split_tiny_imagenet(
         start = task_index * config.classes_per_task
         classes = config.class_order[start : start + config.classes_per_task]
         parts: dict[str, list[Tensor]] = {
-            "train_x": [], "train_y": [], "validation_x": [],
-            "validation_y": [], "test_x": [], "test_y": [],
+            "train_x": [],
+            "train_y": [],
+            "validation_x": [],
+            "validation_y": [],
+            "test_x": [],
+            "test_y": [],
         }
         for label in classes:
             all_train = _select_class_indices(
@@ -295,9 +299,12 @@ def load_split_tiny_imagenet(
             )
             test_x, test_y = _materialize_imagefolder(test_dataset, test_indices)
             for key, value in {
-                "train_x": train_x, "train_y": train_y,
-                "validation_x": validation_x, "validation_y": validation_y,
-                "test_x": test_x, "test_y": test_y,
+                "train_x": train_x,
+                "train_y": train_y,
+                "validation_x": validation_x,
+                "validation_y": validation_y,
+                "test_x": test_x,
+                "test_y": test_y,
             }.items():
                 parts[key].append(value)
         tasks.append(
@@ -368,6 +375,7 @@ def run_visual_generalization(
     device: str = "cpu",
     download: bool = True,
     verbose: bool = True,
+    resume: bool = False,
 ) -> dict[str, Any]:
     configs = generalization_configs(device)
     loaders = {
@@ -388,4 +396,5 @@ def run_visual_generalization(
         verbose=verbose,
         paired_references=("replay",),
         task_loader=loaders[name],
+        resume=resume,
     )

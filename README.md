@@ -264,6 +264,51 @@ article/manuscript.md technical manuscript draft
 
 ## Verification
 
+The complete protocol from
+`notebooks/split_mnist_confirmatory_suite.ipynb` can be executed without
+Jupyter. Preview every section, method, seed and output path without training:
+
+```bash
+python run_all_tests.py --dry-run
+```
+
+Run the complete confirmatory, baseline, fairness, ablation, DER++, Split-MNIST
+generalization, Permuted-MNIST and Split CIFAR-100 protocol. This command does
+not run pytest:
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python run_all_tests.py --device cpu
+```
+
+TinyImageNet is also included when its local ImageFolder-compatible dataset is
+provided:
+
+```bash
+python run_all_tests.py \
+  --tiny-imagenet-dir /path/to/tiny-imagenet-200
+```
+
+Runs resume matching completed seeds by default. Use `--sections` to execute a
+subset, for example the separate SlowHeat+DER++ comparison:
+
+```bash
+python run_all_tests.py --sections slowheat-derpp
+```
+
+Unit/integration tests are optional and only run when explicitly requested
+with `--run-unit-tests`.
+
+Progress is recorded in
+`results/split_mnist_protocol/benchmark_index.json`; the frozen primary result
+is extracted to `results/split_mnist_protocol/primary_result.json`.
+
+The complete default protocol is computationally expensive: it contains 20
+frozen confirmatory seeds plus repeated five-seed secondary analyses. If
+`--tiny-imagenet-dir` is omitted, TinyImageNet is explicitly recorded as
+skipped, matching the notebook behavior.
+
+Individual verification commands remain available:
+
 ```bash
 CUDA_VISIBLE_DEVICES='' PYTHONDONTWRITEBYTECODE=1 \
 PYTHONPATH=src:. pytest -q -p no:cacheprovider

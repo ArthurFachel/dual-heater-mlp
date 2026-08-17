@@ -9,7 +9,6 @@ from typing import Any
 
 from experiments.split_mnist import SplitMNISTConfig, run_split_mnist_multi_seed
 
-
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
 
@@ -98,6 +97,7 @@ def _run(
     download: bool,
     verbose: bool,
     paired_references: tuple[str, ...] = ("replay",),
+    resume: bool = False,
 ) -> dict[str, Any]:
     return run_split_mnist_multi_seed(
         config,
@@ -107,6 +107,7 @@ def _run(
         download=download,
         verbose=verbose,
         paired_references=paired_references,
+        resume=resume,
     )
 
 
@@ -118,6 +119,7 @@ def run_all_baselines(
     device: str = "cpu",
     download: bool = True,
     verbose: bool = True,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Execute all baselines serially inside one notebook call."""
 
@@ -129,6 +131,7 @@ def run_all_baselines(
         download=download,
         verbose=verbose,
         paired_references=("replay", "derpp"),
+        resume=resume,
     )
 
 
@@ -140,6 +143,7 @@ def run_equal_example_budget(
     device: str = "cpu",
     download: bool = True,
     verbose: bool = True,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Cap current+replay learner examples at the vanilla ten-epoch budget."""
 
@@ -160,6 +164,7 @@ def run_equal_example_budget(
         download=download,
         verbose=verbose,
         paired_references=("replay", "derpp"),
+        resume=resume,
     )
 
 
@@ -171,6 +176,7 @@ def run_ablation_matrix(
     device: str = "cpu",
     download: bool = True,
     verbose: bool = True,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Run remaining method ablations and replay-memory sizes."""
 
@@ -185,6 +191,7 @@ def run_ablation_matrix(
             output_dir=root / "methods",
             download=download,
             verbose=verbose,
+            resume=resume,
         ),
         "memory_sizes": {},
     }
@@ -201,6 +208,7 @@ def run_ablation_matrix(
             output_dir=root / f"memory_{memory_size}",
             download=download if index == 0 else False,
             verbose=verbose,
+            resume=resume,
         )
     with (root / "ablation_index.json").open("w", encoding="utf-8") as handle:
         json.dump(
@@ -224,6 +232,7 @@ def run_slowheat_derpp_test(
     device: str = "cpu",
     download: bool = True,
     verbose: bool = True,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Compare DER++ and SlowHeat+DER++ as a separate exploratory test."""
 
@@ -239,6 +248,7 @@ def run_slowheat_derpp_test(
         download=download,
         verbose=verbose,
         paired_references=("replay", "derpp"),
+        resume=resume,
     )
 
 
@@ -250,13 +260,12 @@ def run_order_and_capacity_generalization(
     device: str = "cpu",
     download: bool = True,
     verbose: bool = True,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Run fixed class orders, larger MLPs and memory budgets."""
 
     root = Path(output_dir)
-    base = replace(
-        baseline_config(device=device), methods=("replay", CANDIDATE)
-    )
+    base = replace(baseline_config(device=device), methods=("replay", CANDIDATE))
     results: dict[str, Any] = {"class_orders": {}, "architectures": {}}
     for index, order in enumerate(CLASS_ORDERS):
         results["class_orders"][str(index)] = _run(
@@ -266,6 +275,7 @@ def run_order_and_capacity_generalization(
             output_dir=root / f"order_{index}",
             download=download if index == 0 else False,
             verbose=verbose,
+            resume=resume,
         )
     for name, hidden_dims in {
         "mlp_256_128": (256, 128),
@@ -279,5 +289,6 @@ def run_order_and_capacity_generalization(
             output_dir=root / name,
             download=False,
             verbose=verbose,
+            resume=resume,
         )
     return results
