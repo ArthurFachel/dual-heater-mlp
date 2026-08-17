@@ -131,6 +131,7 @@ def test_requested_baselines_share_one_runner_and_report_costs(tmp_path):
     methods = (
         "replay",
         "derpp",
+        "slowheat_derpp_hidden_beta_30_budget_0.25",
         "er_ace",
         "agem",
         "ewc",

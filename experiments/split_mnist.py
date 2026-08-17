@@ -40,6 +40,7 @@ SUPPORTED_METHODS = {
     "slowheat_replay",
     "slowheat_distillation",
     "derpp",
+    "slowheat_derpp_hidden_beta_30_budget_0.25",
     "er_ace",
     "agem",
     "ewc",
@@ -57,6 +58,7 @@ SUPPORTED_METHODS = {
 REPLAY_METHODS = {
     "replay",
     "derpp",
+    "slowheat_derpp_hidden_beta_30_budget_0.25",
     "er_ace",
     "agem",
     "replay_balanced",
@@ -92,6 +94,10 @@ def _uses_replay(method: str) -> bool:
     )
 
 
+def _uses_derpp(method: str) -> bool:
+    return method in {"derpp", "slowheat_derpp_hidden_beta_30_budget_0.25"}
+
+
 def _uses_distillation(method: str) -> bool:
     match = _structured_match(method)
     return method in {"distillation", "slowheat_distillation", "lwf_calibrated"} or (
@@ -101,6 +107,7 @@ def _uses_distillation(method: str) -> bool:
 
 def _method_strength(method: str, default: float) -> float:
     if method in {
+        "slowheat_derpp_hidden_beta_30_budget_0.25",
         "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
         "slowheat_replay_partial_output_beta_30_budget_0.25",
         "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
@@ -112,6 +119,7 @@ def _method_strength(method: str, default: float) -> float:
 
 def _method_budget(method: str, default: float) -> float:
     if method in {
+        "slowheat_derpp_hidden_beta_30_budget_0.25",
         "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
         "slowheat_replay_partial_output_beta_30_budget_0.25",
         "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
@@ -125,6 +133,7 @@ def _method_budget(method: str, default: float) -> float:
 
 def _protects_output(method: str) -> bool:
     if method in {
+        "slowheat_derpp_hidden_beta_30_budget_0.25",
         "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
         "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
     }:
@@ -757,6 +766,8 @@ def _new_cost_record(model: nn.Module) -> dict[str, float | int]:
         "mask_application_flops": 0,
         "regularizer_flops": 0,
         "consolidation_flops": 0,
+        "replay_memory_bytes": 0,
+        "stored_logits_bytes": 0,
         "model_parameters": sum(parameter.numel() for parameter in model.parameters()),
     }
 
@@ -890,6 +901,16 @@ def run_split_mnist(
         }
         logit_bias = torch.zeros(len(config.class_order), device=config.device)
         cost = _new_cost_record(model)
+        remembered_samples = config.replay_per_class * len(config.class_order)
+        if _uses_replay(method):
+            # Inputs are materialized as float32 and labels as int64.
+            cost["replay_memory_bytes"] = remembered_samples * (
+                config.input_dim * 4 + 8
+            )
+        if _uses_derpp(method):
+            cost["stored_logits_bytes"] = (
+                remembered_samples * len(config.class_order) * 4
+            )
         started = time.perf_counter()
 
         for stage, task in enumerate(tasks):
@@ -967,7 +988,7 @@ def run_split_mnist(
                         if len(replay_x) == 0:
                             replay_x = None
                             replay_y = None
-                        elif method == "derpp":
+                        elif _uses_derpp(method):
                             replay_targets = torch.cat(der_logits_parts)[
                                 replay_indices[: len(replay_x)]
                             ].to(config.device)
@@ -1001,7 +1022,7 @@ def run_split_mnist(
                                 current_logits, tuple(task.classes)
                             )
                             loss = 0.5 * F.cross_entropy(ace_logits, current_y) + 0.5 * replay_loss
-                        elif method == "derpp":
+                        elif _uses_derpp(method):
                             assert replay_logits is not None and replay_targets is not None
                             loss = (
                                 current_loss
@@ -1225,7 +1246,7 @@ def run_split_mnist(
                     logit_bias=logit_bias,
                 )
 
-            if method == "derpp":
+            if _uses_derpp(method):
                 memory_inputs: list[Tensor] = []
                 for label in task.classes:
                     class_indices = torch.nonzero(
@@ -1295,6 +1316,8 @@ def run_split_mnist(
                 "total_model_examples_processed",
                 "estimated_total_flops",
                 "estimated_overhead_flops",
+                "replay_memory_bytes",
+                "stored_logits_bytes",
             ]
             writer = csv.DictWriter(handle, fieldnames=fields)
             writer.writeheader()
@@ -1332,6 +1355,12 @@ def run_split_mnist(
                         "estimated_overhead_flops": result["cost"][
                             "estimated_overhead_flops"
                         ],
+                        "replay_memory_bytes": result["cost"][
+                            "replay_memory_bytes"
+                        ],
+                        "stored_logits_bytes": result["cost"][
+                            "stored_logits_bytes"
+                        ],
                     }
                 )
     return results
@@ -1350,6 +1379,8 @@ AGGREGATE_METRICS = {
     "total_model_examples_processed": ("cost", "total_model_examples_processed"),
     "estimated_total_flops": ("cost", "estimated_total_flops"),
     "estimated_overhead_flops": ("cost", "estimated_overhead_flops"),
+    "replay_memory_bytes": ("cost", "replay_memory_bytes"),
+    "stored_logits_bytes": ("cost", "stored_logits_bytes"),
 }
 
 

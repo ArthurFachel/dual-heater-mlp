@@ -11,6 +11,7 @@ from experiments.split_mnist import SplitMNISTConfig, run_split_mnist_multi_seed
 
 
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
+SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
 
 ALL_BASELINES = (
     "vanilla",
@@ -35,6 +36,13 @@ ABLATION_METHODS = (
     "slowheat_replay_partial_output_beta_30_budget_0.25",
     "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
     "replay_global_lr_reduction",
+)
+
+SLOWHEAT_DERPP_METHODS = (
+    "replay",
+    "derpp",
+    CANDIDATE,
+    SLOWHEAT_DERPP,
 )
 
 CLASS_ORDERS = (
@@ -89,6 +97,7 @@ def _run(
     output_dir: str | Path,
     download: bool,
     verbose: bool,
+    paired_references: tuple[str, ...] = ("replay",),
 ) -> dict[str, Any]:
     return run_split_mnist_multi_seed(
         config,
@@ -97,7 +106,7 @@ def _run(
         output_dir=output_dir,
         download=download,
         verbose=verbose,
-        paired_references=("replay",),
+        paired_references=paired_references,
     )
 
 
@@ -119,6 +128,7 @@ def run_all_baselines(
         output_dir=output_dir,
         download=download,
         verbose=verbose,
+        paired_references=("replay", "derpp"),
     )
 
 
@@ -149,6 +159,7 @@ def run_equal_example_budget(
         output_dir=output_dir,
         download=download,
         verbose=verbose,
+        paired_references=("replay", "derpp"),
     )
 
 
@@ -203,6 +214,32 @@ def run_ablation_matrix(
             sort_keys=True,
         )
     return results
+
+
+def run_slowheat_derpp_test(
+    *,
+    seeds: list[int],
+    data_dir: str | Path,
+    output_dir: str | Path,
+    device: str = "cpu",
+    download: bool = True,
+    verbose: bool = True,
+) -> dict[str, Any]:
+    """Compare DER++ and SlowHeat+DER++ as a separate exploratory test."""
+
+    config = replace(
+        baseline_config(device=device),
+        methods=SLOWHEAT_DERPP_METHODS,
+    )
+    return _run(
+        config,
+        seeds=seeds,
+        data_dir=data_dir,
+        output_dir=output_dir,
+        download=download,
+        verbose=verbose,
+        paired_references=("replay", "derpp"),
+    )
 
 
 def run_order_and_capacity_generalization(

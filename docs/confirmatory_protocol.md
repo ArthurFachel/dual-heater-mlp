@@ -46,6 +46,19 @@ vezes esse custo no backward, com overheads algorítmicos separados.
 - **Replay balanceado:** dá peso igual à loss do lote atual e à loss do replay,
   independentemente dos tamanhos dos dois lotes.
 
+## Ablação exploratória SlowHeat + DER++
+
+O notebook contém uma seção isolada para
+`slowheat_derpp_hidden_beta_30_budget_0.25`. Ela usa a mesma memória, rótulos e
+logits armazenados do DER++, com `alpha=0.5` e `beta=0.5`, enquanto o otimizador
+SlowHeat protege somente as camadas ocultas. A importância funcional é medida
+a partir da loss completa do DER++.
+
+O teste compara replay, DER++, SlowHeat+replay e SlowHeat+DER++ nas seeds
+secundárias. O contraste relevante é SlowHeat+DER++ menos DER++, acompanhado
+por custo e pelo controle SlowHeat+replay menos replay. Essa seção é
+exploratória e não modifica o pré-registro confirmatório.
+
 ## Execução
 
 Abra `notebooks/split_mnist_confirmatory_suite.ipynb`, revise os diretórios e o
