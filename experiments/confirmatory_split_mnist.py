@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from experiments.confirmatory_statistics import PRIMARY_ENDPOINT
-from experiments.split_mnist import SplitMNISTConfig, run_split_mnist_multi_seed
+from experiments.split_mnist import (
+    SplitMNISTConfig,
+    config_payload,
+    run_split_mnist_multi_seed,
+)
 
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 REFERENCE = "replay"
@@ -70,7 +74,7 @@ def preregistration_manifest() -> dict[str, Any]:
         "difference_direction": "candidate_minus_reference",
         "confirmatory_seeds": list(CONFIRMATORY_SEEDS),
         "declared_exploratory_seeds": list(DECLARED_EXPLORATORY_SEEDS),
-        "config": asdict(FROZEN_CONFIG),
+        "config": config_payload(FROZEN_CONFIG),
         "analysis": {
             "student_t": "paired, two-sided, 95% CI",
             "bootstrap": "paired percentile CI, 10000 resamples",

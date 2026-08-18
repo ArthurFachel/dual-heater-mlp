@@ -273,29 +273,28 @@ python run_all_tests.py --dry-run
 ```
 
 Run the complete confirmatory, baseline, fairness, ablation, DER++, Split-MNIST
-generalization, Permuted-MNIST and Split CIFAR-100 protocol. This command does
-not run pytest:
+generalization, Permuted-MNIST and CORe50 protocol. This command does not run
+pytest:
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python run_all_tests.py --device cpu
 ```
 
-TinyImageNet is also included when its local ImageFolder-compatible dataset is
+CORe50 NC is included when its cropped RGB images and official filelists are
 provided:
 
 ```bash
 python run_all_tests.py \
-  --tiny-imagenet-dir /path/to/tiny-imagenet-200
+  --core50-dir /path/to/core50_128x128
 ```
 
-The Tiny ImageNet section implements Sequential Tiny ImageNet as ten tasks of
-twenty classes. Its primary matrix is Class-IL: one shared 200-class head,
-selection among every class learned so far, and no task ID at inference. Every
-visual dataset runs Replay, DER++, SlowHeat+Replay and SlowHeat+DER++ with
-paired initialization, batches, memory examples and seeds; Task-IL is retained
-only as a diagnostic matrix. See
-[`docs/tiny_imagenet_class_il.md`](docs/tiny_imagenet_class_il.md) for the exact
-project protocol, data layout and source.
+The CORe50 section follows the native New Classes stream: 50 objects across
+nine experiences (10 classes, then eight groups of 5), using all ten official
+run orders. Its primary matrix is Class-IL with no task ID. Replay, DER++,
+SlowHeat+Replay and SlowHeat+DER++ share paired initialization, batches, memory
+examples and run order; Task-IL is diagnostic. See
+[`docs/core50_class_il.md`](docs/core50_class_il.md) for the exact project
+protocol, data layout and source.
 
 Runs resume matching completed seeds by default. Use `--sections` to execute a
 subset, for example the separate SlowHeat+DER++ comparison:
@@ -313,8 +312,8 @@ is extracted to `results/split_mnist_protocol/primary_result.json`.
 
 The complete default protocol is computationally expensive: it contains 20
 frozen confirmatory seeds plus repeated ten-seed secondary analyses. If
-`--tiny-imagenet-dir` is omitted, TinyImageNet is explicitly recorded as
-skipped, matching the notebook behavior.
+`--core50-dir` is omitted, CORe50 is explicitly recorded as skipped, matching
+the notebook behavior.
 
 Individual verification commands remain available:
 

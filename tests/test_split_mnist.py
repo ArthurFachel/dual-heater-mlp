@@ -7,7 +7,9 @@ import torch
 from experiments.split_mnist import (
     MNISTTask,
     SplitMNISTConfig,
+    _classes_for_task,
     build_paired_models,
+    config_payload,
     run_split_mnist,
     run_split_mnist_epoch_sweep,
     run_split_mnist_multi_seed,
@@ -19,8 +21,7 @@ def _tiny_tasks(config: SplitMNISTConfig) -> list[MNISTTask]:
     centers = torch.randn(10, 784, generator=generator)
     tasks = []
     for task_index in range(config.task_count):
-        start = task_index * config.classes_per_task
-        classes = config.class_order[start : start + config.classes_per_task]
+        classes = _classes_for_task(config, task_index)
 
         def split(
             samples: int,
@@ -188,6 +189,32 @@ def test_domain_incremental_config_reuses_all_classes_per_task():
     assert config.task_count == 5
 
 
+def test_class_incremental_config_supports_nonuniform_task_sizes():
+    config = SplitMNISTConfig(
+        class_order=tuple(range(10)),
+        classes_per_task=2,
+        task_class_counts=(4, 3, 3),
+    )
+
+    config.validate()
+
+    assert config.task_count == 3
+    assert _classes_for_task(config, 0) == (0, 1, 2, 3)
+    assert _classes_for_task(config, 1) == (4, 5, 6)
+    assert _classes_for_task(config, 2) == (7, 8, 9)
+
+
+def test_config_payload_preserves_legacy_protocols_and_nonuniform_counts():
+    assert "task_class_counts" not in config_payload(SplitMNISTConfig())
+    assert config_payload(
+        SplitMNISTConfig(
+            class_order=tuple(range(10)),
+            classes_per_task=2,
+            task_class_counts=(4, 3, 3),
+        )
+    )["task_class_counts"] == (4, 3, 3)
+
+
 def test_multi_seed_runner_aggregates_means_and_paired_differences(
     tmp_path, monkeypatch
 ):
@@ -307,6 +334,7 @@ def test_epoch_sweep_writes_long_form_metrics_and_replay_comparisons(
     "updates",
     [
         {"class_order": (0, 1, 2)},
+        {"task_class_counts": (5, 4)},
         {"plasticity_budget": 1.1},
         {"methods": ("unknown",)},
         {"methods": ("slowheat_replay_hidden_beta_3_budget_1.20",)},

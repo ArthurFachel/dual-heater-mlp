@@ -147,6 +147,7 @@ class SplitMNISTConfig:
     seed: int = 42
     class_order: tuple[int, ...] = tuple(range(10))
     classes_per_task: int = 2
+    task_class_counts: tuple[int, ...] | None = None
     input_dim: int = 784
     scenario: str = "class_incremental"
     domain_task_count: int | None = None
@@ -199,6 +200,8 @@ class SplitMNISTConfig:
         if self.scenario == "domain_incremental":
             assert self.domain_task_count is not None
             return self.domain_task_count
+        if self.task_class_counts is not None:
+            return len(self.task_class_counts)
         return len(self.class_order) // self.classes_per_task
 
     def validate(self) -> None:
@@ -211,7 +214,19 @@ class SplitMNISTConfig:
         if self.classes_per_task < 1:
             raise ValueError("classes_per_task deve ser positivo")
         if self.scenario == "class_incremental":
-            if len(self.class_order) % self.classes_per_task != 0:
+            if self.task_class_counts is not None and (
+                not self.task_class_counts
+                or any(count < 1 for count in self.task_class_counts)
+                or sum(self.task_class_counts) != len(self.class_order)
+            ):
+                raise ValueError(
+                    "task_class_counts deve conter contagens positivas que "
+                    "somem o número de classes"
+                )
+            if (
+                self.task_class_counts is None
+                and len(self.class_order) % self.classes_per_task != 0
+            ):
                 raise ValueError("classes_per_task deve dividir o número de classes")
             if self.domain_task_count is not None:
                 raise ValueError("domain_task_count só é válido em domain_incremental")
@@ -219,9 +234,11 @@ class SplitMNISTConfig:
             self.domain_task_count is None
             or self.domain_task_count < 1
             or self.classes_per_task != len(self.class_order)
+            or self.task_class_counts is not None
         ):
             raise ValueError(
-                "domain_incremental requer domain_task_count >= 1 e todas as classes"
+                "domain_incremental requer domain_task_count >= 1, todas as "
+                "classes e task_class_counts=None"
             )
         integers = {
             "batch_size": self.batch_size,
@@ -337,6 +354,35 @@ class MNISTTask:
     test_y: Tensor
 
 
+def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
+    """Serialize configs without perturbing legacy uniform-task protocols."""
+
+    payload = asdict(config)
+    if config.task_class_counts is None:
+        payload.pop("task_class_counts")
+    return payload
+
+
+def _classes_for_task(
+    config: SplitMNISTConfig,
+    task_index: int,
+) -> tuple[int, ...]:
+    """Return global labels assigned to one possibly non-uniform task."""
+
+    if not 0 <= task_index < config.task_count:
+        raise IndexError("task_index fora da sequência configurada")
+    if config.scenario == "domain_incremental":
+        return config.class_order
+    counts = config.task_class_counts
+    if counts is None:
+        start = task_index * config.classes_per_task
+        end = start + config.classes_per_task
+    else:
+        start = sum(counts[:task_index])
+        end = start + counts[task_index]
+    return config.class_order[start:end]
+
+
 def _normalized_images(dataset: Any) -> Tensor:
     images = dataset.data.to(dtype=torch.float32).div_(255.0)
     return images.sub_(0.1307).div_(0.3081).flatten(1)
@@ -385,8 +431,7 @@ def load_split_mnist(
     tasks: list[MNISTTask] = []
 
     for task_index in range(config.task_count):
-        start = task_index * config.classes_per_task
-        classes = config.class_order[start : start + config.classes_per_task]
+        classes = _classes_for_task(config, task_index)
         train_parts: list[Tensor] = []
         train_label_parts: list[Tensor] = []
         validation_parts: list[Tensor] = []
@@ -634,7 +679,10 @@ def _classes_through_stage(
 ) -> tuple[int, ...]:
     if config.scenario == "domain_incremental":
         return config.class_order
-    end = (stage + 1) * config.classes_per_task
+    if config.task_class_counts is None:
+        end = (stage + 1) * config.classes_per_task
+    else:
+        end = sum(config.task_class_counts[: stage + 1])
     return config.class_order[:end]
 
 
@@ -1320,7 +1368,7 @@ def run_split_mnist(
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         with (output_path / "config.json").open("w", encoding="utf-8") as handle:
-            json.dump(asdict(config), handle, indent=2, sort_keys=True)
+            json.dump(config_payload(config), handle, indent=2, sort_keys=True)
         with (output_path / "results.json").open("w", encoding="utf-8") as handle:
             json.dump(results, handle, indent=2, sort_keys=True, allow_nan=False)
         with (output_path / "summary.csv").open(
@@ -1456,7 +1504,7 @@ def run_split_mnist_multi_seed(
         if resume and saved_config_path.is_file():
             with saved_config_path.open(encoding="utf-8") as handle:
                 saved_config = json.load(handle)
-            expected_config = json.loads(json.dumps(asdict(config)))
+            expected_config = json.loads(json.dumps(config_payload(config)))
             if saved_config != expected_config:
                 raise RuntimeError(
                     f"configuração salva da seed {seed} difere do pré-registro"
@@ -1561,7 +1609,7 @@ def run_split_mnist_multi_seed(
         json.dump(aggregate, handle, indent=2, sort_keys=True, allow_nan=False)
     with (output_path / "multi_seed_config.json").open("w", encoding="utf-8") as handle:
         json.dump(
-            {"base_config": asdict(base_config), "seeds": seeds},
+            {"base_config": config_payload(base_config), "seeds": seeds},
             handle,
             indent=2,
             sort_keys=True,

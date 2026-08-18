@@ -22,13 +22,15 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
         100,
     ]
     assert len(plan["sections"]["split-mnist-generalization"]["class_orders"]) == 5
-    tiny = plan["sections"]["tiny-imagenet"]
-    assert tiny["methods"] == list(run_all_tests.SLOWHEAT_DERPP_METHODS)
-    assert tiny["protocol"] == {
-        "scenario": "class_incremental",
-        "task_count": 10,
-        "classes_per_task": 20,
-        "class_count": 200,
+    core50 = plan["sections"]["core50"]
+    assert core50["seeds"] == list(range(10))
+    assert core50["methods"] == list(run_all_tests.SLOWHEAT_DERPP_METHODS)
+    assert core50["protocol"] == {
+        "scenario": "new_classes_class_incremental",
+        "official_runs": list(range(10)),
+        "task_count": 9,
+        "task_class_counts": [10, 5, 5, 5, 5, 5, 5, 5, 5],
+        "class_count": 50,
         "inference_task_id": False,
         "primary_evaluation": "class_il_seen_classes",
         "secondary_evaluation": "task_il_diagnostic",
@@ -36,11 +38,11 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
     }
 
 
-def test_tiny_imagenet_is_recorded_as_skipped_without_local_dataset(tmp_path):
+def test_core50_is_recorded_as_skipped_without_local_dataset(tmp_path):
     return_code = run_all_tests.main(
         [
             "--sections",
-            "tiny-imagenet",
+            "core50",
             "--output-dir",
             str(tmp_path),
         ]
@@ -49,8 +51,8 @@ def test_tiny_imagenet_is_recorded_as_skipped_without_local_dataset(tmp_path):
     assert return_code == 0
     index = json.loads((tmp_path / "benchmark_index.json").read_text())
     assert index["status"] == "completed"
-    assert index["sections"]["tiny-imagenet"]["status"] == "skipped"
-    assert "--tiny-imagenet-dir" in index["sections"]["tiny-imagenet"]["reason"]
+    assert index["sections"]["core50"]["status"] == "skipped"
+    assert "--core50-dir" in index["sections"]["core50"]["reason"]
 
 
 def test_section_runner_enables_resume_and_forwards_secondary_seeds(
@@ -84,3 +86,30 @@ def test_section_runner_enables_resume_and_forwards_secondary_seeds(
     assert captured["seeds"] == [7, 9]
     assert captured["resume"] is True
     assert captured["output_dir"].name == "slowheat_derpp_exploratory"
+
+
+def test_core50_section_uses_all_ten_official_runs(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_run(name, **kwargs):
+        captured["name"] = name
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(run_all_tests, "run_visual_generalization", fake_run)
+    args = run_all_tests.parse_args(
+        ["--sections", "core50", "--core50-dir", str(tmp_path / "core50")]
+    )
+
+    result = run_all_tests._run_section(
+        "core50",
+        args,
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "results",
+    )
+
+    assert result == {"ok": True}
+    assert captured["name"] == "core50"
+    assert captured["seeds"] == list(range(10))
+    assert captured["download"] is False
+    assert captured["data_dir"] == (tmp_path / "core50").resolve()

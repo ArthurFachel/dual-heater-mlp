@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from experiments.split_mnist import SplitMNISTConfig, run_split_mnist_multi_seed
+from experiments.split_mnist import (
+    SplitMNISTConfig,
+    config_payload,
+    run_split_mnist_multi_seed,
+)
 
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
@@ -214,7 +218,7 @@ def run_ablation_matrix(
         json.dump(
             {
                 "seeds": seeds,
-                "method_config": asdict(base),
+                "method_config": config_payload(base),
                 "memory_sizes": [5, 10, 20, 50, 100],
             },
             handle,

@@ -1,15 +1,16 @@
-"""Dataset adapters for Permuted-MNIST and harder visual streams.
+"""Dataset adapters for Permuted-MNIST and the native CORe50 CL stream.
 
 The adapters materialize deterministic research subsets as tensors so they can
-reuse the exact same paired baseline engine as Split-MNIST. No dataset is
-downloaded or evaluated at import time.
+reuse the same paired baseline engine as Split-MNIST. No dataset is downloaded
+or evaluated at import time.
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
 
 import torch
 from torch import Tensor
@@ -17,69 +18,15 @@ from torch import Tensor
 from experiments.split_mnist import (
     MNISTTask,
     SplitMNISTConfig,
+    _classes_for_task,
     _normalized_images,
     _select_class_indices,
     run_split_mnist_multi_seed,
 )
 from experiments.split_mnist_suite import SLOWHEAT_DERPP_METHODS
 
-
-def _split_tensor_dataset(
-    config: SplitMNISTConfig,
-    *,
-    train_images: Tensor,
-    train_targets: Tensor,
-    test_images: Tensor,
-    test_targets: Tensor,
-) -> list[MNISTTask]:
-    tasks: list[MNISTTask] = []
-    for task_index in range(config.task_count):
-        start = task_index * config.classes_per_task
-        classes = config.class_order[start : start + config.classes_per_task]
-        train_parts: list[Tensor] = []
-        train_labels: list[Tensor] = []
-        validation_parts: list[Tensor] = []
-        validation_labels: list[Tensor] = []
-        test_parts: list[Tensor] = []
-        test_labels: list[Tensor] = []
-        for label in classes:
-            all_train = _select_class_indices(
-                train_targets,
-                label,
-                count=None,
-                seed=config.seed * 1_003 + label,
-            )
-            validation_indices = all_train[: config.validation_per_class]
-            remaining = all_train[config.validation_per_class :]
-            train_indices = (
-                remaining
-                if config.train_per_class is None
-                else remaining[: config.train_per_class]
-            )
-            test_indices = _select_class_indices(
-                test_targets,
-                label,
-                count=config.test_per_class,
-                seed=config.seed * 2_003 + label,
-            )
-            train_parts.append(train_images[train_indices])
-            train_labels.append(train_targets[train_indices])
-            validation_parts.append(train_images[validation_indices])
-            validation_labels.append(train_targets[validation_indices])
-            test_parts.append(test_images[test_indices])
-            test_labels.append(test_targets[test_indices])
-        tasks.append(
-            MNISTTask(
-                classes=tuple(classes),
-                train_x=torch.cat(train_parts),
-                train_y=torch.cat(train_labels),
-                validation_x=torch.cat(validation_parts),
-                validation_y=torch.cat(validation_labels),
-                test_x=torch.cat(test_parts),
-                test_y=torch.cat(test_labels),
-            )
-        )
-    return tasks
+CORE50_RUNS = tuple(range(10))
+CORE50_TASK_CLASS_COUNTS = (10, 5, 5, 5, 5, 5, 5, 5, 5)
 
 
 def load_permuted_mnist(
@@ -168,172 +115,235 @@ def load_permuted_mnist(
     return tasks
 
 
-def load_split_cifar100(
-    config: SplitMNISTConfig,
-    *,
-    data_dir: str | Path,
-    download: bool = True,
-) -> list[MNISTTask]:
-    """Load deterministic Split CIFAR-100 tasks as normalized flat tensors."""
-
-    config.validate()
-    if config.scenario != "class_incremental" or len(config.class_order) != 100:
-        raise ValueError("Split CIFAR-100 requer 100 classes class-incremental")
-    if config.input_dim != 3 * 32 * 32:
-        raise ValueError("Split CIFAR-100 requer input_dim=3072")
-    try:
-        from torchvision.datasets import CIFAR100
-    except ImportError as error:
-        raise RuntimeError("torchvision é necessário para Split CIFAR-100") from error
-
-    train_dataset = CIFAR100(root=str(data_dir), train=True, download=download)
-    test_dataset = CIFAR100(root=str(data_dir), train=False, download=download)
-
-    def normalized(data: Any) -> Tensor:
-        images = torch.as_tensor(data).permute(0, 3, 1, 2).float().div_(255.0)
-        mean = torch.tensor((0.5071, 0.4867, 0.4408)).view(1, 3, 1, 1)
-        std = torch.tensor((0.2675, 0.2565, 0.2761)).view(1, 3, 1, 1)
-        return images.sub_(mean).div_(std).flatten(1)
-
-    return _split_tensor_dataset(
-        config,
-        train_images=normalized(train_dataset.data),
-        train_targets=torch.tensor(train_dataset.targets),
-        test_images=normalized(test_dataset.data),
-        test_targets=torch.tensor(test_dataset.targets),
+def _core50_run_dir(dataset_root: Path, run: int) -> Path:
+    run_names = (f"Run{run}", f"run{run}")
+    parents = (
+        dataset_root / "batches_filelists" / "NC_inc",
+        dataset_root / "filelists" / "NC_inc",
+        dataset_root / "NC_inc",
+        dataset_root.parent / "batches_filelists" / "NC_inc",
+        dataset_root.parent / "filelists" / "NC_inc",
+    )
+    candidates = tuple(parent / name for parent in parents for name in run_names)
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    formatted = "\n  - ".join(str(path) for path in candidates)
+    raise FileNotFoundError(
+        "filelists oficiais NC_inc do CORe50 não encontrados. Locais aceitos:\n"
+        f"  - {formatted}"
     )
 
 
-def _materialize_imagefolder(dataset: Any, indices: Tensor) -> tuple[Tensor, Tensor]:
+def _resolve_core50_image(dataset_root: Path, raw_path: str) -> Path:
+    relative = Path(raw_path)
+    candidates: list[Path] = []
+    if relative.is_absolute():
+        candidates.append(relative)
+    else:
+        candidates.extend((dataset_root / relative, dataset_root.parent / relative))
+        for index, part in enumerate(relative.parts):
+            if part.startswith("s") and part[1:].isdigit():
+                candidates.append(dataset_root.joinpath(*relative.parts[index:]))
+                break
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(
+        f"imagem referenciada pelo filelist não encontrada: {raw_path}"
+    )
+
+
+def _read_core50_filelist(
+    filelist_path: Path,
+    *,
+    dataset_root: Path,
+) -> list[tuple[Path, int]]:
+    entries: list[tuple[Path, int]] = []
+    with filelist_path.open(encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                raw_path, raw_label = line.rsplit(maxsplit=1)
+                label = int(raw_label)
+            except ValueError as error:
+                raise ValueError(
+                    f"filelist inválido em {filelist_path}:{line_number}"
+                ) from error
+            entries.append((_resolve_core50_image(dataset_root, raw_path), label))
+    if not entries:
+        raise ValueError(f"filelist vazio: {filelist_path}")
+    return entries
+
+
+def _select_core50_entries(
+    entries: list[tuple[Path, int]],
+    *,
+    count: int | None,
+    seed: int,
+) -> list[tuple[Path, int]]:
+    order = torch.randperm(
+        len(entries), generator=torch.Generator().manual_seed(seed)
+    ).tolist()
+    selected = [entries[index] for index in order]
+    return selected if count is None else selected[:count]
+
+
+def _core50_transform() -> Callable[[object], Tensor]:
+    try:
+        from torchvision import transforms
+    except ImportError as error:
+        raise RuntimeError("torchvision é necessário para CORe50") from error
+    return transforms.Compose(
+        [
+            transforms.Resize((64, 64), antialias=True),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=(0.485, 0.456, 0.406),
+                std=(0.229, 0.224, 0.225),
+            ),
+        ]
+    )
+
+
+def _materialize_core50(
+    entries: list[tuple[Path, int]],
+    *,
+    transform: Callable[[object], Tensor],
+) -> tuple[Tensor, Tensor]:
+    try:
+        from PIL import Image
+    except ImportError as error:
+        raise RuntimeError("Pillow é necessário para CORe50") from error
     images: list[Tensor] = []
     labels: list[int] = []
-    for index in indices.tolist():
-        image, label = dataset[index]
-        images.append(image.flatten())
+    for path, label in entries:
+        with Image.open(path) as image:
+            images.append(transform(image.convert("RGB")).flatten())
         labels.append(label)
     return torch.stack(images), torch.tensor(labels, dtype=torch.long)
 
 
-def load_split_tiny_imagenet(
+def load_core50_nc(
     config: SplitMNISTConfig,
     *,
     data_dir: str | Path,
     download: bool = False,
 ) -> list[MNISTTask]:
-    """Load TinyImageNet from ImageFolder-compatible ``train`` and ``val`` dirs."""
+    """Load one official CORe50 NC incremental run in Class-IL mode.
+
+    ``config.seed`` selects one of the ten official run directories ``Run0``
+    through ``Run9``. Labels in those filelists are already remapped so the
+    first experience introduces labels 0..9 and the next eight introduce five
+    consecutive labels each.
+    """
 
     config.validate()
     if download:
-        raise ValueError("TinyImageNet deve ser obtido separadamente; download=False")
-    if config.scenario != "class_incremental" or len(config.class_order) != 200:
-        raise ValueError("TinyImageNet requer 200 classes class-incremental")
+        raise ValueError("CORe50 deve ser obtido separadamente; use download=False")
+    if config.seed not in CORE50_RUNS:
+        raise ValueError("CORe50 NC requer seeds/run IDs inteiros de 0 a 9")
+    if config.scenario != "class_incremental" or len(config.class_order) != 50:
+        raise ValueError("CORe50 NC requer 50 classes class-incremental")
+    if config.task_class_counts != CORE50_TASK_CLASS_COUNTS:
+        raise ValueError("CORe50 NC requer tarefas (10, 5, 5, 5, 5, 5, 5, 5, 5)")
     if config.input_dim != 3 * 64 * 64:
-        raise ValueError("TinyImageNet requer input_dim=12288")
-    try:
-        from torchvision import transforms
-        from torchvision.datasets import ImageFolder
-    except ImportError as error:
-        raise RuntimeError("torchvision é necessário para TinyImageNet") from error
+        raise ValueError("CORe50 NC requer imagens RGB redimensionadas para 64x64")
 
-    transform = transforms.Compose(
-        [
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=(0.4802, 0.4481, 0.3975),
-                std=(0.2302, 0.2265, 0.2262),
-            ),
-        ]
+    dataset_root = Path(data_dir)
+    if not dataset_root.is_dir():
+        raise FileNotFoundError(f"diretório CORe50 não encontrado: {dataset_root}")
+    run_dir = _core50_run_dir(dataset_root, config.seed)
+    train_filelists = sorted(run_dir.glob("train_batch_*_filelist.txt"))
+    if len(train_filelists) != len(CORE50_TASK_CLASS_COUNTS):
+        raise ValueError(
+            f"{run_dir} deve conter 9 train_batch_*_filelist.txt; "
+            f"encontrados {len(train_filelists)}"
+        )
+    test_entries = _read_core50_filelist(
+        run_dir / "test_filelist.txt", dataset_root=dataset_root
     )
-    root = Path(data_dir)
-    train_dir = root / "train"
-    validation_dir = root / "val"
-    missing = [path for path in (train_dir, validation_dir) if not path.is_dir()]
-    if missing:
-        formatted = ", ".join(str(path) for path in missing)
-        raise FileNotFoundError(
-            "TinyImageNet não encontrado ou não preparado. Diretórios ausentes: "
-            f"{formatted}. Defina TINY_IMAGENET_DIR com a raiz real; train/ e "
-            "val/ devem conter uma subpasta por classe (formato ImageFolder)."
-        )
-    train_dataset = ImageFolder(train_dir, transform=transform)
-    test_dataset = ImageFolder(validation_dir, transform=transform)
-    if train_dataset.class_to_idx != test_dataset.class_to_idx:
-        raise ValueError(
-            "train/ e val/ devem usar a mesma estrutura ImageFolder por classe"
-        )
-    if len(train_dataset.classes) != 200:
-        raise ValueError(
-            "Sequential TinyImageNet requer exatamente 200 classes em train/ e val/"
-        )
-    train_targets = torch.tensor(train_dataset.targets)
-    test_targets = torch.tensor(test_dataset.targets)
-    minimum_train = config.validation_per_class + (config.train_per_class or 0)
-    for label in config.class_order:
-        train_count = int((train_targets == label).sum().item())
-        test_count = int((test_targets == label).sum().item())
-        if train_count < minimum_train:
-            raise ValueError(
-                f"classe {label} possui {train_count} imagens de treino; "
-                f"o protocolo requer ao menos {minimum_train}"
-            )
-        if config.test_per_class is not None and test_count < config.test_per_class:
-            raise ValueError(
-                f"classe {label} possui {test_count} imagens em val/; "
-                f"o protocolo requer ao menos {config.test_per_class}"
-            )
+    test_by_label: dict[int, list[tuple[Path, int]]] = defaultdict(list)
+    for entry in test_entries:
+        test_by_label[entry[1]].append(entry)
+
+    transform = _core50_transform()
     tasks: list[MNISTTask] = []
-    for task_index in range(config.task_count):
-        start = task_index * config.classes_per_task
-        classes = config.class_order[start : start + config.classes_per_task]
-        parts: dict[str, list[Tensor]] = {
-            "train_x": [],
-            "train_y": [],
-            "validation_x": [],
-            "validation_y": [],
-            "test_x": [],
-            "test_y": [],
-        }
-        for label in classes:
-            all_train = _select_class_indices(
-                train_targets, label, count=None, seed=config.seed * 1_003 + label
+    for task_index, filelist_path in enumerate(train_filelists):
+        expected_classes = _classes_for_task(config, task_index)
+        train_entries = _read_core50_filelist(
+            filelist_path, dataset_root=dataset_root
+        )
+        train_by_label: dict[int, list[tuple[Path, int]]] = defaultdict(list)
+        for entry in train_entries:
+            train_by_label[entry[1]].append(entry)
+        if set(train_by_label) != set(expected_classes):
+            raise ValueError(
+                f"classes inesperadas em {filelist_path}: "
+                f"esperado={list(expected_classes)}, "
+                f"obtido={sorted(train_by_label)}"
             )
-            validation_indices = all_train[: config.validation_per_class]
-            remaining = all_train[config.validation_per_class :]
-            train_indices = (
+
+        selected_train: list[tuple[Path, int]] = []
+        selected_validation: list[tuple[Path, int]] = []
+        selected_test: list[tuple[Path, int]] = []
+        for label in expected_classes:
+            ordered_train = _select_core50_entries(
+                train_by_label[label],
+                count=None,
+                seed=config.seed * 100_003 + label * 1_003,
+            )
+            minimum_train = config.validation_per_class + (
+                config.train_per_class or 0
+            )
+            if len(ordered_train) < minimum_train:
+                raise ValueError(
+                    f"classe {label} possui {len(ordered_train)} imagens de treino; "
+                    f"o protocolo requer {minimum_train}"
+                )
+            selected_validation.extend(
+                ordered_train[: config.validation_per_class]
+            )
+            remaining = ordered_train[config.validation_per_class :]
+            selected_train.extend(
                 remaining
                 if config.train_per_class is None
                 else remaining[: config.train_per_class]
             )
-            test_indices = _select_class_indices(
-                test_targets,
-                label,
+            if label not in test_by_label:
+                raise ValueError(f"classe {label} ausente do test_filelist.txt")
+            chosen_test = _select_core50_entries(
+                test_by_label[label],
                 count=config.test_per_class,
-                seed=config.seed * 2_003 + label,
+                seed=config.seed * 200_003 + label * 2_003,
             )
-            train_x, train_y = _materialize_imagefolder(train_dataset, train_indices)
-            validation_x, validation_y = _materialize_imagefolder(
-                train_dataset, validation_indices
-            )
-            test_x, test_y = _materialize_imagefolder(test_dataset, test_indices)
-            for key, value in {
-                "train_x": train_x,
-                "train_y": train_y,
-                "validation_x": validation_x,
-                "validation_y": validation_y,
-                "test_x": test_x,
-                "test_y": test_y,
-            }.items():
-                parts[key].append(value)
+            if (
+                config.test_per_class is not None
+                and len(chosen_test) < config.test_per_class
+            ):
+                raise ValueError(
+                    f"classe {label} possui apenas {len(chosen_test)} imagens de teste"
+                )
+            selected_test.extend(chosen_test)
+
+        train_x, train_y = _materialize_core50(
+            selected_train, transform=transform
+        )
+        validation_x, validation_y = _materialize_core50(
+            selected_validation, transform=transform
+        )
+        test_x, test_y = _materialize_core50(selected_test, transform=transform)
         tasks.append(
             MNISTTask(
-                classes=tuple(classes),
-                train_x=torch.cat(parts["train_x"]),
-                train_y=torch.cat(parts["train_y"]),
-                validation_x=torch.cat(parts["validation_x"]),
-                validation_y=torch.cat(parts["validation_y"]),
-                test_x=torch.cat(parts["test_x"]),
-                test_y=torch.cat(parts["test_y"]),
+                classes=expected_classes,
+                train_x=train_x,
+                train_y=train_y,
+                validation_x=validation_x,
+                validation_y=validation_y,
+                test_x=test_x,
+                test_y=test_y,
             )
         )
     return tasks
@@ -361,28 +371,17 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             hidden_dims=(512, 256),
             **common,
         ),
-        "split_cifar100": SplitMNISTConfig(
-            class_order=tuple(range(100)),
-            classes_per_task=10,
-            input_dim=3 * 32 * 32,
+        "core50": SplitMNISTConfig(
+            seed=0,
+            class_order=tuple(range(50)),
+            classes_per_task=5,
+            task_class_counts=CORE50_TASK_CLASS_COUNTS,
+            scenario="class_incremental",
+            input_dim=3 * 64 * 64,
             hidden_dims=(1024, 512),
             train_per_class=400,
             validation_per_class=100,
             test_per_class=100,
-            **common,
-        ),
-        "tiny_imagenet": SplitMNISTConfig(
-            class_order=tuple(range(200)),
-            # Sequential Tiny ImageNet protocol from Buzzega et al. (2020):
-            # ten disjoint tasks introducing twenty classes each. The shared
-            # 200-way head is evaluated over every class seen so far (Class-IL)
-            # without supplying a task ID; the task-aware matrix is diagnostic.
-            classes_per_task=20,
-            input_dim=3 * 64 * 64,
-            hidden_dims=(1024, 512),
-            train_per_class=450,
-            validation_per_class=50,
-            test_per_class=50,
             **common,
         ),
     }
@@ -398,17 +397,16 @@ def run_visual_generalization(
     download: bool = True,
     verbose: bool = True,
     resume: bool = False,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     configs = generalization_configs(device)
     loaders = {
         "permuted_mnist": load_permuted_mnist,
-        "split_cifar100": load_split_cifar100,
-        "tiny_imagenet": load_split_tiny_imagenet,
+        "core50": load_core50_nc,
     }
     if name not in configs:
         raise ValueError(f"benchmark desconhecido: {name}")
-    if name == "tiny_imagenet" and download:
-        raise ValueError("use download=False para TinyImageNet local")
+    if name == "core50" and download:
+        raise ValueError("use download=False para o CORe50 local")
     return run_split_mnist_multi_seed(
         replace(configs[name], device=device),
         seeds=seeds,

@@ -589,8 +589,7 @@ O protocolo completo inclui:
 - MLPs `256–128`, `512–256` e `512–512–256`;
 - memórias de 5, 10, 20, 50 e 100 exemplos por classe;
 - Permuted-MNIST domain-incremental;
-- Split CIFAR-100;
-- TinyImageNet local em formato `ImageFolder`.
+- CORe50 New Classes nas dez ordens oficiais.
 
 O CSV fornecido não contém resultados dessas extensões.
 
@@ -652,7 +651,7 @@ Os dados **não** permitem afirmar ainda que:
 - SlowHeat é superior de forma geral a DER++, Replay ou outros métodos;
 - o ganho de SlowHeat + DER++ é estatisticamente confirmado;
 - SlowHeat + Replay supera Replay no endpoint confirmatório;
-- o método escala para CIFAR-100, TinyImageNet, redes convolucionais ou transformers;
+- o método escala para CORe50, redes convolucionais ou transformers;
 - a redução de forgetting, sozinha, representa melhor aprendizagem contínua.
 
 ---
@@ -667,7 +666,7 @@ Os dados **não** permitem afirmar ainda que:
 6. **Arquivar artefatos completos:** configuração, seed, matriz de acurácia, curvas, custo, ambiente, hash do commit e CSV agregado.
 7. **Investigar o classifier gap** com matrizes de confusão, distribuição de logits antigos/novos e calibração por estágio.
 8. **Executar as ablações causais:** hidden-only versus saída protegida, budget fixo/adaptativo, proteção fatorada/row-only e `follow_update`/`native`.
-9. **Validar generalização** em ordens alternativas, memórias diferentes, Permuted-MNIST e Split CIFAR-100 antes de qualquer alegação ampla.
+9. **Validar generalização** em ordens alternativas, memórias diferentes, Permuted-MNIST e CORe50 antes de qualquer alegação ampla.
 10. **Deduplicar e validar exportações**, rejeitando nomes repetidos ou incluindo explicitamente a origem de cada seção.
 
 ---
@@ -688,7 +687,7 @@ experiments/
   confirmatory_split_mnist.py    confirmação pré-registrada
   confirmatory_statistics.py     estatística pareada
   synthetic_cl.py                benchmark sintético determinístico
-  visual_generalization.py       Permuted-MNIST, CIFAR-100 e TinyImageNet
+  visual_generalization.py       Permuted-MNIST e CORe50 New Classes
 
 docs/               contratos, protocolo e registro experimental
 notebooks/           execução interativa dos protocolos

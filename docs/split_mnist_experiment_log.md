@@ -568,8 +568,7 @@ Os experimentos sustentam, neste protocolo específico:
 
 - múltiplas ordens de classes;
 - Permuted-MNIST como diagnóstico diferente;
-- Split CIFAR-100;
-- TinyImageNet ou outro stream visual mais difícil;
+- CORe50 New Classes como stream criado para continual learning;
 - arquiteturas maiores e diferentes budgets de memória.
 
 ### Ablações restantes
@@ -686,10 +685,9 @@ saída parcialmente protegida, calibração da cabeça global, memórias de
 `5/10/20/50/100` exemplos por classe e replay com redução global de learning
 rate. Cinco ordens fixas de classes e MLPs maiores também foram adicionados.
 
-O engine foi generalizado para dimensões e quantidades de classes arbitrárias.
-Adapters separados agora expõem Permuted-MNIST como domain-incremental e Split
-CIFAR-100/TinyImageNet como class-incremental, evitando reutilizar a semântica
-incorreta de corte contíguo de logits. TinyImageNet exige um dataset local com
-`train/` e `val/` organizados por classe em formato ImageFolder; não há download
-automático. Essas extensões são diagnósticos secundários e permanecem não
-executadas.
+O engine foi generalizado para dimensões, quantidades de classes e tarefas de
+tamanhos diferentes. Adapters separados agora expõem Permuted-MNIST como
+domain-incremental e CORe50 New Classes como Class-IL nativo, usando as dez
+ordens oficiais e nove experiências. CORe50 exige as imagens RGB recortadas e
+os filelists `NC_inc`; não há download automático. Essas extensões são
+diagnósticos secundários e permanecem não executadas.

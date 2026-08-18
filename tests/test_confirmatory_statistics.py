@@ -4,6 +4,7 @@ from experiments.confirmatory_split_mnist import (
     CONFIRMATORY_SEEDS,
     DECLARED_EXPLORATORY_SEEDS,
     FROZEN_CONFIG,
+    preregistration_manifest,
     validate_preregistration,
 )
 from experiments.confirmatory_statistics import paired_confirmatory_summary
@@ -27,6 +28,9 @@ def test_paired_summary_reports_student_bootstrap_and_signs():
 def test_confirmatory_protocol_is_frozen_and_nonoverlapping():
     validate_preregistration()
 
+    assert preregistration_manifest()["sha256"] == (
+        "015b3162ac21a9d104d0a2677d461f2e1b0ab02093cf8c03fe1a406f8cf4a9b2"
+    )
     assert len(CONFIRMATORY_SEEDS) == len(set(CONFIRMATORY_SEEDS)) == 20
     assert not set(CONFIRMATORY_SEEDS) & set(DECLARED_EXPLORATORY_SEEDS)
     assert FROZEN_CONFIG.epochs_per_task == 10
