@@ -11,7 +11,6 @@ from typing import Any
 from experiments.confirmatory_statistics import PRIMARY_ENDPOINT
 from experiments.split_mnist import SplitMNISTConfig, run_split_mnist_multi_seed
 
-
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 REFERENCE = "replay"
 PREREGISTERED_AT = "2026-08-15"

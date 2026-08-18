@@ -1,12 +1,12 @@
 import pytest
 
-from experiments.confirmatory_statistics import paired_confirmatory_summary
 from experiments.confirmatory_split_mnist import (
     CONFIRMATORY_SEEDS,
     DECLARED_EXPLORATORY_SEEDS,
     FROZEN_CONFIG,
     validate_preregistration,
 )
+from experiments.confirmatory_statistics import paired_confirmatory_summary
 
 
 def test_paired_summary_reports_student_bootstrap_and_signs():

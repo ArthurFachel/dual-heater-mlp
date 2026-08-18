@@ -7,7 +7,6 @@ from pathlib import Path
 
 from experiments.split_mnist import SplitMNISTConfig, run_split_mnist_multi_seed
 
-
 BENCHMARK_SEEDS = (11, 22, 33, 44, 55, 66, 77, 88, 99, 110)
 
 
