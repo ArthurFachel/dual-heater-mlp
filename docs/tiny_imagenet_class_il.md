@@ -24,7 +24,11 @@ primária: [artigo nos Proceedings of NeurIPS](https://proceedings.neurips.cc/pa
 - treino e avaliação Class-IL mascaram somente classes futuras, nunca classes
   antigas já aprendidas;
 - nenhum task ID é fornecido à inferência Class-IL;
-- comparação pareada entre `replay` e `derpp`;
+- comparação entre `replay`, `derpp`,
+  `slowheat_replay_hidden_beta_30_budget_0.25` e
+  `slowheat_derpp_hidden_beta_30_budget_0.25`;
+- contrastes pareados SlowHeat+Replay menos Replay e SlowHeat+DER++ menos
+  DER++;
 - mesmas inicializações, divisões, minibatches, exemplares e índices de replay
   por seed;
 - 450 imagens de treino e 50 de validação por classe, reproduzindo a separação
@@ -34,7 +38,7 @@ primária: [artigo nos Proceedings of NeurIPS](https://proceedings.neurips.cc/pa
   `classifier_gap` são diagnósticos secundários.
 
 Esta implementação reutiliza deliberadamente o motor MLP do projeto para
-isolar Replay × DER++ sob as mesmas condições usadas nas demais análises. Ela
+isolar os quatro métodos sob as mesmas condições usadas nas demais análises. Ela
 reproduz a divisão e a semântica incremental do artigo, mas não pretende
 reproduzir numericamente sua tabela: o trabalho original usa ResNet-18 não
 pré-treinada e uma receita de otimização própria.
@@ -73,6 +77,6 @@ python run_all_tests.py \
 ```
 
 Os artefatos são gravados em
-`results/split_mnist_protocol/tiny_imagenet/`. `aggregate.json` contém o
-contraste pareado `derpp - replay`; cada diretório `seed_*` contém as matrizes
-Class-IL e Task-IL completas.
+`results/split_mnist_protocol/tiny_imagenet/`. `aggregate.json` contém os
+contrastes pareados contra Replay e DER++; cada diretório `seed_*` contém as
+matrizes Class-IL e Task-IL completas.

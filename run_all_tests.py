@@ -168,7 +168,7 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         ],
         "ablations": list(ABLATION_METHODS),
         "slowheat-derpp": list(SLOWHEAT_DERPP_METHODS),
-        "split-mnist-generalization": ["replay", CANDIDATE],
+        "split-mnist-generalization": list(SLOWHEAT_DERPP_METHODS),
         "permuted-mnist": list(visual_configs["permuted_mnist"].methods),
         "split-cifar100": list(visual_configs["split_cifar100"].methods),
         "tiny-imagenet": list(visual_configs["tiny_imagenet"].methods),
@@ -209,7 +209,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 "inference_task_id": False,
                 "primary_evaluation": "class_il_seen_classes",
                 "secondary_evaluation": "task_il_diagnostic",
-                "paired_reference": "replay",
+                "paired_references": ["replay", "derpp"],
             }
         sections[name] = details
     return {

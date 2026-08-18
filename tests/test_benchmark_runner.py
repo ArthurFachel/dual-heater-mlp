@@ -23,7 +23,7 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
     ]
     assert len(plan["sections"]["split-mnist-generalization"]["class_orders"]) == 5
     tiny = plan["sections"]["tiny-imagenet"]
-    assert tiny["methods"] == ["replay", "derpp"]
+    assert tiny["methods"] == list(run_all_tests.SLOWHEAT_DERPP_METHODS)
     assert tiny["protocol"] == {
         "scenario": "class_incremental",
         "task_count": 10,
@@ -32,7 +32,7 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
         "inference_task_id": False,
         "primary_evaluation": "class_il_seen_classes",
         "secondary_evaluation": "task_il_diagnostic",
-        "paired_reference": "replay",
+        "paired_references": ["replay", "derpp"],
     }
 
 

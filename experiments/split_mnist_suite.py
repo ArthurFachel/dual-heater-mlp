@@ -265,7 +265,9 @@ def run_order_and_capacity_generalization(
     """Run fixed class orders, larger MLPs and memory budgets."""
 
     root = Path(output_dir)
-    base = replace(baseline_config(device=device), methods=("replay", CANDIDATE))
+    base = replace(
+        baseline_config(device=device), methods=SLOWHEAT_DERPP_METHODS
+    )
     results: dict[str, Any] = {"class_orders": {}, "architectures": {}}
     for index, order in enumerate(CLASS_ORDERS):
         results["class_orders"][str(index)] = _run(
@@ -275,6 +277,7 @@ def run_order_and_capacity_generalization(
             output_dir=root / f"order_{index}",
             download=download if index == 0 else False,
             verbose=verbose,
+            paired_references=("replay", "derpp"),
             resume=resume,
         )
     for name, hidden_dims in {
@@ -289,6 +292,7 @@ def run_order_and_capacity_generalization(
             output_dir=root / name,
             download=False,
             verbose=verbose,
+            paired_references=("replay", "derpp"),
             resume=resume,
         )
     return results

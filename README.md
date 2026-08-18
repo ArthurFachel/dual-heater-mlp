@@ -290,9 +290,10 @@ python run_all_tests.py \
 
 The Tiny ImageNet section implements Sequential Tiny ImageNet as ten tasks of
 twenty classes. Its primary matrix is Class-IL: one shared 200-class head,
-selection among every class learned so far, and no task ID at inference. It
-runs Replay and DER++ with paired initialization, batches, memory examples and
-seeds; Task-IL is retained only as a diagnostic matrix. See
+selection among every class learned so far, and no task ID at inference. Every
+visual dataset runs Replay, DER++, SlowHeat+Replay and SlowHeat+DER++ with
+paired initialization, batches, memory examples and seeds; Task-IL is retained
+only as a diagnostic matrix. See
 [`docs/tiny_imagenet_class_il.md`](docs/tiny_imagenet_class_il.md) for the exact
 project protocol, data layout and source.
 

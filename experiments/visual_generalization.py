@@ -21,7 +21,7 @@ from experiments.split_mnist import (
     _select_class_indices,
     run_split_mnist_multi_seed,
 )
-from experiments.split_mnist_suite import CANDIDATE
+from experiments.split_mnist_suite import SLOWHEAT_DERPP_METHODS
 
 
 def _split_tensor_dataset(
@@ -348,7 +348,7 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
         "plasticity_budget": 0.25,
         "replay_per_class": 20,
         "replay_batch_size": 64,
-        "methods": ("replay", CANDIDATE),
+        "methods": SLOWHEAT_DERPP_METHODS,
         "device": device,
     }
     return {
@@ -383,7 +383,7 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             train_per_class=450,
             validation_per_class=50,
             test_per_class=50,
-            **{**common, "methods": ("replay", "derpp")},
+            **common,
         ),
     }
 
@@ -416,7 +416,7 @@ def run_visual_generalization(
         output_dir=output_dir,
         download=download,
         verbose=verbose,
-        paired_references=("replay",),
+        paired_references=("replay", "derpp"),
         task_loader=loaders[name],
         resume=resume,
     )
