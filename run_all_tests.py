@@ -46,7 +46,7 @@ from experiments.visual_generalization import (
     run_visual_generalization,
 )
 
-BASELINE_SEEDS = (311, 617, 919, 1223, 1523)
+BASELINE_SEEDS = (311, 617, 919, 1223, 1523, 1823, 2129, 2423, 2729, 3037)
 SECTION_NAMES = (
     "confirmation",
     "all-baselines",
@@ -157,7 +157,7 @@ def _write_json(path: Path, payload: Any) -> None:
 
 
 def _methods_by_section(device: str) -> dict[str, list[str]]:
-    visual_methods = list(generalization_configs(device)["permuted_mnist"].methods)
+    visual_configs = generalization_configs(device)
     return {
         "confirmation": list(FROZEN_CONFIG.methods),
         "all-baselines": list(ALL_BASELINES),
@@ -169,9 +169,9 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         "ablations": list(ABLATION_METHODS),
         "slowheat-derpp": list(SLOWHEAT_DERPP_METHODS),
         "split-mnist-generalization": ["replay", CANDIDATE],
-        "permuted-mnist": visual_methods,
-        "split-cifar100": visual_methods,
-        "tiny-imagenet": visual_methods,
+        "permuted-mnist": list(visual_configs["permuted_mnist"].methods),
+        "split-cifar100": list(visual_configs["split_cifar100"].methods),
+        "tiny-imagenet": list(visual_configs["tiny_imagenet"].methods),
     }
 
 
@@ -199,6 +199,18 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 [512, 256],
                 [512, 512, 256],
             ]
+        elif name == "tiny-imagenet":
+            tiny_config = generalization_configs(args.device)["tiny_imagenet"]
+            details["protocol"] = {
+                "scenario": "class_incremental",
+                "task_count": tiny_config.task_count,
+                "classes_per_task": tiny_config.classes_per_task,
+                "class_count": len(tiny_config.class_order),
+                "inference_task_id": False,
+                "primary_evaluation": "class_il_seen_classes",
+                "secondary_evaluation": "task_il_diagnostic",
+                "paired_reference": "replay",
+            }
         sections[name] = details
     return {
         "status": "planned",

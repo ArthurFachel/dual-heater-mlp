@@ -46,19 +46,19 @@ The ready-to-run Split-MNIST class-incremental notebook is
 method at `beta = 10, 30, 100` with vanilla AdamW, exact hard-freeze, replay,
 distillation and combined variants. It reports class-incremental and task-aware
 matrices, locates classifier interference, plots the stability-plasticity
-trade-off and aggregates five paired seeds. It also compares 1, 5 and 10
+trade-off and aggregates ten paired seeds. It also compares 1, 5 and 10
 epochs for replay and hidden-only SlowHeat + replay variants with lower beta,
 larger plasticity budgets and paired differences against replay.
 
-The same five-seed protocol can be launched without Jupyter:
+The same ten-seed protocol can be launched without Jupyter:
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES='' \
-PYTHONPATH=src:. python -m experiments.run_split_mnist_5seeds --device cpu
+PYTHONPATH=src:. python -m experiments.run_split_mnist_10seeds --device cpu
 ```
 
 Per-seed outputs and `aggregate.csv` are written to
-`results/split_mnist_5seeds/` by default.
+`results/split_mnist_10seeds/` by default.
 
 The frozen independent-confirmation protocol and expanded baseline suite are
 in `notebooks/split_mnist_confirmatory_suite.ipynb`. That notebook exposes
@@ -288,6 +288,14 @@ python run_all_tests.py \
   --tiny-imagenet-dir /path/to/tiny-imagenet-200
 ```
 
+The Tiny ImageNet section implements Sequential Tiny ImageNet as ten tasks of
+twenty classes. Its primary matrix is Class-IL: one shared 200-class head,
+selection among every class learned so far, and no task ID at inference. It
+runs Replay and DER++ with paired initialization, batches, memory examples and
+seeds; Task-IL is retained only as a diagnostic matrix. See
+[`docs/tiny_imagenet_class_il.md`](docs/tiny_imagenet_class_il.md) for the exact
+project protocol, data layout and source.
+
 Runs resume matching completed seeds by default. Use `--sections` to execute a
 subset, for example the separate SlowHeat+DER++ comparison:
 
@@ -303,7 +311,7 @@ Progress is recorded in
 is extracted to `results/split_mnist_protocol/primary_result.json`.
 
 The complete default protocol is computationally expensive: it contains 20
-frozen confirmatory seeds plus repeated five-seed secondary analyses. If
+frozen confirmatory seeds plus repeated ten-seed secondary analyses. If
 `--tiny-imagenet-dir` is omitted, TinyImageNet is explicitly recorded as
 skipped, matching the notebook behavior.
 

@@ -67,6 +67,10 @@ ser executada uma única vez em um diretório vazio. O notebook mantém as etapa
 separadas para impedir que uma ablação modifique o objeto congelado.
 
 A seção de generalização oferece cinco ordens de Split-MNIST, MLPs maiores,
-Permuted-MNIST domain-incremental, Split CIFAR-100 e TinyImageNet. O último
-requer `train/` e `val/` locais em estrutura ImageFolder e deve ser chamado com
-`download=False`.
+Permuted-MNIST domain-incremental, Split CIFAR-100 e Sequential Tiny ImageNet.
+As análises secundárias usam dez seeds pareadas; a confirmação permanece com
+as vinte seeds congeladas. Tiny ImageNet usa dez tarefas de vinte classes,
+Class-IL sem task ID como endpoint principal e comparação direta Replay ×
+DER++. Ele requer `train/` e `val/` locais em estrutura ImageFolder e deve ser
+chamado com `download=False`. O protocolo detalhado está em
+`docs/tiny_imagenet_class_il.md`.

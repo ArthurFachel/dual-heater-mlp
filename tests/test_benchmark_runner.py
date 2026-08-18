@@ -10,6 +10,9 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
 
     assert tuple(plan["sections"]) == run_all_tests.SECTION_NAMES
     assert len(plan["sections"]["confirmation"]["seeds"]) == 20
+    for name, section in plan["sections"].items():
+        if name != "confirmation":
+            assert len(section["seeds"]) == 10
     assert SLOWHEAT_DERPP in plan["sections"]["slowheat-derpp"]["methods"]
     assert plan["sections"]["ablations"]["replay_memory_per_class"] == [
         5,
@@ -19,6 +22,18 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
         100,
     ]
     assert len(plan["sections"]["split-mnist-generalization"]["class_orders"]) == 5
+    tiny = plan["sections"]["tiny-imagenet"]
+    assert tiny["methods"] == ["replay", "derpp"]
+    assert tiny["protocol"] == {
+        "scenario": "class_incremental",
+        "task_count": 10,
+        "classes_per_task": 20,
+        "class_count": 200,
+        "inference_task_id": False,
+        "primary_evaluation": "class_il_seen_classes",
+        "secondary_evaluation": "task_il_diagnostic",
+        "paired_reference": "replay",
+    }
 
 
 def test_tiny_imagenet_is_recorded_as_skipped_without_local_dataset(tmp_path):

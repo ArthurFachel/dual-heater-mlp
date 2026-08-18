@@ -262,8 +262,26 @@ def load_split_tiny_imagenet(
         raise ValueError(
             "train/ e val/ devem usar a mesma estrutura ImageFolder por classe"
         )
+    if len(train_dataset.classes) != 200:
+        raise ValueError(
+            "Sequential TinyImageNet requer exatamente 200 classes em train/ e val/"
+        )
     train_targets = torch.tensor(train_dataset.targets)
     test_targets = torch.tensor(test_dataset.targets)
+    minimum_train = config.validation_per_class + (config.train_per_class or 0)
+    for label in config.class_order:
+        train_count = int((train_targets == label).sum().item())
+        test_count = int((test_targets == label).sum().item())
+        if train_count < minimum_train:
+            raise ValueError(
+                f"classe {label} possui {train_count} imagens de treino; "
+                f"o protocolo requer ao menos {minimum_train}"
+            )
+        if config.test_per_class is not None and test_count < config.test_per_class:
+            raise ValueError(
+                f"classe {label} possui {test_count} imagens em val/; "
+                f"o protocolo requer ao menos {config.test_per_class}"
+            )
     tasks: list[MNISTTask] = []
     for task_index in range(config.task_count):
         start = task_index * config.classes_per_task
@@ -355,13 +373,17 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
         ),
         "tiny_imagenet": SplitMNISTConfig(
             class_order=tuple(range(200)),
-            classes_per_task=10,
+            # Sequential Tiny ImageNet protocol from Buzzega et al. (2020):
+            # ten disjoint tasks introducing twenty classes each. The shared
+            # 200-way head is evaluated over every class seen so far (Class-IL)
+            # without supplying a task ID; the task-aware matrix is diagnostic.
+            classes_per_task=20,
             input_dim=3 * 64 * 64,
             hidden_dims=(1024, 512),
-            train_per_class=400,
-            validation_per_class=100,
+            train_per_class=450,
+            validation_per_class=50,
             test_per_class=50,
-            **common,
+            **{**common, "methods": ("replay", "derpp")},
         ),
     }
 
