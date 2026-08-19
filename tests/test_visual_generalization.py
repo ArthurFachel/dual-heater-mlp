@@ -5,7 +5,7 @@ import torch
 
 import experiments.visual_generalization as visual
 from experiments.split_mnist import SUPPORTED_METHODS
-from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP_METHODS
+from experiments.split_mnist_suite import ALL_VISUAL_METHODS
 
 
 def test_generalization_configs_preserve_scenario_semantics():
@@ -24,7 +24,7 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar100"].scenario == "class_incremental"
     assert configs["split_cifar100"].task_count == 10
     assert configs["split_cifar100"].classes_per_task == 10
-    assert configs["permuted_mnist"].methods == SLOWHEAT_DERPP_METHODS
+    assert configs["permuted_mnist"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar10"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar100"].methods == ALL_VISUAL_METHODS
     assert len(ALL_VISUAL_METHODS) == len(set(ALL_VISUAL_METHODS)) == 31

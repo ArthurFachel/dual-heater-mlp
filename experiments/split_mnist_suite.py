@@ -176,6 +176,31 @@ def run_all_baselines(
     )
 
 
+def run_all_visual_methods(
+    *,
+    seeds: list[int],
+    data_dir: str | Path,
+    output_dir: str | Path,
+    device: str = "cpu",
+    download: bool = True,
+    verbose: bool = True,
+    resume: bool = False,
+) -> dict[str, Any]:
+    """Execute every method supported by the visual benchmark engine."""
+
+    config = replace(baseline_config(device=device), methods=ALL_VISUAL_METHODS)
+    return _run(
+        config,
+        seeds=seeds,
+        data_dir=data_dir,
+        output_dir=output_dir,
+        download=download,
+        verbose=verbose,
+        paired_references=("replay", "derpp"),
+        resume=resume,
+    )
+
+
 def run_equal_example_budget(
     *,
     seeds: list[int],

@@ -236,7 +236,7 @@ Menor é melhor, desde que a task-aware accuracy não tenha sido sacrificada.
 
 ## 4. Validação de implementação
 
-A suíte atual contém 100 testes automatizados. Entre
+A suíte atual contém 102 testes automatizados. Entre
 os comportamentos cobertos estão:
 
 - invariância da importância funcional à reescala recíproca ReLU;

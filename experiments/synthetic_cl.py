@@ -24,6 +24,20 @@ from dual_heater import (
     compute_cl_metrics,
 )
 
+SYNTHETIC_METHODS = (
+    "vanilla",
+    "reduced_lr",
+    "slowheat_max",
+    "slowheat_mean",
+    "slowheat_sum",
+    "slowheat_none",
+    "slowheat_max_native_state",
+    "slowheat_max_unidirectional",
+    "slowheat_max_unbudgeted",
+    "slowheat_max_sgd",
+    "slowheat_max_legacy_adamw",
+)
+
 
 @dataclass(frozen=True)
 class SyntheticConfig:
@@ -91,19 +105,7 @@ class SyntheticConfig:
             raise ValueError("methods não pode ser vazio")
         if len(set(self.methods)) != len(self.methods):
             raise ValueError("methods não pode conter duplicatas")
-        supported = {
-            "vanilla",
-            "reduced_lr",
-            "slowheat_max",
-            "slowheat_mean",
-            "slowheat_sum",
-            "slowheat_none",
-            "slowheat_max_sgd",
-            "slowheat_max_legacy_adamw",
-            "slowheat_max_native_state",
-            "slowheat_max_unidirectional",
-            "slowheat_max_unbudgeted",
-        }
+        supported = set(SYNTHETIC_METHODS)
         unknown = set(self.methods) - supported
         if unknown:
             raise ValueError(f"métodos desconhecidos: {sorted(unknown)}")

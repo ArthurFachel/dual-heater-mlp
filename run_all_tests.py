@@ -30,17 +30,21 @@ from experiments.confirmatory_split_mnist import (
     run_confirmation,
     validate_preregistration,
 )
+from experiments.multi_seed import run_multi_seed
 from experiments.split_mnist_suite import (
     ABLATION_METHODS,
     ALL_BASELINES,
+    ALL_VISUAL_METHODS,
     CLASS_ORDERS,
     SLOWHEAT_DERPP_METHODS,
     run_ablation_matrix,
     run_all_baselines,
+    run_all_visual_methods,
     run_equal_example_budget,
     run_order_and_capacity_generalization,
     run_slowheat_derpp_test,
 )
+from experiments.synthetic_cl import SYNTHETIC_METHODS, load_config
 from experiments.visual_generalization import (
     generalization_configs,
     run_visual_generalization,
@@ -48,6 +52,8 @@ from experiments.visual_generalization import (
 
 BASELINE_SEEDS = (311, 617, 919, 1223, 1523, 1823, 2129, 2423, 2729, 3037)
 SECTION_NAMES = (
+    "synthetic-all-methods",
+    "split-mnist-all-methods",
     "confirmation",
     "all-baselines",
     "equal-examples",
@@ -58,7 +64,21 @@ SECTION_NAMES = (
     "split-cifar10",
     "split-cifar100",
 )
+DEFAULT_SECTION_NAMES = tuple(
+    name
+    for name in SECTION_NAMES
+    if name not in {"synthetic-all-methods", "split-mnist-all-methods"}
+)
+ALL_DATASET_METHOD_SECTIONS = (
+    "synthetic-all-methods",
+    "split-mnist-all-methods",
+    "permuted-mnist",
+    "split-cifar10",
+    "split-cifar100",
+)
 SECTION_OUTPUT_DIRS = {
+    "synthetic-all-methods": "synthetic_all_methods",
+    "split-mnist-all-methods": "split_mnist_all_methods",
     "confirmation": "confirmation",
     "all-baselines": "all_baselines_equal_epochs",
     "equal-examples": "all_baselines_equal_examples",
@@ -72,6 +92,7 @@ SECTION_OUTPUT_DIRS = {
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    raw_argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--data-dir",
@@ -101,8 +122,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--sections",
         nargs="+",
         choices=SECTION_NAMES,
-        default=list(SECTION_NAMES),
+        default=list(DEFAULT_SECTION_NAMES),
         help="subconjunto de seções; por padrão executa todas",
+    )
+    parser.add_argument(
+        "--all-datasets-all-methods",
+        action="store_true",
+        help=(
+            "executar todos os métodos compatíveis em Synthetic, Split-MNIST, "
+            "Permuted-MNIST, Split-CIFAR-10 e Split-CIFAR-100"
+        ),
     )
     parser.add_argument(
         "--no-download",
@@ -129,7 +158,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="validar e imprimir o plano sem executar testes, downloads ou treino",
     )
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
+    if args.all_datasets_all_methods:
+        if "--sections" in raw_argv:
+            parser.error(
+                "--all-datasets-all-methods não pode ser combinado com --sections"
+            )
+        args.sections = list(ALL_DATASET_METHOD_SECTIONS)
     if len(set(args.baseline_seeds)) != len(args.baseline_seeds):
         parser.error("--baseline-seeds não pode conter duplicatas")
     return args
@@ -154,6 +189,8 @@ def _write_json(path: Path, payload: Any) -> None:
 def _methods_by_section(device: str) -> dict[str, list[str]]:
     visual_configs = generalization_configs(device)
     return {
+        "synthetic-all-methods": list(SYNTHETIC_METHODS),
+        "split-mnist-all-methods": list(ALL_VISUAL_METHODS),
         "confirmation": list(FROZEN_CONFIG.methods),
         "all-baselines": list(ALL_BASELINES),
         "equal-examples": [
@@ -194,6 +231,16 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 [512, 256],
                 [512, 512, 256],
             ]
+        elif name == "synthetic-all-methods":
+            config = load_config(PROJECT_ROOT / "configs/synthetic_ablation_pilot.json")
+            details["protocol"] = {
+                "scenario": "class_incremental",
+                "task_count": config.task_count,
+                "classes_per_task": config.classes_per_task,
+                "class_count": config.class_count,
+                "inference_task_id": False,
+                "device": "cpu",
+            }
         elif name in {"split-cifar10", "split-cifar100"}:
             config = generalization_configs(args.device)[name.replace("-", "_")]
             details["protocol"] = {
@@ -246,6 +293,14 @@ def _run_section(
     data_dir: Path,
     output_dir: Path,
 ) -> dict[str, Any]:
+    if name == "synthetic-all-methods":
+        config = load_config(PROJECT_ROOT / "configs/synthetic_ablation_pilot.json")
+        return run_multi_seed(
+            config,
+            seeds=list(args.baseline_seeds),
+            output_dir=output_dir / SECTION_OUTPUT_DIRS[name],
+        )
+
     common = {
         "seeds": list(args.baseline_seeds),
         "data_dir": data_dir,
@@ -259,6 +314,8 @@ def _run_section(
         confirmation_common = dict(common)
         confirmation_common.pop("seeds")
         return run_confirmation(**confirmation_common)
+    if name == "split-mnist-all-methods":
+        return run_all_visual_methods(**common)
     if name == "all-baselines":
         return run_all_baselines(**common)
     if name == "equal-examples":

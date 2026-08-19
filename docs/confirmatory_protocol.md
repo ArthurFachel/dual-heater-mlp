@@ -86,6 +86,12 @@ MLP pareado. Cada seção CIFAR executa os 31 métodos visuais implementados ou
 configurados pelo projeto. As análises secundárias usam dez seeds pareadas; a
 confirmação permanece com as vinte seeds congeladas.
 
+Para executar o produto completo de datasets e métodos, use
+`python run_all_tests.py --all-datasets-all-methods`. Esse modo seleciona o
+sintético com seus 11 métodos próprios e Split-MNIST, Permuted-MNIST,
+Split-CIFAR-10 e Split-CIFAR-100 com os 31 métodos do engine visual. O sintético
+permanece CPU-only.
+
 O protocolo exato de dados, arquitetura, métodos e saídas de CIFAR está em
 `docs/split_cifar.md`. Essas seções são secundárias e não alteram o endpoint
 confirmatório congelado.

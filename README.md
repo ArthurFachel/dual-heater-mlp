@@ -298,6 +298,17 @@ Jupyter. Preview every section, method, seed and output path without training:
 python run_all_tests.py --dry-run
 ```
 
+Run every compatible method on every dataset/stream in the project:
+
+```bash
+python run_all_tests.py --all-datasets-all-methods --device cpu --no-download
+```
+
+This selects the synthetic benchmark plus Split-MNIST, Permuted-MNIST,
+Split-CIFAR-10 and Split-CIFAR-100. It runs all 11 synthetic methods on the
+synthetic stream and all 31 visual methods on each visual stream, using ten
+seeds by default. The synthetic runner is CPU-only.
+
 Run the complete confirmatory, baseline, fairness, ablation, DER++, Split-MNIST
 generalization, Permuted-MNIST, Split-CIFAR-10 and Split-CIFAR-100 protocol.
 This command does not run pytest:
@@ -327,7 +338,7 @@ paired MLP engine, so these runs test harder visual streams but are not CNN
 benchmarks. See [`docs/split_cifar.md`](docs/split_cifar.md) for the exact
 protocol.
 
-Each CIFAR section runs all 31 visual methods implemented or explicitly
+Each visual all-methods section runs all 31 methods implemented or explicitly
 configured by the project, including vanilla, the SlowHeat controls and beta
 variants, Replay, distillation, DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF,
 fairness controls and the executable ablations. Use `--dry-run` to inspect the

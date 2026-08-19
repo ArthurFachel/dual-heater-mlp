@@ -121,6 +121,13 @@ em `results/split_mnist_protocol/split_cifar10/` e
 Execuções retomam seeds concluídas cuja configuração coincide. `--fresh`
 desativa a retomada e exige diretórios de saída novos.
 
+Para incluir também Split-MNIST, Permuted-MNIST e o sintético em uma única
+chamada:
+
+```bash
+python run_all_tests.py --all-datasets-all-methods --device cpu --no-download
+```
+
 Com 31 métodos, dez seeds e até dez tarefas por dataset, a suíte completa é
 computacionalmente cara. O `--dry-run` valida somente o plano; ele não carrega
 os datasets nem estima duração ou memória. Tempos de parede só devem ser

@@ -1,12 +1,13 @@
 import run_all_tests
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP
+from experiments.synthetic_cl import SYNTHETIC_METHODS
 
 
 def test_default_plan_covers_every_confirmatory_notebook_section():
     args = run_all_tests.parse_args(["--dry-run"])
     plan = run_all_tests.build_run_plan(args)
 
-    assert tuple(plan["sections"]) == run_all_tests.SECTION_NAMES
+    assert tuple(plan["sections"]) == run_all_tests.DEFAULT_SECTION_NAMES
     assert len(plan["sections"]["confirmation"]["seeds"]) == 20
     for name, section in plan["sections"].items():
         if name != "confirmation":
@@ -40,6 +41,23 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
     assert plan["sections"]["split-cifar100"]["methods"] == list(
         ALL_VISUAL_METHODS
     )
+
+
+def test_all_datasets_all_methods_plan_covers_every_compatible_cross_section():
+    args = run_all_tests.parse_args(["--all-datasets-all-methods", "--dry-run"])
+    plan = run_all_tests.build_run_plan(args)
+
+    assert tuple(plan["sections"]) == run_all_tests.ALL_DATASET_METHOD_SECTIONS
+    assert plan["sections"]["synthetic-all-methods"]["methods"] == list(
+        SYNTHETIC_METHODS
+    )
+    for name in (
+        "split-mnist-all-methods",
+        "permuted-mnist",
+        "split-cifar10",
+        "split-cifar100",
+    ):
+        assert plan["sections"][name]["methods"] == list(ALL_VISUAL_METHODS)
 
 
 def test_section_runner_enables_resume_and_forwards_secondary_seeds(
@@ -98,3 +116,35 @@ def test_cifar_sections_use_visual_generalization_runner(tmp_path, monkeypatch):
 
     assert [name for name, _ in captured] == ["split_cifar10", "split_cifar100"]
     assert all(kwargs["download"] is True for _, kwargs in captured)
+
+
+def test_synthetic_all_methods_section_uses_secondary_seeds(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_run(config, **kwargs):
+        captured["config"] = config
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(run_all_tests, "run_multi_seed", fake_run)
+    args = run_all_tests.parse_args(
+        [
+            "--sections",
+            "synthetic-all-methods",
+            "--baseline-seeds",
+            "7",
+            "9",
+        ]
+    )
+
+    result = run_all_tests._run_section(
+        "synthetic-all-methods",
+        args,
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "results",
+    )
+
+    assert result == {"ok": True}
+    assert tuple(captured["config"].methods) == SYNTHETIC_METHODS
+    assert captured["seeds"] == [7, 9]
+    assert captured["output_dir"].name == "synthetic_all_methods"

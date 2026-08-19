@@ -21,7 +21,7 @@ from experiments.split_mnist import (
     _select_class_indices,
     run_split_mnist_multi_seed,
 )
-from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP_METHODS
+from experiments.split_mnist_suite import ALL_VISUAL_METHODS
 
 
 def load_permuted_mnist(
@@ -260,7 +260,7 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             domain_task_count=5,
             input_dim=784,
             hidden_dims=(512, 256),
-            methods=SLOWHEAT_DERPP_METHODS,
+            methods=ALL_VISUAL_METHODS,
             **common,
         ),
         "split_cifar10": SplitMNISTConfig(
