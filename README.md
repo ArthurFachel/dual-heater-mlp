@@ -273,28 +273,12 @@ python run_all_tests.py --dry-run
 ```
 
 Run the complete confirmatory, baseline, fairness, ablation, DER++, Split-MNIST
-generalization, Permuted-MNIST and CORe50 protocol. This command does not run
-pytest:
+generalization, Permuted-MNIST, Split-CIFAR-10 and Split-CIFAR-100 protocol.
+This command does not run pytest:
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python run_all_tests.py --device cpu
 ```
-
-CORe50 NC is included when its cropped RGB images and official filelists are
-provided:
-
-```bash
-python run_all_tests.py \
-  --core50-dir /path/to/core50_128x128
-```
-
-The CORe50 section follows the native New Classes stream: 50 objects across
-nine experiences (10 classes, then eight groups of 5), using all ten official
-run orders. Its primary matrix is Class-IL with no task ID. Replay, DER++,
-SlowHeat+Replay and SlowHeat+DER++ share paired initialization, batches, memory
-examples and run order; Task-IL is diagnostic. See
-[`docs/core50_class_il.md`](docs/core50_class_il.md) for the exact project
-protocol, data layout and source.
 
 Runs resume matching completed seeds by default. Use `--sections` to execute a
 subset, for example the separate SlowHeat+DER++ comparison:
@@ -302,6 +286,26 @@ subset, for example the separate SlowHeat+DER++ comparison:
 ```bash
 python run_all_tests.py --sections slowheat-derpp
 ```
+
+The CIFAR streams can also be run independently. By default, torchvision
+downloads their data under `data/`:
+
+```bash
+python run_all_tests.py --sections split-cifar10 split-cifar100
+```
+
+Split-CIFAR-10 uses five Class-IL tasks with two classes each;
+Split-CIFAR-100 uses ten Class-IL tasks with ten classes each. Evaluation does
+not receive a task ID. Images are normalized and flattened for the repository's
+paired MLP engine, so these runs test harder visual streams but are not CNN
+benchmarks. See [`docs/split_cifar.md`](docs/split_cifar.md) for the exact
+protocol.
+
+Each CIFAR section runs all 31 visual methods implemented or explicitly
+configured by the project, including vanilla, the SlowHeat controls and beta
+variants, Replay, distillation, DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF,
+fairness controls and the executable ablations. Use `--dry-run` to inspect the
+exact ordered list before starting this computationally expensive suite.
 
 Unit/integration tests are optional and only run when explicitly requested
 with `--run-unit-tests`.
@@ -311,9 +315,7 @@ Progress is recorded in
 is extracted to `results/split_mnist_protocol/primary_result.json`.
 
 The complete default protocol is computationally expensive: it contains 20
-frozen confirmatory seeds plus repeated ten-seed secondary analyses. If
-`--core50-dir` is omitted, CORe50 is explicitly recorded as skipped, matching
-the notebook behavior.
+frozen confirmatory seeds plus repeated ten-seed secondary analyses.
 
 Individual verification commands remain available:
 

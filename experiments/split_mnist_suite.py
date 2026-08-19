@@ -48,6 +48,43 @@ SLOWHEAT_DERPP_METHODS = (
     SLOWHEAT_DERPP,
 )
 
+# Complete set of methods implemented by the visual benchmark engine. The
+# three explicit beta variants are structured configurations accepted by the
+# same engine and used by the project's original Split-MNIST comparison.
+ALL_VISUAL_METHODS = (
+    "vanilla",
+    "slowheat",
+    "slowheat_beta_10",
+    "slowheat_beta_30",
+    "slowheat_beta_100",
+    "slowheat_adaptive",
+    "slowheat_native_state",
+    "slowheat_unidirectional",
+    "slowheat_unbudgeted",
+    "slowheat_none",
+    "hard_freeze",
+    "replay",
+    "distillation",
+    "slowheat_replay",
+    "slowheat_distillation",
+    "derpp",
+    SLOWHEAT_DERPP,
+    "er_ace",
+    "agem",
+    "ewc",
+    "si",
+    "lwf_calibrated",
+    "replay_balanced",
+    "replay_more_epochs",
+    "replay_early_stopping",
+    "replay_global_lr_reduction",
+    CANDIDATE,
+    "slowheat_hidden_beta_30_budget_0.25",
+    "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
+    "slowheat_replay_partial_output_beta_30_budget_0.25",
+    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
+)
+
 CLASS_ORDERS = (
     tuple(range(10)),
     (8, 9, 6, 7, 4, 5, 2, 3, 0, 1),

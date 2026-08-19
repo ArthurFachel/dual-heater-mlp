@@ -568,7 +568,7 @@ Os experimentos sustentam, neste protocolo específico:
 
 - múltiplas ordens de classes;
 - Permuted-MNIST como diagnóstico diferente;
-- CORe50 New Classes como stream criado para continual learning;
+- Split-CIFAR-10 e Split-CIFAR-100 como streams visuais Class-IL;
 - arquiteturas maiores e diferentes budgets de memória.
 
 ### Ablações restantes
@@ -686,8 +686,8 @@ saída parcialmente protegida, calibração da cabeça global, memórias de
 rate. Cinco ordens fixas de classes e MLPs maiores também foram adicionados.
 
 O engine foi generalizado para dimensões, quantidades de classes e tarefas de
-tamanhos diferentes. Adapters separados agora expõem Permuted-MNIST como
-domain-incremental e CORe50 New Classes como Class-IL nativo, usando as dez
-ordens oficiais e nove experiências. CORe50 exige as imagens RGB recortadas e
-os filelists `NC_inc`; não há download automático. Essas extensões são
-diagnósticos secundários e permanecem não executadas.
+tamanhos diferentes. Adapters separados expõem Permuted-MNIST como
+domain-incremental, Split-CIFAR-10 em cinco tarefas de duas classes e
+Split-CIFAR-100 em dez tarefas de dez classes. Os protocolos CIFAR usam Class-IL
+sem task ID e entradas RGB achatadas para o MLP. Essas extensões são diagnósticos
+secundários e permanecem não executadas.

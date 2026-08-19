@@ -589,7 +589,8 @@ O protocolo completo inclui:
 - MLPs `256–128`, `512–256` e `512–512–256`;
 - memórias de 5, 10, 20, 50 e 100 exemplos por classe;
 - Permuted-MNIST domain-incremental;
-- CORe50 New Classes nas dez ordens oficiais.
+- Split-CIFAR-10 Class-IL em cinco tarefas de duas classes;
+- Split-CIFAR-100 Class-IL em dez tarefas de dez classes.
 
 O CSV fornecido não contém resultados dessas extensões.
 
@@ -597,7 +598,7 @@ O CSV fornecido não contém resultados dessas extensões.
 
 ## 12. Validação de engenharia
 
-A suíte atual contém **95 testes automatizados, todos aprovados nesta revisão**. Eles cobrem, entre outros pontos:
+A suíte atual contém **100 testes automatizados, todos aprovados nesta revisão**. Eles cobrem, entre outros pontos:
 
 - invariância da utilidade funcional à reescala recíproca ReLU;
 - utilidade zero para unidade ReLU morta;
@@ -651,7 +652,7 @@ Os dados **não** permitem afirmar ainda que:
 - SlowHeat é superior de forma geral a DER++, Replay ou outros métodos;
 - o ganho de SlowHeat + DER++ é estatisticamente confirmado;
 - SlowHeat + Replay supera Replay no endpoint confirmatório;
-- o método escala para CORe50, redes convolucionais ou transformers;
+- o método escala para redes convolucionais ou transformers;
 - a redução de forgetting, sozinha, representa melhor aprendizagem contínua.
 
 ---
@@ -666,7 +667,7 @@ Os dados **não** permitem afirmar ainda que:
 6. **Arquivar artefatos completos:** configuração, seed, matriz de acurácia, curvas, custo, ambiente, hash do commit e CSV agregado.
 7. **Investigar o classifier gap** com matrizes de confusão, distribuição de logits antigos/novos e calibração por estágio.
 8. **Executar as ablações causais:** hidden-only versus saída protegida, budget fixo/adaptativo, proteção fatorada/row-only e `follow_update`/`native`.
-9. **Validar generalização** em ordens alternativas, memórias diferentes, Permuted-MNIST e CORe50 antes de qualquer alegação ampla.
+9. **Validar generalização** em ordens alternativas, memórias diferentes, Permuted-MNIST e nos dois protocolos Split-CIFAR antes de qualquer alegação ampla.
 10. **Deduplicar e validar exportações**, rejeitando nomes repetidos ou incluindo explicitamente a origem de cada seção.
 
 ---
@@ -687,11 +688,11 @@ experiments/
   confirmatory_split_mnist.py    confirmação pré-registrada
   confirmatory_statistics.py     estatística pareada
   synthetic_cl.py                benchmark sintético determinístico
-  visual_generalization.py       Permuted-MNIST e CORe50 New Classes
+  visual_generalization.py       Permuted-MNIST e Split-CIFAR-10/100
 
 docs/               contratos, protocolo e registro experimental
 notebooks/           execução interativa dos protocolos
-tests/               95 testes aprovados
+tests/               100 testes aprovados
 article/             manuscrito técnico em desenvolvimento
 ```
 

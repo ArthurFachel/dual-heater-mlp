@@ -203,7 +203,7 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 
 1. Tune learning rate and protection strength separately for every optimizer family using a declared validation protocol.
 2. Use at least five seeds for screening and preferably ten for final tables.
-3. Use Split MNIST as a debugging benchmark, then validate on the native CORe50 New Classes stream.
+3. Use Split MNIST as a debugging benchmark, then validate on Split-CIFAR-10 and Split-CIFAR-100 continual-learning streams.
 4. Compare with EWC, SI, MAS, activation-based importance, UCB, HAT, SLNID, replay and joint training.
 5. Report final average accuracy, average forgetting, BWT, FWT, per-task trajectories, runtime and peak memory.
 6. Ablate functional versus activation importance, factorized versus row-only

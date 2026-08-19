@@ -42,7 +42,6 @@ from experiments.split_mnist_suite import (
     run_slowheat_derpp_test,
 )
 from experiments.visual_generalization import (
-    CORE50_RUNS,
     generalization_configs,
     run_visual_generalization,
 )
@@ -56,7 +55,8 @@ SECTION_NAMES = (
     "slowheat-derpp",
     "split-mnist-generalization",
     "permuted-mnist",
-    "core50",
+    "split-cifar10",
+    "split-cifar100",
 )
 SECTION_OUTPUT_DIRS = {
     "confirmation": "confirmation",
@@ -66,7 +66,8 @@ SECTION_OUTPUT_DIRS = {
     "slowheat-derpp": "slowheat_derpp_exploratory",
     "split-mnist-generalization": "split_mnist_generalization",
     "permuted-mnist": "permuted_mnist",
-    "core50": "core50_nc",
+    "split-cifar10": "split_cifar10",
+    "split-cifar100": "split_cifar100",
 }
 
 
@@ -104,17 +105,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="subconjunto de seções; por padrão executa todas",
     )
     parser.add_argument(
-        "--core50-dir",
-        type=Path,
-        help=(
-            "raiz local do CORe50 128x128 com s1/..s11/ e os filelists "
-            "oficiais NC_inc"
-        ),
-    )
-    parser.add_argument(
         "--no-download",
         action="store_true",
-        help="não baixar MNIST; exige o dataset já disponível",
+        help="não baixar datasets; exige os dados já disponíveis",
     )
     parser.add_argument(
         "--fresh",
@@ -172,7 +165,8 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         "slowheat-derpp": list(SLOWHEAT_DERPP_METHODS),
         "split-mnist-generalization": list(SLOWHEAT_DERPP_METHODS),
         "permuted-mnist": list(visual_configs["permuted_mnist"].methods),
-        "core50": list(visual_configs["core50"].methods),
+        "split-cifar10": list(visual_configs["split_cifar10"].methods),
+        "split-cifar100": list(visual_configs["split_cifar100"].methods),
     }
 
 
@@ -187,11 +181,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
             "seeds": (
                 list(CONFIRMATORY_SEEDS)
                 if name == "confirmation"
-                else (
-                    list(CORE50_RUNS)
-                    if name == "core50"
-                    else list(args.baseline_seeds)
-                )
+                else list(args.baseline_seeds)
             ),
             "output_dir": str(output_dir / SECTION_OUTPUT_DIRS[name]),
         }
@@ -204,18 +194,14 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 [512, 256],
                 [512, 512, 256],
             ]
-        elif name == "core50":
-            core50_config = generalization_configs(args.device)["core50"]
+        elif name in {"split-cifar10", "split-cifar100"}:
+            config = generalization_configs(args.device)[name.replace("-", "_")]
             details["protocol"] = {
-                "scenario": "new_classes_class_incremental",
-                "official_runs": list(CORE50_RUNS),
-                "task_count": core50_config.task_count,
-                "task_class_counts": list(core50_config.task_class_counts or ()),
-                "class_count": len(core50_config.class_order),
+                "scenario": config.scenario,
+                "task_count": config.task_count,
+                "classes_per_task": config.classes_per_task,
+                "class_count": len(config.class_order),
                 "inference_task_id": False,
-                "primary_evaluation": "class_il_seen_classes",
-                "secondary_evaluation": "task_il_diagnostic",
-                "paired_references": ["replay", "derpp"],
             }
         sections[name] = details
     return {
@@ -241,11 +227,6 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
         },
         "preregistration": preregistration_manifest(),
         "sections": sections,
-        "core50_dir": (
-            str(_project_path(args.core50_dir))
-            if args.core50_dir is not None
-            else None
-        ),
     }
 
 
@@ -290,14 +271,10 @@ def _run_section(
         return run_order_and_capacity_generalization(**common)
     if name == "permuted-mnist":
         return run_visual_generalization("permuted_mnist", **common)
-    if name == "core50":
-        if args.core50_dir is None:
-            raise ValueError("--core50-dir não foi informado")
-        core50_common = dict(common)
-        core50_common["seeds"] = list(CORE50_RUNS)
-        core50_common["data_dir"] = _project_path(args.core50_dir)
-        core50_common["download"] = False
-        return run_visual_generalization("core50", **core50_common)
+    if name == "split-cifar10":
+        return run_visual_generalization("split_cifar10", **common)
+    if name == "split-cifar100":
+        return run_visual_generalization("split_cifar100", **common)
     raise ValueError(f"seção desconhecida: {name}")
 
 
@@ -346,17 +323,6 @@ def main(argv: list[str] | None = None) -> int:
 
     for index, name in enumerate(args.sections, start=1):
         section = plan["sections"][name]
-        if name == "core50" and args.core50_dir is None:
-            section["status"] = "skipped"
-            section["reason"] = "--core50-dir não foi informado"
-            section["finished_at"] = _now()
-            print(
-                "[CORe50] ignorado: informe --core50-dir para executá-lo",
-                flush=True,
-            )
-            _write_json(index_path, plan)
-            continue
-
         print(
             f"[benchmark {index}/{len(args.sections)}] {name}",
             flush=True,
