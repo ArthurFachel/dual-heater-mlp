@@ -1,0 +1,23 @@
+{
+  "batch_size": 16,
+  "classes_per_task": 2,
+  "hidden_dims": [
+    32,
+    16
+  ],
+  "learning_rate": 0.001,
+  "methods": [
+    "vanilla",
+    "reduced_lr",
+    "slowheat_max"
+  ],
+  "n_features": 16,
+  "reduced_lr_factor": 0.1,
+  "seed": 42,
+  "slow_strength": 3.0,
+  "steps_per_task": 4,
+  "task_count": 2,
+  "test_per_class": 12,
+  "train_per_class": 24,
+  "weight_decay": 0.0001
+}

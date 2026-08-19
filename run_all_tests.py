@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -50,7 +51,8 @@ from experiments.visual_generalization import (
     run_visual_generalization,
 )
 
-BASELINE_SEEDS = (311, 617, 919, 1223, 1523, 1823, 2129, 2423, 2729, 3037)
+SEED_GENERATOR_SEED = 20_260_819
+MAX_GENERATED_SEED = 2**31 - 1
 SECTION_NAMES = (
     "synthetic-all-methods",
     "split-mnist-all-methods",
@@ -112,11 +114,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="dispositivo aceito pelo PyTorch, por exemplo cpu ou cuda",
     )
     parser.add_argument(
+        "--num-seeds",
+        type=int,
+        required=True,
+        help="quantidade de seeds aleatórias para as análises secundárias",
+    )
+    parser.add_argument(
         "--baseline-seeds",
         nargs="+",
         type=int,
-        default=list(BASELINE_SEEDS),
-        help="seeds das análises secundárias; a confirmação permanece congelada",
+        default=None,
+        help=(
+            "seeds das análises secundárias; quando fornecidas, a quantidade "
+            "deve coincidir com --num-seeds; a confirmação permanece congelada"
+        ),
     )
     parser.add_argument(
         "--sections",
@@ -165,8 +176,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 "--all-datasets-all-methods não pode ser combinado com --sections"
             )
         args.sections = list(ALL_DATASET_METHOD_SECTIONS)
-    if len(set(args.baseline_seeds)) != len(args.baseline_seeds):
-        parser.error("--baseline-seeds não pode conter duplicatas")
+    custom_baseline_seeds = args.baseline_seeds is not None
+    if args.num_seeds <= 0:
+        parser.error("--num-seeds deve ser maior que zero")
+    if custom_baseline_seeds:
+        if len(set(args.baseline_seeds)) != len(args.baseline_seeds):
+            parser.error("--baseline-seeds não pode conter duplicatas")
+        if len(args.baseline_seeds) != args.num_seeds:
+            parser.error(
+                "a quantidade de valores em --baseline-seeds deve coincidir "
+                "com --num-seeds"
+            )
+    elif args.num_seeds > MAX_GENERATED_SEED + 1:
+        parser.error(
+            f"--num-seeds não pode exceder {MAX_GENERATED_SEED + 1}"
+        )
+    else:
+        generator = random.Random(SEED_GENERATOR_SEED)
+        args.baseline_seeds = generator.sample(
+            range(MAX_GENERATED_SEED + 1), args.num_seeds
+        )
     return args
 
 

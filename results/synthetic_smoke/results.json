@@ -1,0 +1,134 @@
+{
+  "reduced_lr": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null
+      ],
+      [
+        0.5,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0
+    ],
+    "elapsed_seconds": 0.014119254999968689,
+    "metrics": {
+      "average_forgetting": 0.0,
+      "backward_transfer": 0.0,
+      "final_average_accuracy": 0.25,
+      "forward_transfer": 0.0,
+      "per_task_forgetting": [
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0
+    ],
+    "training_losses": [
+      [
+        1.6459403038024902,
+        1.4411725997924805,
+        1.2774546146392822,
+        1.3233311176300049
+      ],
+      [
+        1.5500380992889404,
+        1.5363425016403198,
+        1.5364702939987183,
+        1.5197759866714478
+      ]
+    ]
+  },
+  "slowheat_max": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null
+      ],
+      [
+        0.5,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0
+    ],
+    "elapsed_seconds": 0.029479640999852563,
+    "metrics": {
+      "average_forgetting": 0.0,
+      "backward_transfer": 0.0,
+      "final_average_accuracy": 0.25,
+      "forward_transfer": 0.0,
+      "per_task_forgetting": [
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0
+    ],
+    "training_losses": [
+      [
+        1.6459403038024902,
+        1.4161109924316406,
+        1.238726258277893,
+        1.2618950605392456
+      ],
+      [
+        1.5567445755004883,
+        1.5425817966461182,
+        1.5406999588012695,
+        1.5206059217453003
+      ]
+    ]
+  },
+  "vanilla": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null
+      ],
+      [
+        0.5,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0
+    ],
+    "elapsed_seconds": 0.025102818999584997,
+    "metrics": {
+      "average_forgetting": 0.0,
+      "backward_transfer": 0.0,
+      "final_average_accuracy": 0.25,
+      "forward_transfer": 0.0,
+      "per_task_forgetting": [
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0
+    ],
+    "training_losses": [
+      [
+        1.6459403038024902,
+        1.4161109924316406,
+        1.238726258277893,
+        1.2618950605392456
+      ],
+      [
+        1.5567445755004883,
+        1.5408470630645752,
+        1.536476492881775,
+        1.5132569074630737
+      ]
+    ]
+  }
+}

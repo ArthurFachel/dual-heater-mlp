@@ -295,40 +295,41 @@ The complete protocol from
 Jupyter. Preview every section, method, seed and output path without training:
 
 ```bash
-python run_all_tests.py --dry-run
+python run_all_tests.py --num-seeds 10 --dry-run
 ```
 
 Run every compatible method on every dataset/stream in the project:
 
 ```bash
-python run_all_tests.py --all-datasets-all-methods --device cpu --no-download
+python run_all_tests.py --num-seeds 10 --all-datasets-all-methods --device cpu --no-download
 ```
 
 This selects the synthetic benchmark plus Split-MNIST, Permuted-MNIST,
 Split-CIFAR-10 and Split-CIFAR-100. It runs all 11 synthetic methods on the
-synthetic stream and all 31 visual methods on each visual stream, using ten
-seeds by default. The synthetic runner is CPU-only.
+synthetic stream and all 31 visual methods on each visual stream.
+`--num-seeds` is required and generates that many distinct, reproducible
+pseudorandom secondary seeds. The synthetic runner is CPU-only.
 
 Run the complete confirmatory, baseline, fairness, ablation, DER++, Split-MNIST
 generalization, Permuted-MNIST, Split-CIFAR-10 and Split-CIFAR-100 protocol.
 This command does not run pytest:
 
 ```bash
-OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python run_all_tests.py --device cpu
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python run_all_tests.py --num-seeds 10 --device cpu
 ```
 
 Runs resume matching completed seeds by default. Use `--sections` to execute a
 subset, for example the separate SlowHeat+DER++ comparison:
 
 ```bash
-python run_all_tests.py --sections slowheat-derpp
+python run_all_tests.py --num-seeds 10 --sections slowheat-derpp
 ```
 
 The CIFAR streams can also be run independently. By default, torchvision
 downloads their data under `data/`:
 
 ```bash
-python run_all_tests.py --sections split-cifar10 split-cifar100
+python run_all_tests.py --num-seeds 10 --sections split-cifar10 split-cifar100
 ```
 
 Split-CIFAR-10 uses five Class-IL tasks with two classes each;

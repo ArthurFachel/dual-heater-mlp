@@ -101,6 +101,7 @@ Visualize métodos, seeds e diretórios sem baixar dados ou treinar:
 
 ```bash
 python run_all_tests.py \
+  --num-seeds 10 \
   --sections split-cifar10 split-cifar100 \
   --dry-run
 ```
@@ -110,12 +111,15 @@ Execute os dois benchmarks:
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 python run_all_tests.py \
+  --num-seeds 10 \
   --sections split-cifar10 split-cifar100 \
   --device cpu
 ```
 
-As seeds secundárias padrão são `311, 617, 919, 1223, 1523, 1823, 2129,
-2423, 2729, 3037`. Substitua-as com `--baseline-seeds`. Resultados são gravados
+O argumento obrigatório `--num-seeds` gera essa quantidade de seeds
+pseudoaleatórias distintas e reproduzíveis. Para definir valores específicos,
+use `--baseline-seeds` e passe exatamente a quantidade declarada em
+`--num-seeds`. Resultados são gravados
 em `results/split_mnist_protocol/split_cifar10/` e
 `results/split_mnist_protocol/split_cifar100/`, salvo uso de `--output-dir`.
 Execuções retomam seeds concluídas cuja configuração coincide. `--fresh`
@@ -125,7 +129,7 @@ Para incluir também Split-MNIST, Permuted-MNIST e o sintético em uma única
 chamada:
 
 ```bash
-python run_all_tests.py --all-datasets-all-methods --device cpu --no-download
+python run_all_tests.py --num-seeds 10 --all-datasets-all-methods --device cpu --no-download
 ```
 
 Com 31 métodos, dez seeds e até dez tarefas por dataset, a suíte completa é

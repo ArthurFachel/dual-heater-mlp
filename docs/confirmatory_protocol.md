@@ -73,8 +73,8 @@ separadas para impedir que uma ablação modifique o objeto congelado.
 O equivalente não interativo pode ser inspecionado e executado com:
 
 ```bash
-python run_all_tests.py --sections confirmation --dry-run
-python run_all_tests.py --sections confirmation --device cpu
+python run_all_tests.py --num-seeds 10 --sections confirmation --dry-run
+python run_all_tests.py --num-seeds 10 --sections confirmation --device cpu
 ```
 
 O runner cria o lock do pré-registro antes do treino e retoma seeds concluídas
@@ -91,7 +91,7 @@ configurados pelo projeto. As análises secundárias usam dez seeds pareadas; a
 confirmação permanece com as vinte seeds congeladas.
 
 Para executar o produto completo de datasets e métodos, use
-`python run_all_tests.py --all-datasets-all-methods`. Esse modo seleciona o
+`python run_all_tests.py --num-seeds 10 --all-datasets-all-methods`. Esse modo seleciona o
 sintético com seus 11 métodos próprios e Split-MNIST, Permuted-MNIST,
 Split-CIFAR-10 e Split-CIFAR-100 com os 31 métodos do engine visual. O sintético
 permanece CPU-only.

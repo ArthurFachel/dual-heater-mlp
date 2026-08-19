@@ -1,10 +1,12 @@
+import pytest
+
 import run_all_tests
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP
 from experiments.synthetic_cl import SYNTHETIC_METHODS
 
 
 def test_default_plan_covers_every_confirmatory_notebook_section():
-    args = run_all_tests.parse_args(["--dry-run"])
+    args = run_all_tests.parse_args(["--num-seeds", "10", "--dry-run"])
     plan = run_all_tests.build_run_plan(args)
 
     assert tuple(plan["sections"]) == run_all_tests.DEFAULT_SECTION_NAMES
@@ -44,7 +46,9 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
 
 
 def test_all_datasets_all_methods_plan_covers_every_compatible_cross_section():
-    args = run_all_tests.parse_args(["--all-datasets-all-methods", "--dry-run"])
+    args = run_all_tests.parse_args(
+        ["--num-seeds", "10", "--all-datasets-all-methods", "--dry-run"]
+    )
     plan = run_all_tests.build_run_plan(args)
 
     assert tuple(plan["sections"]) == run_all_tests.ALL_DATASET_METHOD_SECTIONS
@@ -74,6 +78,8 @@ def test_section_runner_enables_resume_and_forwards_secondary_seeds(
         [
             "--sections",
             "slowheat-derpp",
+            "--num-seeds",
+            "2",
             "--baseline-seeds",
             "7",
             "9",
@@ -102,7 +108,13 @@ def test_cifar_sections_use_visual_generalization_runner(tmp_path, monkeypatch):
 
     monkeypatch.setattr(run_all_tests, "run_visual_generalization", fake_run)
     args = run_all_tests.parse_args(
-        ["--sections", "split-cifar10", "split-cifar100"]
+        [
+            "--sections",
+            "split-cifar10",
+            "split-cifar100",
+            "--num-seeds",
+            "10",
+        ]
     )
 
     for name in ("split-cifar10", "split-cifar100"):
@@ -131,6 +143,8 @@ def test_synthetic_all_methods_section_uses_secondary_seeds(tmp_path, monkeypatc
         [
             "--sections",
             "synthetic-all-methods",
+            "--num-seeds",
+            "2",
             "--baseline-seeds",
             "7",
             "9",
@@ -148,3 +162,25 @@ def test_synthetic_all_methods_section_uses_secondary_seeds(tmp_path, monkeypatc
     assert tuple(captured["config"].methods) == SYNTHETIC_METHODS
     assert captured["seeds"] == [7, 9]
     assert captured["output_dir"].name == "synthetic_all_methods"
+
+
+def test_num_seeds_generates_distinct_reproducible_random_seeds():
+    first = run_all_tests.parse_args(["--num-seeds", "10", "--dry-run"])
+    second = run_all_tests.parse_args(["--num-seeds", "10", "--dry-run"])
+
+    assert len(first.baseline_seeds) == 10
+    assert len(set(first.baseline_seeds)) == 10
+    assert first.baseline_seeds == second.baseline_seeds
+    assert first.baseline_seeds != [10]
+
+
+def test_num_seeds_is_required():
+    with pytest.raises(SystemExit):
+        run_all_tests.parse_args(["--dry-run"])
+
+
+def test_custom_seed_count_must_match_num_seeds():
+    with pytest.raises(SystemExit):
+        run_all_tests.parse_args(
+            ["--num-seeds", "3", "--baseline-seeds", "7", "9"]
+        )
