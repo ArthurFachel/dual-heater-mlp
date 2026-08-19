@@ -1,0 +1,47 @@
+{
+  "base_config": {
+    "batch_size": 16,
+    "classes_per_task": 2,
+    "hidden_dims": [
+      32,
+      16
+    ],
+    "learning_rate": 0.001,
+    "methods": [
+      "vanilla",
+      "reduced_lr",
+      "slowheat_max",
+      "slowheat_mean",
+      "slowheat_sum",
+      "slowheat_none",
+      "slowheat_max_native_state",
+      "slowheat_max_unidirectional",
+      "slowheat_max_unbudgeted",
+      "slowheat_max_sgd",
+      "slowheat_max_legacy_adamw"
+    ],
+    "n_features": 16,
+    "optimizer_state_policy": "follow_update",
+    "plasticity_budget": 0.25,
+    "reduced_lr_factor": 0.1,
+    "seed": 42,
+    "slow_strength": 3.0,
+    "steps_per_task": 20,
+    "task_count": 3,
+    "test_per_class": 16,
+    "train_per_class": 32,
+    "weight_decay": 0.0001
+  },
+  "seeds": [
+    311,
+    617,
+    919,
+    1223,
+    1523,
+    1823,
+    2129,
+    2423,
+    2729,
+    3037
+  ]
+}
