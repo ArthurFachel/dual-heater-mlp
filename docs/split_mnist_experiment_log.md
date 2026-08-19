@@ -1,6 +1,7 @@
 # Registro experimental: Functional SlowHeat em Split-MNIST
 
-Este documento consolida os testes realizados no repositório até o momento,
+Este documento consolida os testes realizados no repositório até 18 de agosto
+de 2026,
 as correções introduzidas durante a investigação e as conclusões que podem ou
 não ser sustentadas pelos resultados. Ele deve ser lido como um registro de
 pesquisa em andamento, não como uma alegação de estado da arte.
@@ -235,7 +236,7 @@ Menor é melhor, desde que a task-aware accuracy não tenha sido sacrificada.
 
 ## 4. Validação de implementação
 
-Antes dos experimentos longos, a suíte chegou a 84 testes automatizados. Entre
+A suíte atual contém 100 testes automatizados. Entre
 os comportamentos cobertos estão:
 
 - invariância da importância funcional à reescala recíproca ReLU;
@@ -251,6 +252,7 @@ os comportamentos cobertos estão:
 - matrizes class-incremental e task-aware;
 - agregação multi-seed e diferenças pareadas;
 - sweep de épocas com artefatos em formato longo.
+- adapters e plano de execução para Permuted-MNIST e Split-CIFAR-10/100.
 
 Esses testes validam a implementação e o protocolo. Eles não demonstram
 superioridade empírica.
@@ -608,11 +610,12 @@ SplitMNISTConfig(
 Essa configuração é a melhor hipótese experimental atual. Ela não deve ser
 alterada usando os resultados das próximas seeds confirmatórias.
 
-## 11. Protocolo implementado para a próxima etapa (não executado)
+## 11. Protocolo implementado para a próxima etapa (sem artefatos versionados)
 
 Em 2026-08-15, as recomendações da seção 9 foram transformadas em código e em
 um notebook único. Nenhum resultado novo é reportado nesta seção: as células
-foram entregues sem execução e os artefatos confirmatórios ainda não existem.
+foram entregues sem execução e, até a data desta revisão, os artefatos
+confirmatórios e de generalização visual não existem no repositório.
 
 ### Confirmação congelada
 

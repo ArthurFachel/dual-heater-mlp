@@ -3,11 +3,14 @@
 ## Status
 
 Technical manuscript draft. The current implementation is validated by unit
-and integration tests, but its efficacy is not yet established on standard
-continual-learning benchmarks. The three-seed pilot in Section 5 predates the
-functional-importance, factorized-protection, capacity-budget and optimizer-state
-changes; it is retained only as historical motivation and must not be reported
-as evidence for the current method.
+and integration tests. Exploratory Split-MNIST comparisons against Replay,
+DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented, but their raw
+per-seed artifacts are not versioned and the frozen independent confirmation
+has no versioned execution artifacts. Split-CIFAR-10/100 support is implemented
+without versioned results. The three-seed pilot in Section 5 predates the
+functional-importance, factorized-protection, capacity-budget and
+optimizer-state changes; it is retained only as historical motivation and
+must not be reported as evidence for the current method.
 
 ## Abstract
 
@@ -20,9 +23,9 @@ derives protection under an explicit plastic-capacity budget and applies a
 factorized mask to both incoming rows and downstream columns. Optimizer-aware
 AdamW and SGD wrappers apply the mask to the final parameter delta and, under
 the default policy, to tensor-valued optimizer-state deltas. The method is
-implemented and covered by falsification tests, but has not yet been evaluated
-against specialized baselines on standard benchmarks. No efficacy or
-state-of-the-art claim is made.
+implemented and covered by falsification tests. Exploratory Split-MNIST
+comparisons exist, but independent confirmation and harder visual evaluation
+remain outstanding. No general efficacy or state-of-the-art claim is made.
 
 ## 1. Motivation
 
@@ -129,17 +132,29 @@ global, a limitation of using the native PyTorch optimizer state layout.
 
 ### 4.1 Scenario
 
-The synthetic protocol is class-incremental: all tasks share one output head and evaluation does not provide a task identifier. SlowHeat nevertheless receives oracle task-boundary events to call `consolidate()`. It is therefore boundary-aware rather than task-free, which limits comparison with methods that do not receive boundary information.
+The synthetic and Split-MNIST protocols are class-incremental: all tasks share
+one output head and evaluation does not provide a task identifier. SlowHeat
+nevertheless receives oracle task-boundary events to call `consolidate()`. It
+is therefore boundary-aware rather than task-free, which limits comparison
+with methods that do not receive boundary information. Permuted-MNIST is
+domain-incremental; the implemented Split-CIFAR-10/100 adapters are Class-IL
+and flatten normalized images for the same paired MLP engine.
 
 ### 4.2 Paired controls
 
-Every method receives:
+In the synthetic protocol, every method receives:
 
 - byte-identical trainable parameter initialization;
 - the same generated dataset and train/test splits;
 - the same ordered minibatch schedule;
 - the same number of optimization steps;
 - the same evaluation points.
+
+The Split-MNIST/visual engine also pairs initialization, partitions, current
+minibatch schedules and replay indices within each seed. Equal-epoch and
+equal-example analyses are separate: `replay_more_epochs` and
+`replay_early_stopping` intentionally do not have the same step count as the
+ten-epoch comparison.
 
 `slowheat_none`, which registers the corrected optimizer but never consolidates importance, exactly matches vanilla in the diagnostic pilot. This is a key wiring and fairness check.
 
@@ -203,8 +218,11 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 
 1. Tune learning rate and protection strength separately for every optimizer family using a declared validation protocol.
 2. Use at least five seeds for screening and preferably ten for final tables.
-3. Use Split MNIST as a debugging benchmark, then validate on Split-CIFAR-10 and Split-CIFAR-100 continual-learning streams.
-4. Compare with EWC, SI, MAS, activation-based importance, UCB, HAT, SLNID, replay and joint training.
+3. Use Split MNIST as a debugging benchmark, then execute the implemented
+   Split-CIFAR-10 and Split-CIFAR-100 continual-learning streams.
+4. Independently repeat the implemented Replay, DER++, ER-ACE, A-GEM, EWC, SI
+   and LwF comparisons with declared tuning, and add MAS, activation-based
+   importance, UCB, HAT, SLNID and joint training.
 5. Report final average accuracy, average forgetting, BWT, FWT, per-task trajectories, runtime and peak memory.
 6. Ablate functional versus activation importance, factorized versus row-only
    masking, fixed/adaptive/no capacity budget and protected/unprotected output.
@@ -243,9 +261,14 @@ Not currently supported:
 
 - Core implementation: `src/dual_heater/`
 - Optimizer contract: `docs/optimizer_semantics.md`
+- Functional method contract: `docs/functional_slowheat.md`
 - Synthetic protocol: `docs/reproducibility.md`
 - Diagnostic pilot: `docs/synthetic_ablation_pilot.md`
+- Frozen confirmation protocol: `docs/confirmatory_protocol.md`
+- Split-CIFAR protocol: `docs/split_cifar.md`
+- Split-MNIST experiment record: `docs/split_mnist_experiment_log.md`
 - Smoke config: `configs/synthetic_smoke.json`
 - Ablation pilot config: `configs/synthetic_ablation_pilot.json`
 - Experiment runner: `experiments/synthetic_cl.py`
 - Multi-seed aggregation: `experiments/multi_seed.py`
+- Complete protocol runner: `run_all_tests.py`

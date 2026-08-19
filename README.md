@@ -65,7 +65,8 @@ in `notebooks/split_mnist_confirmatory_suite.ipynb`. That notebook exposes
 DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF, balanced replay,
 equal-epoch/equal-example comparisons, early stopping and compute accounting
 through one interface. Read `docs/confirmatory_protocol.md` before running it;
-the notebook is committed without executed cells.
+the notebook is committed without executed cells, and no confirmatory result
+artifacts are versioned in this repository.
 
 The complete chronological record of Split-MNIST tests, statistical
 conclusions and the meaning of structured method names such as
@@ -203,12 +204,20 @@ See `docs/synthetic_ablation_pilot.md`.
 
 ## Known limitations
 
-- No standard image or language continual-learning benchmark has been completed with the corrected optimizer.
-- No specialized replay, EWC, SI, MAS, UCB, HAT, NAI or SLNID baseline is implemented in the corrected protocol.
+- No completed result on a harder visual or language continual-learning
+  benchmark is versioned. Split-CIFAR-10/100 execution is implemented but has
+  no committed result artifacts.
+- Replay, DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are implemented in
+  the shared Split-MNIST/visual runner, but they have not all received
+  method-specific tuning or independent replication. MAS, UCB, HAT, NAI,
+  SLNID and joint-training controls are not implemented.
 - The output classifier is protected by default, but classifier expansion and
   alignment have not yet been evaluated on a standard benchmark.
 - The pilot uses only three seeds and a simple Gaussian dataset.
-- Raw pilot artifacts are generated under ignored `results/` directories and must be archived with environment and Git metadata before publication.
+- The superseded synthetic pilot is archived under
+  `artifacts/synthetic_ablation_pilot/`; newer benchmark outputs under ignored
+  `results/` directories still need environment and Git metadata before
+  publication.
 - LoRA output masking does not guarantee independent protection of every output because `lora_A` is shared across outputs.
 - The forward inhibition mechanism is a train-only regularizer; evaluation uses the uninhibited function.
 - Runtime and memory scalability have not been established. Persistent
@@ -254,13 +263,30 @@ src/dual_heater/
   metrics.py         continual-learning metrics
 
 experiments/
-  synthetic_cl.py    deterministic synthetic benchmark
-  multi_seed.py      serial multi-seed aggregation
+  split_mnist.py                 shared benchmark and baseline engine
+  split_mnist_suite.py           fairness, ablations and orchestration
+  confirmatory_split_mnist.py    frozen confirmation entry point
+  visual_generalization.py       Permuted-MNIST and Split-CIFAR adapters
+  synthetic_cl.py                deterministic synthetic benchmark
+  multi_seed.py                  serial synthetic aggregation
 
 tests/               unit and integration tests
-docs/                optimizer, protocol and pilot documentation
+docs/                method contracts, protocols and experiment records
+notebooks/           interactive experiment entry points
 article/manuscript.md technical manuscript draft
 ```
+
+Documentation entry points:
+
+- `docs/functional_slowheat.md`: method contract;
+- `docs/optimizer_semantics.md`: masking and checkpoint semantics;
+- `docs/confirmatory_protocol.md`: frozen confirmation and baseline suite;
+- `docs/split_cifar.md`: exact Split-CIFAR-10/100 protocol;
+- `docs/reproducibility.md`: synthetic protocol;
+- `docs/split_mnist_experiment_log.md`: chronological experimental record;
+- `docs/project_methods_and_results.md`: catalog and analysis of the external
+  exploratory result export;
+- `docs/synthetic_ablation_pilot.md`: superseded diagnostic pilot.
 
 ## Verification
 
@@ -305,7 +331,8 @@ Each CIFAR section runs all 31 visual methods implemented or explicitly
 configured by the project, including vanilla, the SlowHeat controls and beta
 variants, Replay, distillation, DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF,
 fairness controls and the executable ablations. Use `--dry-run` to inspect the
-exact ordered list before starting this computationally expensive suite.
+exact ordered list before starting this computationally expensive suite. No
+CIFAR result artifacts are currently versioned.
 
 Unit/integration tests are optional and only run when explicitly requested
 with `--run-unit-tests`.

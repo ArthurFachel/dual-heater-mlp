@@ -40,6 +40,21 @@ Each run writes:
 - `results.json`: accuracy matrices, losses, pretraining scores, metrics and timings;
 - `summary.csv`: one-row-per-method summary.
 
+The serial multi-seed wrapper writes one subdirectory per seed plus
+`aggregate.json` and `multi_seed_config.json`:
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES='' \
+PYTHONPATH=src:. python -m experiments.multi_seed \
+  --config configs/synthetic_ablation_pilot.json \
+  --seeds 11 22 33 \
+  --output-dir results/synthetic_ablation_pilot
+```
+
+The superseded three-seed pilot is preserved separately in
+`artifacts/synthetic_ablation_pilot/`, including its environment manifest. Do
+not confuse that archive with outputs from the current functional method.
+
 ## Interpretation constraints
 
 Do not compare wall time across different machines. Do not report one-seed
@@ -47,5 +62,8 @@ results as evidence of superiority. The `reduced_lr` control is mandatory
 because an apparent gain may come from generic update reduction rather than
 selective consolidation. `slowheat_max_native_state`,
 `slowheat_max_unidirectional` and `slowheat_max_unbudgeted` isolate the new
-components. The next scientific stage requires multiple seeds, confidence
-intervals, a validation-only capacity signal and specialized baselines.
+components. Scientific use requires multiple seeds, paired confidence
+intervals and a validation-only capacity signal. Specialized baselines are
+available in the separate Split-MNIST/visual engine, not in this synthetic
+runner; results from the two protocols must not be combined as if they shared
+a dataset or training budget.

@@ -1,6 +1,6 @@
 # Protocolo confirmatório e suíte de baselines
 
-Status: implementado, não executado.
+Status: implementado; nenhum artefato confirmatório está versionado.
 
 ## Separação entre confirmação e exploração
 
@@ -66,6 +66,18 @@ device, depois altere `RUN_EXPERIMENTS` para `True`. A célula confirmatória de
 ser executada uma única vez em um diretório vazio. O notebook mantém as etapas
 separadas para impedir que uma ablação modifique o objeto congelado.
 
+O equivalente não interativo pode ser inspecionado e executado com:
+
+```bash
+python run_all_tests.py --sections confirmation --dry-run
+python run_all_tests.py --sections confirmation --device cpu
+```
+
+O runner cria o lock do pré-registro antes do treino e retoma seeds concluídas
+apenas quando a configuração salva coincide. Use um novo `--output-dir` para
+uma execução confirmatória independente; não use `--fresh` para sobrescrever
+um diretório que já contenha resultados observados.
+
 A seção de generalização oferece cinco ordens de Split-MNIST, MLPs maiores,
 Permuted-MNIST domain-incremental, Split-CIFAR-10 em cinco tarefas de duas
 classes e Split-CIFAR-100 em dez tarefas de dez classes. Os dois protocolos
@@ -73,3 +85,7 @@ CIFAR são Class-IL sem task ID e usam imagens normalizadas e achatadas no engin
 MLP pareado. Cada seção CIFAR executa os 31 métodos visuais implementados ou
 configurados pelo projeto. As análises secundárias usam dez seeds pareadas; a
 confirmação permanece com as vinte seeds congeladas.
+
+O protocolo exato de dados, arquitetura, métodos e saídas de CIFAR está em
+`docs/split_cifar.md`. Essas seções são secundárias e não alteram o endpoint
+confirmatório congelado.

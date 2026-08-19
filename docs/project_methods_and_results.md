@@ -2,7 +2,7 @@
 
 ## Visão do projeto, catálogo de métodos e análise dos resultados
 
-**Data da análise:** 17 de agosto de 2026  
+**Data da revisão documental:** 18 de agosto de 2026
 **Projeto:** `dual-heater` v0.2.0  
 **Benchmark dos resultados fornecidos:** Split-MNIST class-incremental  
 **Estado científico:** protótipo de pesquisa; os resultados sustentam conclusões exploratórias, não uma alegação de estado da arte.
@@ -629,7 +629,6 @@ Os testes validam contratos de implementação. Eles não demonstram eficácia c
 8. **Overhead de tempo elevado.** A implementação atual do otimizador não é fundida e pode não escalar.
 9. **IC normal com amostra pequena.** Os intervalos apresentados são estreitos demais em relação a um IC t.
 10. **Artefatos brutos ausentes do repositório.** Sem resultados por seed, ambiente e hash, a auditoria fica incompleta.
-11. **Documentação parcialmente desatualizada.** Alguns textos ainda afirmam que baselines especializados não foram implementados ou que a suíte não foi executada, embora o código já contenha os métodos e o CSV fornecido contenha resultados.
 
 ---
 
