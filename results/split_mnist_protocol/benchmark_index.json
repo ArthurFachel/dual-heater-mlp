@@ -3,6 +3,7 @@
   "data_dir": "/mnt/B-SSD/fachel/dual-heater-mlp/data",
   "device": "cuda",
   "download": true,
+  "finished_at": "2026-08-19T23:12:17.372832+00:00",
   "output_dir": "/mnt/B-SSD/fachel/dual-heater-mlp/results/split_mnist_protocol",
   "preregistration": {
     "analysis": {
@@ -182,6 +183,8 @@
       "status": "completed"
     },
     "split-cifar10": {
+      "error": "KeyboardInterrupt: ",
+      "finished_at": "2026-08-19T23:12:17.372804+00:00",
       "methods": [
         "vanilla",
         "slowheat",
@@ -237,7 +240,7 @@
         3037
       ],
       "started_at": "2026-08-19T21:59:33.202561+00:00",
-      "status": "running"
+      "status": "interrupted"
     },
     "split-cifar100": {
       "methods": [
@@ -389,7 +392,7 @@
     }
   },
   "started_at": "2026-08-19T20:08:50.814256+00:00",
-  "status": "running",
+  "status": "interrupted",
   "unit_tests": {
     "command": [
       "/home/fachel/novoenv/bin/python",
