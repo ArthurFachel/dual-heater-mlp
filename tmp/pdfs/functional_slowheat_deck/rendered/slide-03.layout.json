@@ -1,0 +1,961 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/6ffzpa",
+    "id": "6ffzpa",
+    "slide": 3,
+    "layoutId": "439c3023-291d-44c1-aedb-8ead9a4f28ab",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "9af1ed4f-ebc3-401a-b866-9bd90bea5c4e",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Arial"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "439c3023-291d-44c1-aedb-8ead9a4f28ab",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "9af1ed4f-ebc3-401a-b866-9bd90bea5c4e",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "9af1ed4f-ebc3-401a-b866-9bd90bea5c4e",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/rqlwb2p8",
+      "id": "1",
+      "name": "eyebrow",
+      "bbox": [
+        42,
+        28,
+        520,
+        24
+      ],
+      "geometry": "rect",
+      "text": "FUNCTIONAL SLOWHEAT",
+      "textPreview": "FUNCTIONAL SLOWHEAT",
+      "resolvedFontSize": 16,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 16,
+        "typeface": "Arial",
+        "color": "#3D8DFF",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "FUNCTIONAL SLOWHEAT"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "FUNCTIONAL SLOWHEAT",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 16,
+            "typeface": "Arial",
+            "color": "#3D8DFF",
+            "bold": true,
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "FUNCTIONAL SLOWHEAT",
+              "fontSize": 16,
+              "typeface": "Arial",
+              "color": "#3D8DFF",
+              "bold": true,
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/crux4n6t",
+      "id": "2",
+      "name": "title",
+      "bbox": [
+        42,
+        55,
+        1170,
+        62
+      ],
+      "geometry": "rect",
+      "text": "Os benchmarks isolam dois tipos diferentes de interferencia",
+      "textPreview": "Os benchmarks isolam dois tipos diferentes de interferencia",
+      "resolvedFontSize": 40.8,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 46,
+        "typeface": "Arial",
+        "color": "#0B1220",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 0.89,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Os benchmarks isolam dois tipos diferentes de interferencia"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Os benchmarks isolam dois tipos diferentes de interferencia",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 46,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "bold": true,
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Os benchmarks isolam dois tipos diferentes de interferencia",
+              "fontSize": 46,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "bold": true,
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ds3eds7e",
+      "id": "3",
+      "name": "rule-42-125",
+      "bbox": [
+        42,
+        125,
+        1196,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#0B1220",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/etcf6xoj",
+      "id": "4",
+      "name": "split-head",
+      "bbox": [
+        42,
+        154,
+        535,
+        42
+      ],
+      "geometry": "rect",
+      "text": "Split-MNIST · class-incremental",
+      "textPreview": "Split-MNIST · class-incremental",
+      "resolvedFontSize": 30,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 30,
+        "typeface": "Arial",
+        "color": "#0B1220",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Split-MNIST · class-incremental"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Split-MNIST · class-incremental",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 30,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "bold": true,
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Split-MNIST · class-incremental",
+              "fontSize": 30,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "bold": true,
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zu5gf2p4",
+      "id": "5",
+      "name": "bullets-42-218",
+      "bbox": [
+        42,
+        218,
+        535,
+        292
+      ],
+      "geometry": "rect",
+      "text": "5 tarefas: (0,1), (2,3), (4,5), (6,7), (8,9)\nUma unica cabeca de 10 classes; sem task ID no teste principal\nMLP 784 → 256 → 128 → 10; 10 epocas por tarefa\nPrincipal risco: competicao e calibracao entre tarefas",
+      "textPreview": "5 tarefas: (0,1), (2,3), (4,5), (6,7), (8,9) | Uma unica cabeca de 10 classes; sem task ID no teste principal | MLP 784 → 256 → 128 → 10;...",
+      "resolvedFontSize": 22.51,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22.51,
+        "typeface": "Arial",
+        "color": "#0B1220",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 6,
+        "lines": [
+          {
+            "index": 1,
+            "text": "• 5 tarefas: (0,1), (2,3), (4,5), (6,7), (8,9)"
+          },
+          {
+            "index": 2,
+            "text": "• Uma unica cabeca de 10 classes; sem task ID no"
+          },
+          {
+            "index": 3,
+            "text": "teste principal"
+          },
+          {
+            "index": 4,
+            "text": "• MLP 784 → 256 → 128 → 10; 10 epocas por tarefa"
+          },
+          {
+            "index": 5,
+            "text": "• Principal risco: competicao e calibracao entre"
+          },
+          {
+            "index": 6,
+            "text": "tarefas"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "5 tarefas: (0,1), (2,3), (4,5), (6,7), (8,9)",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "5 tarefas: (0,1), (2,3), (4,5), (6,7), (8,9)",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "Uma unica cabeca de 10 classes; sem task ID no teste principal",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Uma unica cabeca de 10 classes; sem task ID no teste principal",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "MLP 784 → 256 → 128 → 10; 10 epocas por tarefa",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "MLP 784 → 256 → 128 → 10; 10 epocas por tarefa",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "text": "Principal risco: competicao e calibracao entre tarefas",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Principal risco: competicao e calibracao entre tarefas",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0vex876p",
+      "id": "6",
+      "name": "perm-head",
+      "bbox": [
+        665,
+        154,
+        550,
+        42
+      ],
+      "geometry": "rect",
+      "text": "Permuted-MNIST · domain-incremental",
+      "textPreview": "Permuted-MNIST · domain-incremental",
+      "resolvedFontSize": 29.83,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 30,
+        "typeface": "Arial",
+        "color": "#0B1220",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 0.99,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Permuted-MNIST · domain-incremental"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Permuted-MNIST · domain-incremental",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 30,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "bold": true,
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Permuted-MNIST · domain-incremental",
+              "fontSize": 30,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "bold": true,
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/1wnyhc7a",
+      "id": "7",
+      "name": "bullets-665-218",
+      "bbox": [
+        665,
+        218,
+        550,
+        292
+      ],
+      "geometry": "rect",
+      "text": "5 dominios com permutacoes fixas dos 784 pixels\nTodas as tarefas usam as mesmas 10 classes\nMLP 784 → 512 → 256 → 10; 10 epocas por dominio\nPrincipal risco: preservar representacoes entre dominios",
+      "textPreview": "5 dominios com permutacoes fixas dos 784 pixels | Todas as tarefas usam as mesmas 10 classes | MLP 784 → 512 → 256 → 10; 10 epocas por do...",
+      "resolvedFontSize": 22.51,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22.51,
+        "typeface": "Arial",
+        "color": "#0B1220",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 6,
+        "lines": [
+          {
+            "index": 1,
+            "text": "• 5 dominios com permutacoes fixas dos 784 pixels"
+          },
+          {
+            "index": 2,
+            "text": "• Todas as tarefas usam as mesmas 10 classes"
+          },
+          {
+            "index": 3,
+            "text": "• MLP 784 → 512 → 256 → 10; 10 epocas por"
+          },
+          {
+            "index": 4,
+            "text": "dominio"
+          },
+          {
+            "index": 5,
+            "text": "• Principal risco: preservar representacoes entre"
+          },
+          {
+            "index": 6,
+            "text": "dominios"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "5 dominios com permutacoes fixas dos 784 pixels",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "5 dominios com permutacoes fixas dos 784 pixels",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "Todas as tarefas usam as mesmas 10 classes",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Todas as tarefas usam as mesmas 10 classes",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "MLP 784 → 512 → 256 → 10; 10 epocas por dominio",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "MLP 784 → 512 → 256 → 10; 10 epocas por dominio",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "text": "Principal risco: preservar representacoes entre dominios",
+          "bulletCharacter": "•",
+          "marginLeft": 24,
+          "indent": -14,
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 12,
+          "resolvedTextStyle": {
+            "fontSize": 22.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Principal risco: preservar representacoes entre dominios",
+              "fontSize": 22.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/uxsfudof",
+      "id": "8",
+      "name": "protocol-band",
+      "bbox": [
+        42,
+        555,
+        1173,
+        78
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F4F7FA",
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fy1w3ip0",
+      "id": "9",
+      "name": "protocol-band-text",
+      "bbox": [
+        69,
+        574,
+        1120,
+        44
+      ],
+      "geometry": "rect",
+      "text": "Pareado por seed · mesma inicializacao e minibatches · IC95% normal · n = 10",
+      "textPreview": "Pareado por seed · mesma inicializacao e minibatches · IC95% normal · n = 10",
+      "resolvedFontSize": 21.51,
+      "resolvedTextStyle": {
+        "anchor": 2,
+        "fontSize": 21.51,
+        "typeface": "Arial",
+        "color": "#0B1220",
+        "bold": true,
+        "alignment": "center",
+        "verticalAlignment": "middle",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Pareado por seed · mesma inicializacao e minibatches · IC95% normal · n = 10"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Pareado por seed · mesma inicializacao e minibatches · IC95% normal · n = 10",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 21.51,
+            "typeface": "Arial",
+            "color": "#0B1220",
+            "bold": true,
+            "alignment": "center",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Pareado por seed · mesma inicializacao e minibatches · IC95% normal · n = 10",
+              "fontSize": 21.51,
+              "typeface": "Arial",
+              "color": "#0B1220",
+              "bold": true,
+              "alignment": "center",
+              "lineSpacing": 1
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fihsnq9o",
+      "id": "10",
+      "name": "footer-3",
+      "bbox": [
+        42,
+        684,
+        600,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Resultados preliminares  |  n = 10 seeds",
+      "textPreview": "Resultados preliminares  |  n = 10 seeds",
+      "resolvedFontSize": 14,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 14,
+        "typeface": "Arial",
+        "color": "#526071",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Resultados preliminares  |  n = 10 seeds"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Resultados preliminares  |  n = 10 seeds",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 14,
+            "typeface": "Arial",
+            "color": "#526071",
+            "alignment": "left",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Resultados preliminares  |  n = 10 seeds",
+              "fontSize": 14,
+              "typeface": "Arial",
+              "color": "#526071",
+              "alignment": "left",
+              "lineSpacing": 1
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ex8bel83",
+      "id": "11",
+      "name": "page-3",
+      "bbox": [
+        1170,
+        681,
+        68,
+        20
+      ],
+      "geometry": "rect",
+      "text": "03",
+      "textPreview": "03",
+      "resolvedFontSize": 14,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 14,
+        "typeface": "Arial",
+        "color": "#526071",
+        "alignment": "right",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "03"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "03",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 14,
+            "typeface": "Arial",
+            "color": "#526071",
+            "alignment": "right",
+            "lineSpacing": 1
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "03",
+              "fontSize": 14,
+              "typeface": "Arial",
+              "color": "#526071",
+              "alignment": "right",
+              "lineSpacing": 1
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

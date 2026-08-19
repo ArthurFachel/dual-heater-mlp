@@ -61,6 +61,7 @@ def test_split_mnist_models_have_paired_trainable_initialization():
             "vanilla",
             "slowheat",
             "slowheat_replay_hidden_beta_3_budget_0.50",
+            "slowheat_er_ace_hidden_beta_30_budget_0.25",
         ),
     )
 
@@ -74,6 +75,13 @@ def test_split_mnist_models_have_paired_trainable_initialization():
     assert isinstance(hidden_only[-1], torch.nn.Linear)
     assert all(
         layer.plasticity_budget == 0.5 for layer in hidden_only.get_slow_layers()
+    )
+    slowheat_er_ace = models["slowheat_er_ace_hidden_beta_30_budget_0.25"]
+    assert isinstance(slowheat_er_ace[-1], torch.nn.Linear)
+    assert all(
+        layer.slow_strength == 30.0
+        and layer.plasticity_budget == 0.25
+        for layer in slowheat_er_ace.get_slow_layers()
     )
 
 
@@ -134,6 +142,7 @@ def test_requested_baselines_share_one_runner_and_report_costs(tmp_path):
         "derpp",
         "slowheat_derpp_hidden_beta_30_budget_0.25",
         "er_ace",
+        "slowheat_er_ace_hidden_beta_30_budget_0.25",
         "agem",
         "ewc",
         "si",
@@ -158,6 +167,10 @@ def test_requested_baselines_share_one_runner_and_report_costs(tmp_path):
         assert result["cost"]["learner_examples_processed"] > 0
         assert result["cost"]["estimated_total_flops"] > 0
         assert result["cost"]["optimizer_steps"] > 0
+    slowheat_er_ace = results["slowheat_er_ace_hidden_beta_30_budget_0.25"]
+    assert len(slowheat_er_ace["capacity_history"]) == config.task_count
+    assert slowheat_er_ace["cost"]["replay_memory_bytes"] > 0
+    assert slowheat_er_ace["cost"]["stored_logits_bytes"] == 0
 
 
 def test_noncanonical_class_order_masks_unseen_global_logits():

@@ -734,6 +734,7 @@ Esta seção evita dois erros comuns: deixar uma variante sem referência e atri
 | `slowheat_replay` | combinação própria | [SlowHeat local](../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |
 | `slowheat_distillation` | combinação própria | [SlowHeat local](../article/manuscript.md) + [distillation](https://arxiv.org/abs/1503.02531) |
 | `slowheat_derpp_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../article/manuscript.md) + [DER++](https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html) |
+| `slowheat_er_ace_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../article/manuscript.md) + [ER-ACE](https://openreview.net/forum?id=N8MaByOzUfb) |
 | `slowheat_hidden_beta_30_budget_0.25` | configuração própria estruturada | [manuscrito local](../article/manuscript.md) |
 | `slowheat_replay_hidden_beta_30_budget_0.25` | configuração própria estruturada | [SlowHeat local](../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |
 | `slowheat_replay_hidden_adaptive_beta_30_budget_0.25` | ablação própria | [SlowHeat local](../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |

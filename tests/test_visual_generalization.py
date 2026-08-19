@@ -27,7 +27,7 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["permuted_mnist"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar10"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar100"].methods == ALL_VISUAL_METHODS
-    assert len(ALL_VISUAL_METHODS) == len(set(ALL_VISUAL_METHODS)) == 31
+    assert len(ALL_VISUAL_METHODS) == len(set(ALL_VISUAL_METHODS)) == 32
     assert SUPPORTED_METHODS <= set(ALL_VISUAL_METHODS)
     for config in configs.values():
         config.validate()

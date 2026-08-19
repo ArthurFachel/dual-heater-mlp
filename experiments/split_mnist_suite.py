@@ -15,6 +15,7 @@ from experiments.split_mnist import (
 
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
+SLOWHEAT_ER_ACE = "slowheat_er_ace_hidden_beta_30_budget_0.25"
 
 ALL_BASELINES = (
     "vanilla",
@@ -34,6 +35,8 @@ ALL_BASELINES = (
 ABLATION_METHODS = (
     "replay",
     CANDIDATE,
+    "er_ace",
+    SLOWHEAT_ER_ACE,
     "slowheat_hidden_beta_30_budget_0.25",
     "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
     "slowheat_replay_partial_output_beta_30_budget_0.25",
@@ -70,6 +73,7 @@ ALL_VISUAL_METHODS = (
     "derpp",
     SLOWHEAT_DERPP,
     "er_ace",
+    SLOWHEAT_ER_ACE,
     "agem",
     "ewc",
     "si",
@@ -257,6 +261,7 @@ def run_ablation_matrix(
             output_dir=root / "methods",
             download=download,
             verbose=verbose,
+            paired_references=("replay", "er_ace"),
             resume=resume,
         ),
         "memory_sizes": {},

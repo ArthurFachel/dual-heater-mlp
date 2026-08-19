@@ -35,6 +35,10 @@ vezes esse custo no backward, com overheads algorítmicos separados.
   cross-entropy dos exemplos da memória.
 - **ER-ACE:** loss atual restrita às classes da tarefa corrente e loss de replay
   sobre todas as classes vistas.
+- **SlowHeat + ER-ACE:** aplica a mesma loss do ER-ACE à melhor configuração
+  pré-registrada do SlowHeat (`beta=30`, budget `0,25`, proteção apenas nas
+  camadas ocultas). A importância funcional é acumulada a partir da loss
+  combinada e consolidada ao fim de cada tarefa.
 - **A-GEM:** projeta o gradiente atual quando ele conflita com o gradiente de
   referência da memória.
 - **EWC:** Fisher diagonal online estimado dos gradientes de treino e penalidade

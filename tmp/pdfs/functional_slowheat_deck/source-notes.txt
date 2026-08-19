@@ -1,0 +1,13 @@
+Communication job: Ao final, uma audiencia academica deve entender como o Functional SlowHeat funciona, como cada configuracao dos CSVs se relaciona aos baselines publicados e quais conclusoes preliminares os dois benchmarks sustentam.
+
+Primary local evidence:
+- /home/fachel/dual-heater-mlp-research/results/permutated_mnist_download.csv
+- /home/fachel/dual-heater-mlp-research/results/split_mniist_results.csv
+- /home/fachel/dual-heater-mlp-research/docs/project_methods_and_results.md
+- /home/fachel/dual-heater-mlp-research/docs/functional_slowheat.md
+- /home/fachel/dual-heater-mlp-research/docs/optimizer_semantics.md
+- /home/fachel/dual-heater-mlp-research/experiments/visual_generalization.py
+- /home/fachel/dual-heater-mlp-research/article/manuscript.md
+
+External primary references are embedded as visible hyperlinks and repeated in speaker-note [Sources] blocks.
+

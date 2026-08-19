@@ -1,0 +1,488 @@
+{"kind":"deck","id":"pr/60ufj0","name":"Deck"}
+{"kind":"layout","layoutId":"9af1ed4f-ebc3-401a-b866-9bd90bea5c4e","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"439c3023-291d-44c1-aedb-8ead9a4f28ab","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/l20gxb","slide":1,"title":"APRENDIZAGEM CONTINUA · PROTOTIPO DE PESQUISA","textShapes":9}
+{"kind":"textbox","id":"sh/pcvq1c7q","slide":1,"name":"cover-eyebrow","text":"APRENDIZAGEM CONTINUA · PROTOTIPO DE PESQUISA","textPreview":"APRENDIZAGEM CONTINUA · PROTOTIPO DE PESQUISA","textChars":45,"textLines":1,"bbox":[42,34,720,26]}
+{"kind":"textbox","id":"sh/29476x8z","slide":1,"name":"cover-title","text":"Functional\nSlowHeat","textPreview":"Functional | SlowHeat","textChars":19,"textLines":2,"bbox":[42,104,600,150]}
+{"kind":"textbox","id":"sh/3ad8z2pk","slide":1,"name":"cover-subtitle","text":"Plasticidade por neuronio, baselines publicados e resultados preliminares em Split-MNIST e Permuted-MNIST","textPreview":"Plasticidade por neuronio, baselines publicados e resultados preliminares em Split-MNIST e Permuted-MNIST","textChars":105,"textLines":1,"bbox":[42,292,575,126]}
+{"kind":"shape","id":"sh/gn2p47qt","slide":1,"name":"cover-field","bbox":[680,42,558,590]}
+{"kind":"textbox","id":"sh/h8vqxs7e","slide":1,"name":"cover-equation","text":"uᵢ = |zᵢ · ∂L/∂zᵢ|","textPreview":"uᵢ = |zᵢ · ∂L/∂zᵢ|","textChars":18,"textLines":1,"bbox":[727,126,470,72]}
+{"kind":"textbox","id":"sh/ulk72x83","slide":1,"name":"cover-flow","text":"medir utilidade\n↓\nconsolidar evidencia\n↓\nreservar capacidade\n↓\nmascarar o update final","textPreview":"medir utilidade | ↓ | consolidar evidencia | ↓ | reservar capacidade | ↓ | mascarar o update final","textChars":86,"textLines":7,"bbox":[755,235,414,250]}
+{"kind":"textbox","id":"sh/fmt8v29o","slide":1,"name":"cover-status","text":"31 configuracoes · 2 benchmarks · 10 seeds","textPreview":"31 configuracoes · 2 benchmarks · 10 seeds","textChars":42,"textLines":1,"bbox":[726,543,470,34]}
+{"kind":"textbox","id":"sh/8j2p0nqx","slide":1,"name":"cover-date","text":"Revisao: 19 ago 2026","textPreview":"Revisao: 19 ago 2026","textChars":20,"textLines":1,"bbox":[42,645,400,24]}
+{"kind":"textbox","id":"sh/tkbqtsri","slide":1,"name":"footer-1","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/twn2hgr6","slide":1,"name":"page-1","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/l20gxb","slide":1,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/README.md\n- /home/fachel/dual-heater-mlp-research/article/manuscript.md"}
+{"kind":"slide","id":"sl/e0g95e","slide":2,"title":"FUNCTIONAL SLOWHEAT","textShapes":10}
+{"kind":"textbox","id":"sh/bipk3ito","slide":2,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/wjylcnu9","slide":2,"name":"title","text":"Estabilidade e plasticidade precisam coexistir","textPreview":"Estabilidade e plasticidade precisam coexistir","textChars":46,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/xk725sbu","slide":2,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/yl03excz","slide":2,"name":"problem-left-head","text":"Quando tudo permanece plastico","textPreview":"Quando tudo permanece plastico","textChars":30,"textLines":1,"bbox":[42,164,530,40]}
+{"kind":"textbox","id":"sh/jm9k72tk","slide":2,"name":"problem-left-copy","text":"Tarefas novas sobrescrevem caminhos uteis. O modelo aprende o presente e perde desempenho nas tarefas anteriores.","textPreview":"Tarefas novas sobrescrevem caminhos uteis. O modelo aprende o presente e perde desempenho nas tarefas anteriores.","textChars":113,"textLines":1,"bbox":[42,220,530,132]}
+{"kind":"textbox","id":"sh/knilg7u5","slide":2,"name":"problem-right-head","text":"Quando tudo e protegido","textPreview":"Quando tudo e protegido","textChars":23,"textLines":1,"bbox":[668,164,530,40]}
+{"kind":"textbox","id":"sh/lor29sbq","slide":2,"name":"problem-right-copy","text":"A rede preserva o passado, mas bloqueia a aquisicao de tarefas novas. Retencao sem plasticidade tambem falha.","textPreview":"A rede preserva o passado, mas bloqueia a aquisicao de tarefas novas. Retencao sem plasticidade tambem falha.","textChars":109,"textLines":1,"bbox":[668,220,530,132]}
+{"kind":"shape","id":"sh/6p03ixcb","slide":2,"name":"rule-620-154","bbox":[620,154,1,235]}
+{"kind":"textbox","id":"sh/7q9kb2tw","slide":2,"name":"question","text":"Pergunta central","textPreview":"Pergunta central","textChars":16,"textLines":1,"bbox":[42,430,250,34]}
+{"kind":"textbox","id":"sh/vq9sr69s","slide":2,"name":"question-copy","text":"E possivel proteger seletivamente neuronios importantes e, ao mesmo tempo, garantir uma fracao minima de capacidade livre?","textPreview":"E possivel proteger seletivamente neuronios importantes e, ao mesmo tempo, garantir uma fracao minima de capacidade livre?","textChars":122,"textLines":1,"bbox":[42,482,1120,96]}
+{"kind":"textbox","id":"sh/ap0bi187","slide":2,"name":"footer-2","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/xsratgry","slide":2,"name":"page-2","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/e0g95e","slide":2,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/README.md\n- /home/fachel/dual-heater-mlp-research/docs/functional_slowheat.md"}
+{"kind":"slide","id":"sl/6ffzpa","slide":3,"title":"FUNCTIONAL SLOWHEAT","textShapes":9}
+{"kind":"textbox","id":"sh/rqlwb2p8","slide":3,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/crux4n6t","slide":3,"name":"title","text":"Os benchmarks isolam dois tipos diferentes de interferencia","textPreview":"Os benchmarks isolam dois tipos diferentes de interferencia","textChars":59,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/ds3eds7e","slide":3,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/etcf6xoj","slide":3,"name":"split-head","text":"Split-MNIST · class-incremental","textPreview":"Split-MNIST · class-incremental","textChars":31,"textLines":1,"bbox":[42,154,535,42]}
+{"kind":"textbox","id":"sh/zu5gf2p4","slide":3,"name":"bullets-42-218","text":"5 tarefas: (0,1), (2,3), (4,5), (6,7), (8,9)\nUma unica cabeca de 10 classes; sem task ID no teste principal\nMLP 784 → 256 → 128 → 10; 10 epocas por tarefa\nPrincipal risco: competicao e calibracao entre tarefas","textPreview":"5 tarefas: (0,1), (2,3), (4,5), (6,7), (8,9) | Uma unica cabeca de 10 classes; sem task ID no teste principal | MLP 784 → 256 → 128 → 10;...","textChars":209,"textLines":4,"bbox":[42,218,535,292]}
+{"kind":"textbox","id":"sh/0vex876p","slide":3,"name":"perm-head","text":"Permuted-MNIST · domain-incremental","textPreview":"Permuted-MNIST · domain-incremental","textChars":35,"textLines":1,"bbox":[665,154,550,42]}
+{"kind":"textbox","id":"sh/1wnyhc7a","slide":3,"name":"bullets-665-218","text":"5 dominios com permutacoes fixas dos 784 pixels\nTodas as tarefas usam as mesmas 10 classes\nMLP 784 → 512 → 256 → 10; 10 epocas por dominio\nPrincipal risco: preservar representacoes entre dominios","textPreview":"5 dominios com permutacoes fixas dos 784 pixels | Todas as tarefas usam as mesmas 10 classes | MLP 784 → 512 → 256 → 10; 10 epocas por do...","textChars":195,"textLines":4,"bbox":[665,218,550,292]}
+{"kind":"shape","id":"sh/uxsfudof","slide":3,"name":"protocol-band","bbox":[42,555,1173,78]}
+{"kind":"textbox","id":"sh/fy1w3ip0","slide":3,"name":"protocol-band-text","text":"Pareado por seed · mesma inicializacao e minibatches · IC95% normal · n = 10","textPreview":"Pareado por seed · mesma inicializacao e minibatches · IC95% normal · n = 10","textChars":76,"textLines":1,"bbox":[69,574,1120,44]}
+{"kind":"textbox","id":"sh/fihsnq9o","slide":3,"name":"footer-3","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/ex8bel83","slide":3,"name":"page-3","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/6ffzpa","slide":3,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/experiments/visual_generalization.py\n- /home/fachel/dual-heater-mlp-research/experiments/split_mnist.py\n- https://arxiv.org/abs/1904.07734"}
+{"kind":"slide","id":"sl/dghpvf","slide":4,"title":"FUNCTIONAL SLOWHEAT","textShapes":17}
+{"kind":"textbox","id":"sh/x8fud0b2","slide":4,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/a5obilsr","slide":4,"name":"title","text":"SlowHeat converte utilidade em protecao seletiva","textPreview":"SlowHeat converte utilidade em protecao seletiva","textChars":48,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/b6xcbqtc","slide":4,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/o36tgbal","slide":4,"name":"step-num-0","text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[42,158,60,58]}
+{"kind":"textbox","id":"sh/94fu9gb6","slide":4,"name":"step-title-0","text":"Medir","textPreview":"Medir","textChars":5,"textLines":1,"bbox":[42,230,260,34]}
+{"kind":"textbox","id":"sh/m14belsf","slide":4,"name":"step-copy-0","text":"Acumula |z · ∂L/∂z| por unidade e normaliza dentro da camada.","textPreview":"Acumula |z · ∂L/∂z| por unidade e normaliza dentro da camada.","textChars":61,"textLines":1,"bbox":[42,282,260,190]}
+{"kind":"shape","id":"sh/n2dc76t0","slide":4,"name":"rule-320-160","bbox":[320,160,1,345]}
+{"kind":"textbox","id":"sh/0zmtcbap","slide":4,"name":"step-num-1","text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[340,158,60,58]}
+{"kind":"textbox","id":"sh/10vu5gba","slide":4,"name":"step-title-1","text":"Consolidar","textPreview":"Consolidar","textChars":10,"textLines":1,"bbox":[340,230,260,34]}
+{"kind":"textbox","id":"sh/1wjq9c7i","slide":4,"name":"step-copy-1","text":"Na fronteira da tarefa, combina a evidencia persistente por max, media ou soma.","textPreview":"Na fronteira da tarefa, combina a evidencia persistente por max, media ou soma.","textChars":79,"textLines":1,"bbox":[340,282,260,190]}
+{"kind":"shape","id":"sh/0vap07qx","slide":4,"name":"rule-618-160","bbox":[618,160,1,345]}
+{"kind":"textbox","id":"sh/zu187mpc","slide":4,"name":"step-num-2","text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[638,158,60,58]}
+{"kind":"textbox","id":"sh/ets7yh8r","slide":4,"name":"step-title-2","text":"Reservar","textPreview":"Reservar","textChars":8,"textLines":1,"bbox":[638,230,260,34]}
+{"kind":"textbox","id":"sh/d8jq5c76","slide":4,"name":"step-copy-2","text":"Um ranking limita quantas unidades ficam protegidas; o budget preserva plasticidade.","textPreview":"Um ranking limita quantas unidades ficam protegidas; o budget preserva plasticidade.","textChars":84,"textLines":1,"bbox":[638,282,260,190]}
+{"kind":"shape","id":"sh/c7apw7ql","slide":4,"name":"rule-916-160","bbox":[916,160,1,345]}
+{"kind":"textbox","id":"sh/r61832pg","slide":4,"name":"step-num-3","text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[936,158,60,58]}
+{"kind":"textbox","id":"sh/q5s7ux8v","slide":4,"name":"step-title-3","text":"Aplicar","textPreview":"Aplicar","textChars":7,"textLines":1,"bbox":[936,230,260,34]}
+{"kind":"textbox","id":"sh/p4zq1s7a","slide":4,"name":"step-copy-3","text":"A mascara fatorada protege a linha de entrada e as colunas de saida do neuronio.","textPreview":"A mascara fatorada protege a linha de entrada e as colunas de saida do neuronio.","textChars":80,"textLines":1,"bbox":[936,282,260,190]}
+{"kind":"shape","id":"sh/43qpsnqp","slide":4,"name":"equation-band","bbox":[42,532,1173,96]}
+{"kind":"textbox","id":"sh/gnup87yl","slide":4,"name":"equation","text":"mᵢ = 1 / (1 + β · slow_heatᵢ)    ·    Mₗ[i,j] = min(m_destino[i], m_origem[j])","textPreview":"mᵢ = 1 / (1 + β · slow_heatᵢ)    ·    Mₗ[i,j] = min(m_destino[i], m_origem[j])","textChars":78,"textLines":1,"bbox":[72,559,1113,45]}
+{"kind":"textbox","id":"sh/h83qhsf6","slide":4,"name":"footer-4","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/ulc76xgf","slide":4,"name":"page-4","text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/dghpvf","slide":4,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/docs/functional_slowheat.md\n- /home/fachel/dual-heater-mlp-research/src/dual_heater/slow_heat.py\n- https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference"}
+{"kind":"slide","id":"sl/nv4uv9","slide":5,"title":"FUNCTIONAL SLOWHEAT","textShapes":20}
+{"kind":"textbox","id":"sh/0nehc3et","slide":5,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/fm5gjyd8","slide":5,"name":"title","text":"A mascara atua no delta final - inclusive no weight decay","textPreview":"A mascara atua no delta final - inclusive no weight decay","textChars":57,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/e1wzatwn","slide":5,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"shape","id":"sh/ps7ip8va","slide":5,"name":"opt-box-0","bbox":[42,190,230,260]}
+{"kind":"textbox","id":"sh/orehgnep","slide":5,"name":"opt-num-0","text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[60,209,44,38]}
+{"kind":"textbox","id":"sh/nq50nidk","slide":5,"name":"opt-title-0","text":"Otimizador nativo","textPreview":"Otimizador nativo","textChars":17,"textLines":1,"bbox":[60,266,194,65]}
+{"kind":"textbox","id":"sh/2pwzedwz","slide":5,"name":"opt-copy-0","text":"AdamW ou SGD calcula momentum, precondicionamento e decay.","textPreview":"AdamW ou SGD calcula momentum, precondicionamento e decay.","textChars":58,"textLines":1,"bbox":[60,345,194,83]}
+{"kind":"textbox","id":"sh/xw7itsvm","slide":5,"name":"opt-arrow-0","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[276,287,36,44]}
+{"kind":"shape","id":"sh/cvyhkne1","slide":5,"name":"opt-box-1","bbox":[313,190,230,260]}
+{"kind":"textbox","id":"sh/e9gbepgj","slide":5,"name":"opt-num-1","text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[331,209,44,38]}
+{"kind":"textbox","id":"sh/fapcnuh4","slide":5,"name":"opt-title-1","text":"Delta completo","textPreview":"Delta completo","textChars":14,"textLines":1,"bbox":[331,266,194,65]}
+{"kind":"textbox","id":"sh/gbytgzyp","slide":5,"name":"opt-copy-1","text":"O wrapper mede θ_depois − θ_antes depois do step nativo.","textPreview":"O wrapper mede θ_depois − θ_antes depois do step nativo.","textChars":56,"textLines":1,"bbox":[331,345,194,83]}
+{"kind":"textbox","id":"sh/1c7up4za","slide":5,"name":"opt-arrow-1","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[547,287,36,44]}
+{"kind":"shape","id":"sh/2dgbi9gv","slide":5,"name":"opt-box-2","bbox":[584,190,230,260]}
+{"kind":"textbox","id":"sh/3epcrex0","slide":5,"name":"opt-num-2","text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[602,209,44,38]}
+{"kind":"textbox","id":"sh/ofitkjyl","slide":5,"name":"opt-title-2","text":"Mascara SlowHeat","textPreview":"Mascara SlowHeat","textChars":16,"textLines":1,"bbox":[602,266,194,65]}
+{"kind":"textbox","id":"sh/pgrut4f6","slide":5,"name":"opt-copy-2","text":"O delta e interpolado elemento a elemento pela plasticidade M.","textPreview":"O delta e interpolado elemento a elemento pela plasticidade M.","textChars":62,"textLines":1,"bbox":[602,345,194,83]}
+{"kind":"textbox","id":"sh/ihwb65gb","slide":5,"name":"opt-arrow-2","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[818,287,36,44]}
+{"kind":"shape","id":"sh/ji5sfahw","slide":5,"name":"opt-box-3","bbox":[855,190,230,260]}
+{"kind":"textbox","id":"sh/nm18n6xo","slide":5,"name":"opt-num-3","text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[873,209,44,38]}
+{"kind":"textbox","id":"sh/mlsre1w3","slide":5,"name":"opt-title-3","text":"Estado coerente","textPreview":"Estado coerente","textChars":15,"textLines":1,"bbox":[873,266,194,65]}
+{"kind":"textbox","id":"sh/9ojqpgfu","slide":5,"name":"opt-copy-3","text":"follow_update mascara tambem deltas de momentos tensoriais.","textPreview":"follow_update mascara tambem deltas de momentos tensoriais.","textChars":59,"textLines":1,"bbox":[873,345,194,83]}
+{"kind":"textbox","id":"sh/8na9gbe9","slide":5,"name":"opt-warning","text":"Por que isso importa: escalar apenas o gradiente bruto pode ser parcialmente cancelado pela normalizacao do AdamW; o decay desacoplado tambem moveria parametros protegidos.","textPreview":"Por que isso importa: escalar apenas o gradiente bruto pode ser parcialmente cancelado pela normalizacao do AdamW; o decay desacoplado ta...","textChars":172,"textLines":1,"bbox":[42,515,1170,90]}
+{"kind":"textbox","id":"sh/zi18j6xs","slide":5,"name":"footer-5","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/yhs7a1w7","slide":5,"name":"page-5","text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/nv4uv9","slide":5,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/docs/optimizer_semantics.md\n- /home/fachel/dual-heater-mlp-research/src/dual_heater/optim.py\n- https://arxiv.org/abs/1711.05101"}
+{"kind":"slide","id":"sl/g7vr45","slide":6,"title":"FUNCTIONAL SLOWHEAT","textShapes":16}
+{"kind":"textbox","id":"sh/l4j6tsvm","slide":6,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/y1s7ydcb","slide":6,"name":"title","text":"As 31 configuracoes pertencem a quatro familias","textPreview":"As 31 configuracoes pertencem a quatro familias","textChars":47,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/z21oridw","slide":6,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/czapw3u5","slide":6,"name":"fam-title-0","text":"Controles","textPreview":"Controles","textChars":9,"textLines":1,"bbox":[42,155,555,40]}
+{"kind":"textbox","id":"sh/d0j6p8vq","slide":6,"name":"fam-list-0","text":"vanilla · hard_freeze · slowheat_none · reducao global de LR","textPreview":"vanilla · hard_freeze · slowheat_none · reducao global de LR","textChars":60,"textLines":1,"bbox":[42,207,555,50]}
+{"kind":"textbox","id":"sh/qd87udcz","slide":6,"name":"fam-copy-0","text":"Separam ganho real de efeitos de wiring, congelamento e taxa de aprendizado.","textPreview":"Separam ganho real de efeitos de wiring, congelamento e taxa de aprendizado.","textChars":76,"textLines":1,"bbox":[42,267,555,88]}
+{"kind":"textbox","id":"sh/behonydk","slide":6,"name":"fam-title-1","text":"Regularizacao","textPreview":"Regularizacao","textChars":13,"textLines":1,"bbox":[648,155,555,40]}
+{"kind":"textbox","id":"sh/wvup87u9","slide":6,"name":"fam-list-1","text":"SlowHeat · EWC · SI","textPreview":"SlowHeat · EWC · SI","textChars":19,"textLines":1,"bbox":[648,207,555,50]}
+{"kind":"textbox","id":"sh/xw3q1cvu","slide":6,"name":"fam-copy-1","text":"Protegem parametros ou unidades usando importancia acumulada, sem guardar imagens antigas.","textPreview":"Protegem parametros ou unidades usando importancia acumulada, sem guardar imagens antigas.","textChars":90,"textLines":1,"bbox":[648,267,555,88]}
+{"kind":"textbox","id":"sh/d4zud8za","slide":6,"name":"fam-title-2","text":"Memoria e logits","textPreview":"Memoria e logits","textChars":16,"textLines":1,"bbox":[42,390,555,40]}
+{"kind":"textbox","id":"sh/c3qt4nyp","slide":6,"name":"fam-list-2","text":"Replay · DER++ · ER-ACE · A-GEM","textPreview":"Replay · DER++ · ER-ACE · A-GEM","textChars":31,"textLines":1,"bbox":[42,442,555,50]}
+{"kind":"textbox","id":"sh/r2hcbih4","slide":6,"name":"fam-copy-2","text":"Usam memoria episodica para reintroduzir informacao antiga e controlar interferencia.","textPreview":"Usam memoria episodica para reintroduzir informacao antiga e controlar interferencia.","textChars":85,"textLines":1,"bbox":[42,502,555,88]}
+{"kind":"textbox","id":"sh/q18b2d0j","slide":6,"name":"fam-title-3","text":"Distillation e hibridos","textPreview":"Distillation e hibridos","textChars":23,"textLines":1,"bbox":[648,390,555,40]}
+{"kind":"textbox","id":"sh/p0zu98ze","slide":6,"name":"fam-list-3","text":"LwF · distillation · SlowHeat + Replay/DER++","textPreview":"LwF · distillation · SlowHeat + Replay/DER++","textChars":44,"textLines":1,"bbox":[648,442,555,50]}
+{"kind":"textbox","id":"sh/4zqt03it","slide":6,"name":"fam-copy-3","text":"Preservam respostas antigas e combinam estabilidade funcional com memoria.","textPreview":"Preservam respostas antigas e combinam estabilidade funcional com memoria.","textChars":74,"textLines":1,"bbox":[648,502,555,88]}
+{"kind":"textbox","id":"sh/3yhs7yh8","slide":6,"name":"footer-6","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/2xobyt0n","slide":6,"name":"page-6","text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/g7vr45","slide":6,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/docs/project_methods_and_results.md\n- /home/fachel/dual-heater-mlp-research/experiments/split_mnist_suite.py"}
+{"kind":"slide","id":"sl/n9l07u","slide":7,"title":"FUNCTIONAL SLOWHEAT","textShapes":11}
+{"kind":"textbox","id":"sh/hkzyhk7e","slide":7,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/ux8fm5o3","slide":7,"name":"title","text":"Replay e DER++ fornecem o sinal antigo que o fluxo atual nao contem","textPreview":"Replay e DER++ fornecem o sinal antigo que o fluxo atual nao contem","textChars":67,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/fyhwfapo","slide":7,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/svqxkf6x","slide":7,"name":"replay-head","text":"Replay","textPreview":"Replay","textChars":6,"textLines":1,"bbox":[42,166,340,38]}
+{"kind":"textbox","id":"sh/twzed07i","slide":7,"name":"bullets-42-225","text":"Armazena 20 exemplos por classe em memoria episodica.\nMistura exemplos atuais e antigos no mesmo step.\nEvita depender apenas de uma penalidade sobre parametros.","textPreview":"Armazena 20 exemplos por classe em memoria episodica. | Mistura exemplos atuais e antigos no mesmo step. | Evita depender apenas de uma p...","textChars":160,"textLines":3,"bbox":[42,225,505,240]}
+{"kind":"textbox","id":"sh/6tofi5or","slide":7,"name":"replay-paper","text":"Chaudhry et al. (2019) · Tiny Episodic Memories","textPreview":"Chaudhry et al. (2019) · Tiny Episodic Memories","textChars":47,"textLines":1,"bbox":[42,487,505,30]}
+{"kind":"shape","id":"sh/7uhwbapc","slide":7,"name":"rule-620-154","bbox":[620,154,1,445]}
+{"kind":"textbox","id":"sh/craxwz6h","slide":7,"name":"der-head","text":"DER++","textPreview":"DER++","textChars":5,"textLines":1,"bbox":[668,166,340,38]}
+{"kind":"textbox","id":"sh/dsjyp4nm","slide":7,"name":"der-eq","text":"L = CE_atual + α·MSE(logits) + β·CE_replay","textPreview":"L = CE_atual + α·MSE(logits) + β·CE_replay","textChars":42,"textLines":1,"bbox":[668,233,550,52]}
+{"kind":"textbox","id":"sh/583i9oji","slide":7,"name":"bullets-668-315","text":"Guarda imagens, rotulos e logits produzidos no passado.\nO MSE preserva as respostas escuras; a CE ancora os rotulos.\nNeste projeto, α = 0,5 e β = 0,5.","textPreview":"Guarda imagens, rotulos e logits produzidos no passado. | O MSE preserva as respostas escuras; a CE ancora os rotulos. | Neste projeto, α...","textChars":150,"textLines":3,"bbox":[668,315,550,174]}
+{"kind":"textbox","id":"sh/4nu10jix","slide":7,"name":"der-paper","text":"Buzzega et al. (NeurIPS 2020) · DER++","textPreview":"Buzzega et al. (NeurIPS 2020) · DER++","textChars":37,"textLines":1,"bbox":[668,508,550,30]}
+{"kind":"textbox","id":"sh/jml07e1c","slide":7,"name":"footer-7","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/ilcjyt0r","slide":7,"name":"page-7","text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/n9l07u","slide":7,"text":"[Sources]\n- https://arxiv.org/abs/1902.10486\n- https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html\n- /home/fachel/dual-heater-mlp-research/experiments/split_mnist.py"}
+{"kind":"slide","id":"sl/sqvsap","slide":8,"title":"FUNCTIONAL SLOWHEAT","textShapes":11}
+{"kind":"textbox","id":"sh/gnuls3ux","slide":8,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/vm1kjydc","slide":8,"name":"title","text":"ER-ACE restringe classes; A-GEM projeta gradientes","textPreview":"ER-ACE restringe classes; A-GEM projeta gradientes","textChars":50,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/uls3qdcr","slide":8,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/tkj2h8v6","slide":8,"name":"erace-title","text":"ER-ACE · restringir a competicao","textPreview":"ER-ACE · restringir a competicao","textChars":32,"textLines":1,"bbox":[42,162,560,42]}
+{"kind":"textbox","id":"sh/8jalo3ul","slide":8,"name":"erace-copy","text":"A loss do lote atual considera apenas classes presentes; o replay continua cobrindo todas as classes vistas. A meta e reduzir mudancas abruptas e interferencia assimetrica.","textPreview":"A loss do lote atual considera apenas classes presentes; o replay continua cobrindo todas as classes vistas. A meta e reduzir mudancas ab...","textChars":172,"textLines":1,"bbox":[42,225,535,190]}
+{"kind":"textbox","id":"sh/7i1kfyd0","slide":8,"name":"erace-paper","text":"Caccia et al. (ICLR 2022) · ER-ACE","textPreview":"Caccia et al. (ICLR 2022) · ER-ACE","textChars":34,"textLines":1,"bbox":[42,440,535,30]}
+{"kind":"textbox","id":"sh/6hs3mtwv","slide":8,"name":"agem-title","text":"A-GEM · projetar o gradiente","textPreview":"A-GEM · projetar o gradiente","textChars":28,"textLines":1,"bbox":[665,162,560,42]}
+{"kind":"textbox","id":"sh/lwj2dova","slide":8,"name":"agem-copy","text":"Compara o gradiente atual ao gradiente de referencia da memoria. Se o produto interno for negativo, remove a componente conflitante antes do update.","textPreview":"Compara o gradiente atual ao gradiente de referencia da memoria. Se o produto interno for negativo, remove a componente conflitante antes...","textChars":148,"textLines":1,"bbox":[665,225,550,190]}
+{"kind":"textbox","id":"sh/kvqlkjep","slide":8,"name":"agem-paper","text":"Chaudhry et al. (ICLR 2019) · A-GEM","textPreview":"Chaudhry et al. (ICLR 2019) · A-GEM","textChars":35,"textLines":1,"bbox":[665,440,550,30]}
+{"kind":"shape","id":"sh/qpsval8f","slide":8,"name":"interpretation-band","bbox":[42,530,1173,92]}
+{"kind":"textbox","id":"sh/rq1wjqp0","slide":8,"name":"interpretation-text","text":"A mesma memoria pode servir para repetir exemplos, preservar logits ou construir uma restricao geometrica. O mecanismo - nao apenas o buffer - determina o comportamento.","textPreview":"A mesma memoria pode servir para repetir exemplos, preservar logits ou construir uma restricao geometrica. O mecanismo - nao apenas o buf...","textChars":169,"textLines":1,"bbox":[70,553,1115,52]}
+{"kind":"textbox","id":"sh/sradcvql","slide":8,"name":"footer-8","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/dcjel076","slide":8,"name":"page-8","text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/sqvsap","slide":8,"text":"[Sources]\n- https://openreview.net/forum?id=N8MaByOzUfb\n- https://arxiv.org/abs/1812.00420\n- https://papers.nips.cc/paper/2017/hash/f87522788a2be2d171666752f97ddebb-Abstract.html\n- /home/fachel/dual-heater-mlp-research/experiments/split_mnist.py"}
+{"kind":"slide","id":"sl/eiyjzr","slide":9,"title":"FUNCTIONAL SLOWHEAT","textShapes":14}
+{"kind":"textbox","id":"sh/tkfeh8b6","slide":9,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/6xofmdcf","slide":9,"name":"title","text":"EWC, SI e LwF preservam o passado sem guardar imagens","textPreview":"EWC, SI e LwF preservam o passado sem guardar imagens","textChars":53,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/7yxwfit0","slide":9,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/kvmxk3up","slide":9,"name":"reg-title-0","text":"EWC","textPreview":"EWC","textChars":3,"textLines":1,"bbox":[42,171,350,43]}
+{"kind":"textbox","id":"sh/5wved8ba","slide":9,"name":"reg-copy-0","text":"Fisher diagonal + penalidade quadratica em torno dos parametros consolidados.","textPreview":"Fisher diagonal + penalidade quadratica em torno dos parametros consolidados.","textChars":77,"textLines":1,"bbox":[42,239,350,190]}
+{"kind":"textbox","id":"sh/it4vitcj","slide":9,"name":"reg-link-0","text":"Abrir artigo","textPreview":"Abrir artigo","textChars":12,"textLines":1,"bbox":[42,451,350,28]}
+{"kind":"shape","id":"sh/judwbyt4","slide":9,"name":"rule-412-160","bbox":[412,160,1,356]}
+{"kind":"textbox","id":"sh/4rqxwnat","slide":9,"name":"reg-title-1","text":"SI","textPreview":"SI","textChars":2,"textLines":1,"bbox":[441,171,350,43]}
+{"kind":"textbox","id":"sh/pszypsbe","slide":9,"name":"reg-copy-1","text":"Importancia sinaptica acumulada pela contribuicao −gradiente × deslocamento.","textPreview":"Importancia sinaptica acumulada pela contribuicao −gradiente × deslocamento.","textChars":76,"textLines":1,"bbox":[441,239,350,190]}
+{"kind":"textbox","id":"sh/pw3idg3q","slide":9,"name":"reg-link-1","text":"Abrir artigo","textPreview":"Abrir artigo","textChars":12,"textLines":1,"bbox":[441,451,350,28]}
+{"kind":"shape","id":"sh/ovu1kbm5","slide":9,"name":"rule-811-160","bbox":[811,160,1,356]}
+{"kind":"textbox","id":"sh/3al0b6lk","slide":9,"name":"reg-title-2","text":"LwF / distillation","textPreview":"LwF / distillation","textChars":18,"textLines":1,"bbox":[840,171,350,43]}
+{"kind":"textbox","id":"sh/29cji14z","slide":9,"name":"reg-copy-2","text":"O modelo anterior atua como professor sobre classes antigas; temperatura 2 no runner.","textPreview":"O modelo anterior atua como professor sobre classes antigas; temperatura 2 no runner.","textChars":85,"textLines":1,"bbox":[840,239,350,190]}
+{"kind":"textbox","id":"sh/183i9g3u","slide":9,"name":"reg-link-2","text":"Abrir artigo","textPreview":"Abrir artigo","textChars":12,"textLines":1,"bbox":[840,451,350,28]}
+{"kind":"textbox","id":"sh/g7u1gbm9","slide":9,"name":"reg-takeaway","text":"No Split-MNIST class-incremental, esses metodos mantiveram informacao task-aware em graus distintos, mas nao resolveram a calibracao global sem replay.","textPreview":"No Split-MNIST class-incremental, esses metodos mantiveram informacao task-aware em graus distintos, mas nao resolveram a calibracao glob...","textChars":151,"textLines":1,"bbox":[42,553,1170,68]}
+{"kind":"textbox","id":"sh/f6l076lo","slide":9,"name":"footer-9","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/u5sze143","slide":9,"name":"page-9","text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/eiyjzr","slide":9,"text":"[Sources]\n- https://doi.org/10.1073/pnas.1611835114\n- https://proceedings.mlr.press/v80/schwarz18a.html\n- https://proceedings.mlr.press/v70/zenke17a.html\n- https://doi.org/10.1007/978-3-319-46493-0_37\n- https://arxiv.org/abs/1503.02531\n- /home/fachel/dual-heater-mlp-research/experiments/split_mnist.py"}
+{"kind":"slide","id":"sl/nufp3w","slide":10,"title":"FUNCTIONAL SLOWHEAT","textShapes":21}
+{"kind":"textbox","id":"sh/90nmhs7u","slide":10,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/mxw3mx8j","slide":10,"name":"title","text":"As ablacoes SlowHeat testam onde a protecao realmente ajuda","textPreview":"As ablacoes SlowHeat testam onde a protecao realmente ajuda","textChars":59,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/ny54fip4","slide":10,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/wny5s7ql","slide":10,"name":"ab-name-0","text":"β = 10 / 30 / 100","textPreview":"β = 10 / 30 / 100","textChars":17,"textLines":1,"bbox":[42,154,210,32]}
+{"kind":"textbox","id":"sh/xo7mlc76","slide":10,"name":"ab-desc-0","text":"forca crescente de protecao","textPreview":"forca crescente de protecao","textChars":27,"textLines":1,"bbox":[262,154,335,48]}
+{"kind":"shape","id":"sh/a1w3qx8f","slide":10,"name":"rule-42-224","bbox":[42,224,555,1]}
+{"kind":"textbox","id":"sh/vmp4j2p0","slide":10,"name":"ab-name-1","text":"adaptive","textPreview":"adaptive","textChars":8,"textLines":1,"bbox":[648,154,210,32]}
+{"kind":"textbox","id":"sh/kry5w7qh","slide":10,"name":"ab-desc-1","text":"budget guiado por validacao","textPreview":"budget guiado por validacao","textChars":27,"textLines":1,"bbox":[868,154,335,48]}
+{"kind":"shape","id":"sh/5s7mpc72","slide":10,"name":"rule-648-224","bbox":[648,224,555,1]}
+{"kind":"textbox","id":"sh/h4zqxw7y","slide":10,"name":"ab-name-2","text":"native_state","textPreview":"native_state","textChars":12,"textLines":1,"bbox":[42,265,210,32]}
+{"kind":"textbox","id":"sh/g3qp4rqd","slide":10,"name":"ab-desc-2","text":"estado do AdamW segue o step nativo","textPreview":"estado do AdamW segue o step nativo","textChars":35,"textLines":1,"bbox":[262,265,335,48]}
+{"kind":"shape","id":"sh/f2hovmps","slide":10,"name":"rule-42-335","bbox":[42,335,555,1]}
+{"kind":"textbox","id":"sh/u1872h87","slide":10,"name":"ab-name-3","text":"unidirectional","textPreview":"unidirectional","textChars":14,"textLines":1,"bbox":[648,265,210,32]}
+{"kind":"textbox","id":"sh/psjq1w7u","slide":10,"name":"ab-desc-3","text":"protege apenas a linha de entrada","textPreview":"protege apenas a linha de entrada","textChars":33,"textLines":1,"bbox":[868,265,335,48]}
+{"kind":"shape","id":"sh/4rap8rq9","slide":10,"name":"rule-648-335","bbox":[648,335,555,1]}
+{"kind":"textbox","id":"sh/3q18zmpo","slide":10,"name":"ab-name-4","text":"unbudgeted","textPreview":"unbudgeted","textChars":10,"textLines":1,"bbox":[42,376,210,32]}
+{"kind":"textbox","id":"sh/25s7618j","slide":10,"name":"ab-desc-4","text":"remove a garantia de capacidade livre","textPreview":"remove a garantia de capacidade livre","textChars":37,"textLines":1,"bbox":[262,376,335,48]}
+{"kind":"shape","id":"sh/lwf6pc7q","slide":10,"name":"rule-42-446","bbox":[42,446,555,1]}
+{"kind":"textbox","id":"sh/kv6pw7q5","slide":10,"name":"ab-name-5","text":"none","textPreview":"none","textChars":4,"textLines":1,"bbox":[648,376,210,32]}
+{"kind":"textbox","id":"sh/cfapc7y1","slide":10,"name":"ab-desc-5","text":"wiring SlowHeat sem consolidacao","textPreview":"wiring SlowHeat sem consolidacao","textChars":32,"textLines":1,"bbox":[868,376,335,48]}
+{"kind":"shape","id":"sh/xgjq5czm","slide":10,"name":"rule-648-446","bbox":[648,446,555,1]}
+{"kind":"textbox","id":"sh/ads7axgv","slide":10,"name":"ab-name-6","text":"hard_freeze","textPreview":"hard_freeze","textChars":11,"textLines":1,"bbox":[42,487,210,32]}
+{"kind":"textbox","id":"sh/be1832hg","slide":10,"name":"ab-desc-6","text":"mascara binaria exata","textPreview":"mascara binaria exata","textChars":21,"textLines":1,"bbox":[262,487,335,48]}
+{"kind":"shape","id":"sh/kjupgryx","slide":10,"name":"rule-42-557","bbox":[42,557,555,1]}
+{"kind":"textbox","id":"sh/lk3q9cfi","slide":10,"name":"ab-name-7","text":"hidden","textPreview":"hidden","textChars":6,"textLines":1,"bbox":[648,487,210,32]}
+{"kind":"textbox","id":"sh/yhs7ehg7","slide":10,"name":"ab-desc-7","text":"cabeca de saida fica plastica","textPreview":"cabeca de saida fica plastica","textChars":29,"textLines":1,"bbox":[868,487,335,48]}
+{"kind":"shape","id":"sh/zil87mxc","slide":10,"name":"rule-648-557","bbox":[648,557,555,1]}
+{"kind":"textbox","id":"sh/87upkry9","slide":10,"name":"ab-warning","text":"Ablacao nao e um novo artigo: cada nome estruturado combina escolhas locais sobre sinal, escopo, budget, estado do otimizador e metodo auxiliar.","textPreview":"Ablacao nao e um novo artigo: cada nome estruturado combina escolhas locais sobre sinal, escopo, budget, estado do otimizador e metodo au...","textChars":144,"textLines":1,"bbox":[42,600,1170,48]}
+{"kind":"textbox","id":"sh/t83qdwfu","slide":10,"name":"footer-10","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/3epkzul8","slide":10,"name":"page-10","text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/nufp3w","slide":10,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/docs/project_methods_and_results.md\n- /home/fachel/dual-heater-mlp-research/docs/functional_slowheat.md\n- https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference"}
+{"kind":"slide","id":"sl/jkuk2f","slide":11,"title":"FUNCTIONAL SLOWHEAT","textShapes":7}
+{"kind":"textbox","id":"sh/76lw3mtc","slide":11,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/s7udcrux","slide":11,"name":"title","text":"Permuted-MNIST: DER++ domina a acuracia; SlowHeat reduz o forgetting","textPreview":"Permuted-MNIST: DER++ domina a acuracia; SlowHeat reduz o forgetting","textChars":68,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/t83e5wb2","slide":11,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/i1sv6hcf","slide":11,"name":"perm-acc-label","text":"ACC final (%)","textPreview":"ACC final (%)","textChars":13,"textLines":1,"bbox":[42,148,540,30]}
+{"kind":"textbox","id":"sh/k3ad8rul","slide":11,"name":"perm-forget-label","text":"Forgetting (%)","textPreview":"Forgetting (%)","textChars":14,"textLines":1,"bbox":[658,148,540,30]}
+{"kind":"textbox","id":"sh/adsv2xcj","slide":11,"name":"perm-interpret","text":"SH + DER++: 95,56% ACC e 0,38% forgetting · DER++: 95,52% e 0,94%.","textPreview":"SH + DER++: 95,56% ACC e 0,38% forgetting · DER++: 95,52% e 0,94%.","textChars":66,"textLines":1,"bbox":[42,600,1156,42]}
+{"kind":"textbox","id":"sh/vy1wv2t4","slide":11,"name":"footer-11","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/vupgfihs","slide":11,"name":"page-11","text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"chart","id":"ch/3ypwr6tk","slide":11,"name":"","chartType":"bar","bbox":[42,184,540,392]}
+{"kind":"chart","id":"ch/p0retwbq","slide":11,"name":"","chartType":"bar","bbox":[658,184,540,392]}
+{"kind":"notes","id":"nt/jkuk2f","slide":11,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/results/permutated_mnist_download.csv\n- /home/fachel/dual-heater-mlp-research/experiments/visual_generalization.py"}
+{"kind":"slide","id":"sl/g9ok2g","slide":12,"title":"FUNCTIONAL SLOWHEAT","textShapes":7}
+{"kind":"textbox","id":"sh/1sbe9432","slide":12,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/ep0vy94b","slide":12,"name":"title","text":"Split-MNIST: SlowHeat + DER++ alcanca a maior acuracia media","textPreview":"Split-MNIST: SlowHeat + DER++ alcanca a maior acuracia media","textChars":60,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/fqtw7ulw","slide":12,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/s3idwzm5","slide":12,"name":"split-acc-label","text":"ACC final (%)","textPreview":"ACC final (%)","textChars":13,"textLines":1,"bbox":[42,148,540,30]}
+{"kind":"textbox","id":"sh/610vup4f","slide":12,"name":"split-forget-label","text":"Forgetting (%)","textPreview":"Forgetting (%)","textChars":14,"textLines":1,"bbox":[658,148,540,30]}
+{"kind":"textbox","id":"sh/czmx8jmp","slide":12,"name":"split-interpret","text":"SH + DER++: 85,06% ACC e 16,19% forgetting · DER++: 82,50% e 20,37%.","textPreview":"SH + DER++: 85,06% ACC e 16,19% forgetting · DER++: 82,50% e 20,37%.","textChars":68,"textLines":1,"bbox":[42,600,1156,42]}
+{"kind":"textbox","id":"sh/xkveho3a","slide":12,"name":"footer-12","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/503294zq","slide":12,"name":"page-12","text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"chart","id":"ch/xk7qt836","slide":12,"name":"","chartType":"bar","bbox":[42,184,540,392]}
+{"kind":"chart","id":"ch/bi58ryl0","slide":12,"name":"","chartType":"bar","bbox":[658,184,540,392]}
+{"kind":"notes","id":"nt/g9ok2g","slide":12,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/results/split_mniist_results.csv\n- /home/fachel/dual-heater-mlp-research/experiments/split_mnist.py"}
+{"kind":"slide","id":"sl/rm3k9t","slide":13,"title":"FUNCTIONAL SLOWHEAT","textShapes":8}
+{"kind":"textbox","id":"sh/wvix0na9","slide":13,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/vu9wr29o","slide":13,"name":"title","text":"Classifier gap separa representacao de calibracao","textPreview":"Classifier gap separa representacao de calibracao","textChars":49,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/utgfyxs3","slide":13,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/8ryxwnax","slide":13,"name":"gap-callout","text":"A-GEM e LwF ainda distinguem classes dentro da tarefa quando recebem o task ID, mas falham na competicao global entre os dez logits.","textPreview":"A-GEM e LwF ainda distinguem classes dentro da tarefa quando recebem o task ID, mas falham na competicao global entre os dez logits.","textChars":132,"textLines":1,"bbox":[850,178,350,190]}
+{"kind":"textbox","id":"sh/76pwni9c","slide":13,"name":"gap-metric","text":"71,41 p.p.","textPreview":"71,41 p.p.","textChars":10,"textLines":1,"bbox":[850,407,350,60]}
+{"kind":"textbox","id":"sh/m5gfuds7","slide":13,"name":"gap-label","text":"classifier gap do A-GEM","textPreview":"classifier gap do A-GEM","textChars":23,"textLines":1,"bbox":[850,478,350,50]}
+{"kind":"textbox","id":"sh/doby1cr2","slide":13,"name":"gap-meaning","text":"A cabeca global - nao apenas a representacao - e parte central do problema.","textPreview":"A cabeca global - nao apenas a representacao - e parte central do problema.","textChars":75,"textLines":1,"bbox":[850,553,350,58]}
+{"kind":"textbox","id":"sh/sn2x87ah","slide":13,"name":"footer-13","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/ulo7qlor","slide":13,"name":"page-13","text":"13","textPreview":"13","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"chart","id":"ch/10365ojq","slide":13,"name":"","chartType":"bar","bbox":[42,158,760,465]}
+{"kind":"notes","id":"nt/rm3k9t","slide":13,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/results/split_mniist_results.csv\n- /home/fachel/dual-heater-mlp-research/docs/project_methods_and_results.md"}
+{"kind":"slide","id":"sl/4j8m53","slide":14,"title":"FUNCTIONAL SLOWHEAT","textShapes":34}
+{"kind":"textbox","id":"sh/tcbut0ry","slide":14,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/690bils7","slide":14,"name":"title","text":"SlowHeat melhora acuracia, mas aumenta o tempo","textPreview":"SlowHeat melhora acuracia, mas aumenta o tempo","textChars":46,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/7a9crq9s","slide":14,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/gz2tovap","slide":14,"name":"cost-h-0","text":"Metodo","textPreview":"Metodo","textChars":6,"textLines":1,"bbox":[42,162,410,32]}
+{"kind":"textbox","id":"sh/h0bux0ru","slide":14,"name":"cost-h-1","text":"ACC","textPreview":"ACC","textChars":3,"textLines":1,"bbox":[470,162,145,32]}
+{"kind":"textbox","id":"sh/udkbm5sj","slide":14,"name":"cost-h-2","text":"Tempo","textPreview":"Tempo","textChars":5,"textLines":1,"bbox":[645,162,145,32]}
+{"kind":"textbox","id":"sh/vytcva94","slide":14,"name":"cost-h-3","text":"FLOPs","textPreview":"FLOPs","textChars":5,"textLines":1,"bbox":[815,162,150,32]}
+{"kind":"textbox","id":"sh/w3ytcba5","slide":14,"name":"cost-h-4","text":"Memoria","textPreview":"Memoria","textChars":7,"textLines":1,"bbox":[995,162,220,32]}
+{"kind":"shape","id":"sh/x47algrq","slide":14,"name":"rule-42-204","bbox":[42,204,1173,1]}
+{"kind":"textbox","id":"sh/tk3i58zy","slide":14,"name":"cost-0-0","text":"Replay + early stopping","textPreview":"Replay + early stopping","textChars":23,"textLines":1,"bbox":[42,226,410,40]}
+{"kind":"textbox","id":"sh/8juhw3id","slide":14,"name":"cost-0-1","text":"77,46%","textPreview":"77,46%","textChars":6,"textLines":1,"bbox":[470,226,145,40]}
+{"kind":"textbox","id":"sh/7il03yh8","slide":14,"name":"cost-0-2","text":"3,85 s","textPreview":"3,85 s","textChars":6,"textLines":1,"bbox":[645,226,145,40]}
+{"kind":"textbox","id":"sh/6hczut0n","slide":14,"name":"cost-0-3","text":"135,6 G","textPreview":"135,6 G","textChars":7,"textLines":1,"bbox":[815,226,150,40]}
+{"kind":"textbox","id":"sh/h8ni98za","slide":14,"name":"cost-0-4","text":"0,629 MB","textPreview":"0,629 MB","textChars":8,"textLines":1,"bbox":[995,226,220,40]}
+{"kind":"shape","id":"sh/g7eh0nip","slide":14,"name":"rule-42-281","bbox":[42,281,1173,1]}
+{"kind":"textbox","id":"sh/v6507ih4","slide":14,"name":"cost-1-0","text":"Replay","textPreview":"Replay","textChars":6,"textLines":1,"bbox":[42,302,410,40]}
+{"kind":"textbox","id":"sh/ulwzyd0j","slide":14,"name":"cost-1-1","text":"76,27%","textPreview":"76,27%","textChars":6,"textLines":1,"bbox":[470,302,145,40]}
+{"kind":"textbox","id":"sh/5c7idsz6","slide":14,"name":"cost-1-2","text":"5,51 s","textPreview":"5,51 s","textChars":6,"textLines":1,"bbox":[645,302,145,40]}
+{"kind":"textbox","id":"sh/4be14nil","slide":14,"name":"cost-1-3","text":"201,9 G","textPreview":"201,9 G","textChars":7,"textLines":1,"bbox":[815,302,150,40]}
+{"kind":"textbox","id":"sh/ofmlgr6x","slide":14,"name":"cost-1-4","text":"0,629 MB","textPreview":"0,629 MB","textChars":8,"textLines":1,"bbox":[995,302,220,40]}
+{"kind":"shape","id":"sh/pgf29w7i","slide":14,"name":"rule-42-357","bbox":[42,357,1173,1]}
+{"kind":"textbox","id":"sh/2d4je1or","slide":14,"name":"cost-2-0","text":"DER++","textPreview":"DER++","textChars":5,"textLines":1,"bbox":[42,378,410,40]}
+{"kind":"textbox","id":"sh/3edk7mpc","slide":14,"name":"cost-2-1","text":"82,50%","textPreview":"82,50%","textChars":6,"textLines":1,"bbox":[470,378,145,40]}
+{"kind":"textbox","id":"sh/cj6l4b6t","slide":14,"name":"cost-2-2","text":"5,59 s","textPreview":"5,59 s","textChars":6,"textLines":1,"bbox":[645,378,145,40]}
+{"kind":"textbox","id":"sh/dkf2dg7e","slide":14,"name":"cost-2-3","text":"201,9 G","textPreview":"201,9 G","textChars":7,"textLines":1,"bbox":[815,378,150,40]}
+{"kind":"textbox","id":"sh/qho3i1o3","slide":14,"name":"cost-2-4","text":"0,629 MB + logits","textPreview":"0,629 MB + logits","textChars":17,"textLines":1,"bbox":[995,378,220,40]}
+{"kind":"shape","id":"sh/bixkb6po","slide":14,"name":"rule-42-433","bbox":[42,433,1173,1]}
+{"kind":"textbox","id":"sh/sn2187qp","slide":14,"name":"cost-3-0","text":"SlowHeat + DER++","textPreview":"SlowHeat + DER++","textChars":16,"textLines":1,"bbox":[42,454,410,40]}
+{"kind":"textbox","id":"sh/tob21c7a","slide":14,"name":"cost-3-1","text":"85,06%","textPreview":"85,06%","textChars":6,"textLines":1,"bbox":[470,454,145,40]}
+{"kind":"textbox","id":"sh/velwned4","slide":14,"name":"cost-3-2","text":"8,15 s","textPreview":"8,15 s","textChars":6,"textLines":1,"bbox":[645,454,145,40]}
+{"kind":"textbox","id":"sh/utcvu9cj","slide":14,"name":"cost-3-3","text":"202,3 G","textPreview":"202,3 G","textChars":7,"textLines":1,"bbox":[815,454,150,40]}
+{"kind":"textbox","id":"sh/hg3epovu","slide":14,"name":"cost-3-4","text":"0,629 MB + logits","textPreview":"0,629 MB + logits","textChars":17,"textLines":1,"bbox":[995,454,220,40]}
+{"kind":"shape","id":"sh/gfuxwjup","slide":14,"name":"rule-42-509","bbox":[42,509,1173,1]}
+{"kind":"textbox","id":"sh/7q1wzuds","slide":14,"name":"metric-num-42-548","text":"+45,8%","textPreview":"+45,8%","textChars":6,"textLines":1,"bbox":[42,548,330,62]}
+{"kind":"textbox","id":"sh/mpsvq9c7","slide":14,"name":"metric-lab-42-548","text":"tempo: SlowHeat + DER++ vs. DER++","textPreview":"tempo: SlowHeat + DER++ vs. DER++","textChars":33,"textLines":1,"bbox":[42,610,330,55]}
+{"kind":"textbox","id":"sh/tsjel4vy","slide":14,"name":"metric-num-455-548","text":"+0,20%","textPreview":"+0,20%","textChars":6,"textLines":1,"bbox":[455,548,330,62]}
+{"kind":"textbox","id":"sh/8radszud","slide":14,"name":"metric-lab-455-548","text":"FLOPs estimados no mesmo contraste","textPreview":"FLOPs estimados no mesmo contraste","textChars":34,"textLines":1,"bbox":[455,610,330,55]}
+{"kind":"textbox","id":"sh/zm1wvudw","slide":14,"name":"cost-why","text":"A diferenca sugere overhead de snapshots, estado e aplicacao de mascaras que a contagem teorica de FLOPs nao captura.","textPreview":"A diferenca sugere overhead de snapshots, estado e aplicacao de mascaras que a contagem teorica de FLOPs nao captura.","textChars":117,"textLines":1,"bbox":[850,555,365,76]}
+{"kind":"textbox","id":"sh/ylsvmpcb","slide":14,"name":"footer-14","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/etczqxsv","slide":14,"name":"page-14","text":"14","textPreview":"14","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/4j8m53","slide":14,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/results/split_mniist_results.csv\n- /home/fachel/dual-heater-mlp-research/docs/optimizer_semantics.md"}
+{"kind":"slide","id":"sl/96d7yt","slide":15,"title":"FUNCTIONAL SLOWHEAT","textShapes":16}
+{"kind":"textbox","id":"sh/3a587y98","slide":15,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/4vepg3qt","slide":15,"name":"title","text":"Quatro conclusoes resistem aos dois benchmarks","textPreview":"Quatro conclusoes resistem aos dois benchmarks","textChars":46,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/5wnq98re","slide":15,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/qxw7id8z","slide":15,"name":"con-num-0","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[42,154,65,42]}
+{"kind":"textbox","id":"sh/ry58bi9k","slide":15,"name":"con-title-0","text":"Replay e essencial em Class-IL","textPreview":"Replay e essencial em Class-IL","textChars":30,"textLines":1,"bbox":[118,154,475,43]}
+{"kind":"textbox","id":"sh/szepknq5","slide":15,"name":"con-copy-0","text":"SlowHeat isolado nao evita o colapso para ~20% no Split-MNIST.","textPreview":"SlowHeat isolado nao evita o colapso para ~20% no Split-MNIST.","textChars":62,"textLines":1,"bbox":[118,217,475,104]}
+{"kind":"textbox","id":"sh/d0nqdsra","slide":15,"name":"con-num-1","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[648,154,65,42]}
+{"kind":"textbox","id":"sh/61s7698f","slide":15,"name":"con-title-1","text":"DER++ e o baseline mais forte","textPreview":"DER++ e o baseline mais forte","textChars":29,"textLines":1,"bbox":[724,154,475,43]}
+{"kind":"textbox","id":"sh/72loze90","slide":15,"name":"con-copy-1","text":"Melhora claramente sobre Replay com custo e memoria adicionais pequenos.","textPreview":"Melhora claramente sobre Replay com custo e memoria adicionais pequenos.","textChars":72,"textLines":1,"bbox":[724,217,475,104]}
+{"kind":"textbox","id":"sh/zih0rip8","slide":15,"name":"con-num-2","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[42,389,65,42]}
+{"kind":"textbox","id":"sh/yh8zidon","slide":15,"name":"con-title-2","text":"SlowHeat funciona melhor como complemento","textPreview":"SlowHeat funciona melhor como complemento","textChars":41,"textLines":1,"bbox":[118,389,475,43]}
+{"kind":"textbox","id":"sh/lkzit87e","slide":15,"name":"con-copy-2","text":"A combinacao com DER++ e o resultado mais promissor; com Replay simples, o ganho e pequeno.","textPreview":"A combinacao com DER++ e o resultado mais promissor; com Replay simples, o ganho e pequeno.","textChars":91,"textLines":1,"bbox":[118,452,475,104]}
+{"kind":"textbox","id":"sh/kjq1kn6t","slide":15,"name":"con-num-3","text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[648,389,65,42]}
+{"kind":"textbox","id":"sh/bex0nypc","slide":15,"name":"con-title-3","text":"A cabeca de saida importa","textPreview":"A cabeca de saida importa","textChars":25,"textLines":1,"bbox":[724,389,475,43]}
+{"kind":"textbox","id":"sh/adozetor","slide":15,"name":"con-copy-3","text":"Hidden-only e calibracao de logits mudam fortemente o resultado class-incremental.","textPreview":"Hidden-only e calibracao de logits mudam fortemente o resultado class-incremental.","textChars":82,"textLines":1,"bbox":[724,452,475,104]}
+{"kind":"textbox","id":"sh/xgzip872","slide":15,"name":"footer-15","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/cf6hg36x","slide":15,"name":"page-15","text":"15","textPreview":"15","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/96d7yt","slide":15,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/results/split_mniist_results.csv\n- /home/fachel/dual-heater-mlp-research/results/permutated_mnist_download.csv"}
+{"kind":"slide","id":"sl/91hdsx","slide":16,"title":"FUNCTIONAL SLOWHEAT","textShapes":11}
+{"kind":"textbox","id":"sh/tsfqxkby","slide":16,"name":"eyebrow","text":"FUNCTIONAL SLOWHEAT","textPreview":"FUNCTIONAL SLOWHEAT","textChars":19,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/65or2pcn","slide":16,"name":"title","text":"A proxima etapa e confirmacao pareada","textPreview":"A proxima etapa e confirmacao pareada","textChars":37,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/7qx8vut8","slide":16,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/k3m90fuh","slide":16,"name":"metric-num-42-162","text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[42,162,290,62]}
+{"kind":"textbox","id":"sh/54vqtkb2","slide":16,"name":"metric-lab-42-162","text":"seeds agregadas em cada CSV","textPreview":"seeds agregadas em cada CSV","textChars":27,"textLines":1,"bbox":[42,224,290,55]}
+{"kind":"textbox","id":"sh/i14ry5cb","slide":16,"name":"metric-num-410-162","text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[410,162,300,62]}
+{"kind":"textbox","id":"sh/j2d8radw","slide":16,"name":"metric-lab-410-162","text":"benchmarks MNIST complementares","textPreview":"benchmarks MNIST complementares","textChars":31,"textLines":1,"bbox":[410,224,300,55]}
+{"kind":"textbox","id":"sh/wzm9wvul","slide":16,"name":"metric-num-790-162","text":"0","textPreview":"0","textChars":1,"textLines":1,"bbox":[790,162,380,62]}
+{"kind":"textbox","id":"sh/x0vqp0vq","slide":16,"name":"metric-lab-790-162","text":"resultados Split-CIFAR versionados","textPreview":"resultados Split-CIFAR versionados","textChars":34,"textLines":1,"bbox":[790,224,380,55]}
+{"kind":"shape","id":"sh/lgzalc3u","slide":16,"name":"rule-42-320","bbox":[42,320,1173,1]}
+{"kind":"textbox","id":"sh/kfq9c72p","slide":16,"name":"bullets-42-365","text":"Reportar diferencas pareadas por seed, bootstrap/t de Student e tamanho de efeito.\nPre-registrar uma confirmacao especifica de SlowHeat + DER++ contra DER++.\nSeparar comparacoes por mesmas epocas, mesmos exemplos e mesmo custo observado.\nValidar em Split-CIFAR-10/100 e arquivar configuracao, matrizes, ambiente e hash do commit.","textPreview":"Reportar diferencas pareadas por seed, bootstrap/t de Student e tamanho de efeito. | Pre-registrar uma confirmacao especifica de SlowHeat...","textChars":329,"textLines":4,"bbox":[42,365,1120,235]}
+{"kind":"textbox","id":"sh/zehsj2l4","slide":16,"name":"footer-16","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/ydorahkj","slide":16,"name":"page-16","text":"16","textPreview":"16","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/91hdsx","slide":16,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/README.md\n- /home/fachel/dual-heater-mlp-research/docs/confirmatory_protocol.md\n- /home/fachel/dual-heater-mlp-research/docs/reproducibility.md"}
+{"kind":"slide","id":"sl/afgo2p","slide":17,"title":"CATALOGO DOS 31 METODOS","textShapes":25}
+{"kind":"textbox","id":"sh/rux4jel8","slide":17,"name":"eyebrow","text":"CATALOGO DOS 31 METODOS","textPreview":"CATALOGO DOS 31 METODOS","textChars":23,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/cv65cj2t","slide":17,"name":"title","text":"Controles e nucleo do SlowHeat","textPreview":"Controles e nucleo do SlowHeat","textChars":30,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/dwzmlo3e","slide":17,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"shape","id":"sh/ex8netkz","slide":17,"name":"rule-620-145","bbox":[620,145,2,520]}
+{"kind":"textbox","id":"sh/zyh4nylk","slide":17,"name":"method-vanilla","text":"vanilla","textPreview":"vanilla","textChars":7,"textLines":1,"bbox":[42,145,545,46]}
+{"kind":"textbox","id":"sh/0zq5g32p","slide":17,"name":"desc-vanilla","text":"Fine-tuning sequencial com AdamW; controle sem mecanismo de continual learning.","textPreview":"Fine-tuning sequencial com AdamW; controle sem mecanismo de continual learning.","textChars":79,"textLines":1,"bbox":[42,193,545,46]}
+{"kind":"textbox","id":"sh/1kzmp83a","slide":17,"name":"ref-vanilla","text":"AdamW","textPreview":"AdamW","textChars":5,"textLines":1,"bbox":[42,243,545,24]}
+{"kind":"shape","id":"sh/u14329kf","slide":17,"name":"rule-42-271","bbox":[42,271,545,1]}
+{"kind":"textbox","id":"sh/f2d4bul0","slide":17,"name":"method-slowheat","text":"slowheat","textPreview":"slowheat","textChars":8,"textLines":1,"bbox":[42,275,545,46]}
+{"kind":"textbox","id":"sh/jypkfqx4","slide":17,"name":"desc-slowheat","text":"SlowHeat completo, β=30 e budget 0,25; protege tambem a saida por padrao.","textPreview":"SlowHeat completo, β=30 e budget 0,25; protege tambem a saida por padrao.","textChars":73,"textLines":1,"bbox":[42,323,545,46]}
+{"kind":"textbox","id":"sh/yxw36lwj","slide":17,"name":"ref-slowheat","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[42,373,545,24]}
+{"kind":"shape","id":"sh/l072h0fa","slide":17,"name":"rule-42-401","bbox":[42,401,545,1]}
+{"kind":"textbox","id":"sh/kzyl8vep","slide":17,"name":"method-slowheat_beta_10","text":"slowheat_beta_10","textPreview":"slowheat_beta_10","textChars":16,"textLines":1,"bbox":[42,405,545,46]}
+{"kind":"textbox","id":"sh/ba5kbqxs","slide":17,"name":"desc-slowheat_beta_10","text":"Mesma regra, protecao suave mais fraca: m = 1/(1+10·heat).","textPreview":"Mesma regra, protecao suave mais fraca: m = 1/(1+10·heat).","textChars":58,"textLines":1,"bbox":[42,453,545,46]}
+{"kind":"textbox","id":"sh/a9w32lwn","slide":17,"name":"ref-slowheat_beta_10","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[42,503,545,24]}
+{"kind":"shape","id":"sh/xwn2dgfy","slide":17,"name":"rule-42-531","bbox":[42,531,545,1]}
+{"kind":"textbox","id":"sh/wvel4bed","slide":17,"name":"method-slowheat_beta_30","text":"slowheat_beta_30","textPreview":"slowheat_beta_30","textChars":16,"textLines":1,"bbox":[42,535,545,46]}
+{"kind":"textbox","id":"sh/n6lk76xw","slide":17,"name":"desc-slowheat_beta_30","text":"Configuracao explicita equivalente ao SlowHeat padrao do runner.","textPreview":"Configuracao explicita equivalente ao SlowHeat padrao do runner.","textChars":64,"textLines":1,"bbox":[42,583,545,46]}
+{"kind":"textbox","id":"sh/m5cjy1gb","slide":17,"name":"ref-slowheat_beta_30","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[42,633,545,24]}
+{"kind":"textbox","id":"sh/q1c3a103","slide":17,"name":"method-slowheat_beta_100","text":"slowheat_beta_100","textPreview":"slowheat_beta_100","textChars":17,"textLines":1,"bbox":[655,145,545,46]}
+{"kind":"textbox","id":"sh/r2l4j6ho","slide":17,"name":"desc-slowheat_beta_100","text":"Protecao mais forte; privilegia estabilidade e reduz plasticidade efetiva.","textPreview":"Protecao mais forte; privilegia estabilidade e reduz plasticidade efetiva.","textChars":74,"textLines":1,"bbox":[655,193,545,46]}
+{"kind":"textbox","id":"sh/c3ulcbi9","slide":17,"name":"ref-slowheat_beta_100","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[655,243,545,24]}
+{"kind":"shape","id":"sh/d43mlgzu","slide":17,"name":"rule-655-271","bbox":[655,271,545,1]}
+{"kind":"textbox","id":"sh/e5c3el0f","slide":17,"name":"method-slowheat_adaptive","text":"slowheat_adaptive","textPreview":"slowheat_adaptive","textChars":17,"textLines":1,"bbox":[655,275,545,46]}
+{"kind":"textbox","id":"sh/z6l4n6h0","slide":17,"name":"desc-slowheat_adaptive","text":"Atualiza o budget por sinal de aquisicao em validacao separada.","textPreview":"Atualiza o budget por sinal de aquisicao em validacao separada.","textChars":63,"textLines":1,"bbox":[655,323,545,46]}
+{"kind":"textbox","id":"sh/07elgbi5","slide":17,"name":"ref-slowheat_adaptive","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[655,373,545,24]}
+{"kind":"shape","id":"sh/18nmpgzq","slide":17,"name":"rule-655-401","bbox":[655,401,545,1]}
+{"kind":"textbox","id":"sh/mtw3il0b","slide":17,"name":"method-slowheat_native_state","text":"slowheat_native_state","textPreview":"slowheat_native_state","textChars":21,"textLines":1,"bbox":[655,405,545,46]}
+{"kind":"textbox","id":"sh/nu54rqhw","slide":17,"name":"desc-slowheat_native_state","text":"Mascara parametros, mas deixa momentos do AdamW seguirem o step nativo.","textPreview":"Mascara parametros, mas deixa momentos do AdamW seguirem o step nativo.","textChars":71,"textLines":1,"bbox":[655,453,545,46]}
+{"kind":"textbox","id":"sh/xo76hkjy","slide":17,"name":"ref-slowheat_native_state","text":"AdamW","textPreview":"AdamW","textChars":5,"textLines":1,"bbox":[655,503,545,24]}
+{"kind":"shape","id":"sh/wnyp8f2d","slide":17,"name":"rule-655-531","bbox":[655,531,545,1]}
+{"kind":"textbox","id":"sh/b2pofa18","slide":17,"name":"footer-17","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/a1gn65kn","slide":17,"name":"page-17","text":"17","textPreview":"17","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/afgo2p","slide":17,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/docs/functional_slowheat.md\n- /home/fachel/dual-heater-mlp-research/docs/optimizer_semantics.md\n- https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference\n- https://arxiv.org/abs/1711.05101"}
+{"kind":"slide","id":"sl/2qo7mb","slide":18,"title":"CATALOGO DOS 31 METODOS","textShapes":22}
+{"kind":"textbox","id":"sh/m1cbyt4f","slide":18,"name":"eyebrow","text":"CATALOGO DOS 31 METODOS","textPreview":"CATALOGO DOS 31 METODOS","textChars":23,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/9o3u9o36","slide":18,"name":"title","text":"Ablacoes estruturais do SlowHeat","textPreview":"Ablacoes estruturais do SlowHeat","textChars":32,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/8nud0jml","slide":18,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"shape","id":"sh/vqlcbylc","slide":18,"name":"rule-620-145","bbox":[620,145,2,520]}
+{"kind":"textbox","id":"sh/apcv2t4r","slide":18,"name":"method-slowheat_unidirectional","text":"slowheat_unidirectional","textPreview":"slowheat_unidirectional","textChars":23,"textLines":1,"bbox":[42,145,545,46]}
+{"kind":"textbox","id":"sh/xsnud832","slide":18,"name":"desc-slowheat_unidirectional","text":"Remove a protecao fatorada downstream; protege apenas linhas de entrada.","textPreview":"Remove a protecao fatorada downstream; protege apenas linhas de entrada.","textChars":72,"textLines":1,"bbox":[42,193,545,89.33]}
+{"kind":"textbox","id":"sh/wrud43mx","slide":18,"name":"ref-slowheat_unidirectional","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[42,286.33,545,24]}
+{"kind":"shape","id":"sh/ju5cfil8","slide":18,"name":"rule-42-314.33333333333337","bbox":[42,314.33,545,1]}
+{"kind":"textbox","id":"sh/itwv6d4n","slide":18,"name":"method-slowheat_unbudgeted","text":"slowheat_unbudgeted","textPreview":"slowheat_unbudgeted","textChars":19,"textLines":1,"bbox":[42,318.33,545,46]}
+{"kind":"textbox","id":"sh/cfe50rat","slide":18,"name":"desc-slowheat_unbudgeted","text":"Remove a garantia de uma fracao minima de unidades totalmente plasticas.","textPreview":"Remove a garantia de uma fracao minima de unidades totalmente plasticas.","textChars":72,"textLines":1,"bbox":[42,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/x0n6twre","slide":18,"name":"ref-slowheat_unbudgeted","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[42,459.67,545,24]}
+{"kind":"shape","id":"sh/adcny1s3","slide":18,"name":"rule-42-487.66666666666674","bbox":[42,487.67,545,1]}
+{"kind":"textbox","id":"sh/be5orm98","slide":18,"name":"method-slowheat_none","text":"slowheat_none","textPreview":"slowheat_none","textChars":13,"textLines":1,"bbox":[42,491.67,545,46]}
+{"kind":"textbox","id":"sh/k3ep4ba5","slide":18,"name":"desc-slowheat_none","text":"Registra o mecanismo, mas nao consolida importancia; controle de wiring.","textPreview":"Registra o mecanismo, mas nao consolida importancia; controle de wiring.","textChars":72,"textLines":1,"bbox":[42,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/l4n6xgrq","slide":18,"name":"ref-slowheat_none","text":"AdamW","textPreview":"AdamW","textChars":5,"textLines":1,"bbox":[42,633,545,24]}
+{"kind":"textbox","id":"sh/y1wn21sz","slide":18,"name":"method-hard_freeze","text":"hard_freeze","textPreview":"hard_freeze","textChars":11,"textLines":1,"bbox":[655,145,545,46]}
+{"kind":"textbox","id":"sh/z25ov69k","slide":18,"name":"desc-hard_freeze","text":"Converte a protecao em mascara binaria: unidades consolidadas ficam congeladas.","textPreview":"Converte a protecao em mascara binaria: unidades consolidadas ficam congeladas.","textChars":79,"textLines":1,"bbox":[655,193,545,89.33]}
+{"kind":"textbox","id":"sh/87yp8ba1","slide":18,"name":"ref-hard_freeze","text":"Controle local · contexto EWC","textPreview":"Controle local · contexto EWC","textChars":29,"textLines":1,"bbox":[655,286.33,545,24]}
+{"kind":"shape","id":"sh/98761grm","slide":18,"name":"rule-655-314.33333333333337","bbox":[655,314.33,545,1]}
+{"kind":"textbox","id":"sh/ho36lgjq","slide":18,"name":"method-slowheat_hidden_beta_30_budget_0.25","text":"slowheat_hidden_beta_30_budget_0.25","textPreview":"slowheat_hidden_beta_30_budget_0.25","textChars":35,"textLines":1,"bbox":[655,318.33,545,46]}
+{"kind":"textbox","id":"sh/gnu5cb25","slide":18,"name":"desc-slowheat_hidden_beta_30_budget_0.25","text":"SlowHeat apenas nas camadas ocultas, sem replay; cabeca livre.","textPreview":"SlowHeat apenas nas camadas ocultas, sem replay; cabeca livre.","textChars":62,"textLines":1,"bbox":[655,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/vmloj61k","slide":18,"name":"ref-slowheat_hidden_beta_30_budget_0.25","text":"Contexto Taylor (metodo local)","textPreview":"Contexto Taylor (metodo local)","textChars":30,"textLines":1,"bbox":[655,459.67,545,24]}
+{"kind":"shape","id":"sh/ulcna1kf","slide":18,"name":"rule-655-487.66666666666674","bbox":[655,487.67,545,1]}
+{"kind":"textbox","id":"sh/5sn6p0j2","slide":18,"name":"method-slowheat_replay_hidden_adaptive\n_beta_30_budget_0.25","text":"slowheat_replay_hidden_adaptive\n_beta_30_budget_0.25","textPreview":"slowheat_replay_hidden_adaptive | _beta_30_budget_0.25","textChars":52,"textLines":2,"bbox":[655,491.67,545,46]}
+{"kind":"textbox","id":"sh/4re5gvih","slide":18,"name":"desc-slowheat_replay_hidden_adaptive\n_beta_30_budget_0.25","text":"Replay + hidden-only + budget adaptado por validacao.","textPreview":"Replay + hidden-only + budget adaptado por validacao.","textChars":53,"textLines":1,"bbox":[655,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/3qlonq1w","slide":18,"name":"ref-slowheat_replay_hidden_adaptive\n_beta_30_budget_0.25","text":"SlowHeat local + Replay","textPreview":"SlowHeat local + Replay","textChars":23,"textLines":1,"bbox":[655,633,545,24]}
+{"kind":"textbox","id":"sh/ipcnel0b","slide":18,"name":"footer-18","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/lwj6dwji","slide":18,"name":"page-18","text":"18","textPreview":"18","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/2qo7mb","slide":18,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/docs/functional_slowheat.md\n- https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference\n- https://arxiv.org/abs/1711.05101\n- https://doi.org/10.1073/pnas.1611835114\n- https://arxiv.org/abs/1902.10486"}
+{"kind":"slide","id":"sl/w7h0rq","slide":19,"title":"CATALOGO DOS 31 METODOS","textShapes":22}
+{"kind":"textbox","id":"sh/7upkv65o","slide":19,"name":"eyebrow","text":"CATALOGO DOS 31 METODOS","textPreview":"CATALOGO DOS 31 METODOS","textChars":23,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/8vy1obm9","slide":19,"name":"title","text":"Memoria, logits, restricoes e hibridos","textPreview":"Memoria, logits, restricoes e hibridos","textChars":38,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/9wr2xgnu","slide":19,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"shape","id":"sh/uh0jql4f","slide":19,"name":"rule-620-145","bbox":[620,145,2,520]}
+{"kind":"textbox","id":"sh/vi9kzq50","slide":19,"name":"method-replay","text":"replay","textPreview":"replay","textChars":6,"textLines":1,"bbox":[42,145,545,46]}
+{"kind":"textbox","id":"sh/wji1svml","slide":19,"name":"desc-replay","text":"Mistura minibatches atuais e amostras de uma memoria episodica pequena.","textPreview":"Mistura minibatches atuais e amostras de uma memoria episodica pequena.","textChars":71,"textLines":1,"bbox":[42,193,545,89.33]}
+{"kind":"textbox","id":"sh/hkr210n6","slide":19,"name":"ref-replay","text":"Tiny Episodic Memories","textPreview":"Tiny Episodic Memories","textChars":22,"textLines":1,"bbox":[42,286.33,545,24]}
+{"kind":"shape","id":"sh/il0jul4b","slide":19,"name":"rule-42-314.33333333333337","bbox":[42,314.33,545,1]}
+{"kind":"textbox","id":"sh/jm9k3q5w","slide":19,"name":"method-distillation","text":"distillation","textPreview":"distillation","textChars":12,"textLines":1,"bbox":[42,318.33,545,46]}
+{"kind":"textbox","id":"sh/vmxwnapo","slide":19,"name":"desc-distillation","text":"Professor anterior preserva logits antigos, sem guardar imagens antigas.","textPreview":"Professor anterior preserva logits antigos, sem guardar imagens antigas.","textChars":72,"textLines":1,"bbox":[42,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/ulofu5o3","slide":19,"name":"ref-distillation","text":"Knowledge Distillation","textPreview":"Knowledge Distillation","textChars":22,"textLines":1,"bbox":[42,459.67,545,24]}
+{"kind":"shape","id":"sh/h8fepk7e","slide":19,"name":"rule-42-487.66666666666674","bbox":[42,487.67,545,1]}
+{"kind":"textbox","id":"sh/wn6xwf69","slide":19,"name":"method-slowheat_replay","text":"slowheat_replay","textPreview":"slowheat_replay","textChars":15,"textLines":1,"bbox":[42,491.67,545,46]}
+{"kind":"textbox","id":"sh/7idwjqpc","slide":19,"name":"desc-slowheat_replay","text":"Combina replay com SlowHeat completo, incluindo protecao da cabeca.","textPreview":"Combina replay com SlowHeat completo, incluindo protecao da cabeca.","textChars":67,"textLines":1,"bbox":[42,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/mh4vq5or","slide":19,"name":"ref-slowheat_replay","text":"SlowHeat local + Replay","textPreview":"SlowHeat local + Replay","textChars":23,"textLines":1,"bbox":[42,633,545,24]}
+{"kind":"textbox","id":"sh/9kfel07i","slide":19,"name":"method-slowheat_distillation","text":"slowheat_distillation","textPreview":"slowheat_distillation","textChars":21,"textLines":1,"bbox":[655,145,545,46]}
+{"kind":"textbox","id":"sh/8jmdsv6x","slide":19,"name":"desc-slowheat_distillation","text":"Combina protecao funcional com professor anterior e distillation.","textPreview":"Combina protecao funcional com professor anterior e distillation.","textChars":65,"textLines":1,"bbox":[655,193,545,89.33]}
+{"kind":"textbox","id":"sh/rehwvu5w","slide":19,"name":"ref-slowheat_distillation","text":"SlowHeat local + Distillation","textPreview":"SlowHeat local + Distillation","textChars":29,"textLines":1,"bbox":[655,286.33,545,24]}
+{"kind":"shape","id":"sh/6d8f2pob","slide":19,"name":"rule-655-314.33333333333337","bbox":[655,314.33,545,1]}
+{"kind":"textbox","id":"sh/29szut8j","slide":19,"name":"method-derpp","text":"derpp","textPreview":"derpp","textChars":5,"textLines":1,"bbox":[655,318.33,545,46]}
+{"kind":"textbox","id":"sh/na10nyp4","slide":19,"name":"desc-derpp","text":"CE atual + MSE de logits armazenados + CE sobre exemplos de replay.","textPreview":"CE atual + MSE de logits armazenados + CE sobre exemplos de replay.","textChars":67,"textLines":1,"bbox":[655,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/obuhw3qp","slide":19,"name":"ref-derpp","text":"DER++","textPreview":"DER++","textChars":5,"textLines":1,"bbox":[655,459.67,545,24]}
+{"kind":"shape","id":"sh/pc3ip87u","slide":19,"name":"rule-655-487.66666666666674","bbox":[655,487.67,545,1]}
+{"kind":"textbox","id":"sh/adczyd8f","slide":19,"name":"method-slowheat_derpp_hidden_beta_30_budget_0.25","text":"slowheat_derpp_hidden_beta_30_budget_0.25","textPreview":"slowheat_derpp_hidden_beta_30_budget_0.25","textChars":41,"textLines":1,"bbox":[655,491.67,545,46]}
+{"kind":"textbox","id":"sh/byl0ryp0","slide":19,"name":"desc-slowheat_derpp_hidden_beta_30_budget_0.25","text":"DER++ + SlowHeat nas camadas ocultas; cabeca permanece plastica.","textPreview":"DER++ + SlowHeat nas camadas ocultas; cabeca permanece plastica.","textChars":64,"textLines":1,"bbox":[655,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/czuh03ql","slide":19,"name":"ref-slowheat_derpp_hidden_beta_30_budget_0.25","text":"SlowHeat local + DER++","textPreview":"SlowHeat local + DER++","textChars":22,"textLines":1,"bbox":[655,633,545,24]}
+{"kind":"textbox","id":"sh/x03it876","slide":19,"name":"footer-19","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/6h8zm98b","slide":19,"name":"page-19","text":"19","textPreview":"19","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/w7h0rq","slide":19,"text":"[Sources]\n- https://arxiv.org/abs/1902.10486\n- https://arxiv.org/abs/1503.02531\n- https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html"}
+{"kind":"slide","id":"sl/z620zz","slide":20,"title":"CATALOGO DOS 31 METODOS","textShapes":22}
+{"kind":"textbox","id":"sh/87ad0zi1","slide":20,"name":"eyebrow","text":"CATALOGO DOS 31 METODOS","textPreview":"CATALOGO DOS 31 METODOS","textChars":23,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/n61wru1g","slide":20,"name":"title","text":"Restricoes, regularizacao e Replay balanceado","textPreview":"Restricoes, regularizacao e Replay balanceado","textChars":45,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/m5svyp0v","slide":20,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"shape","id":"sh/hc3exoji","slide":20,"name":"rule-620-145","bbox":[620,145,2,520]}
+{"kind":"textbox","id":"sh/wbud4jix","slide":20,"name":"method-er_ace","text":"er_ace","textPreview":"er_ace","textChars":6,"textLines":1,"bbox":[42,145,545,46]}
+{"kind":"textbox","id":"sh/valwve1c","slide":20,"name":"desc-er_ace","text":"Restringe classes na loss atual e usa replay sobre todas as classes vistas.","textPreview":"Restringe classes na loss atual e usa replay sobre todas as classes vistas.","textChars":75,"textLines":1,"bbox":[42,193,545,89.33]}
+{"kind":"textbox","id":"sh/a9sv290r","slide":20,"name":"ref-er_ace","text":"ER-ACE","textPreview":"ER-ACE","textChars":6,"textLines":1,"bbox":[42,286.33,545,24]}
+{"kind":"shape","id":"sh/dgzelkje","slide":20,"name":"rule-42-314.33333333333337","bbox":[42,314.33,545,1]}
+{"kind":"textbox","id":"sh/cfqdsfit","slide":20,"name":"method-agem","text":"agem","textPreview":"agem","textChars":4,"textLines":1,"bbox":[42,318.33,545,46]}
+{"kind":"textbox","id":"sh/i98j2h0b","slide":20,"name":"desc-agem","text":"Projeta o gradiente atual quando ele conflita com o gradiente da memoria.","textPreview":"Projeta o gradiente atual quando ele conflita com o gradiente da memoria.","textChars":73,"textLines":1,"bbox":[42,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/jahkvm1g","slide":20,"name":"ref-agem","text":"A-GEM","textPreview":"A-GEM","textChars":5,"textLines":1,"bbox":[42,459.67,545,24]}
+{"kind":"shape","id":"sh/4ba14ri1","slide":20,"name":"rule-42-487.66666666666674","bbox":[42,487.67,545,1]}
+{"kind":"textbox","id":"sh/5cj2xcjm","slide":20,"name":"method-ewc","text":"ewc","textPreview":"ewc","textChars":3,"textLines":1,"bbox":[42,491.67,545,46]}
+{"kind":"textbox","id":"sh/6dsj6h07","slide":20,"name":"desc-ewc","text":"Fisher diagonal online + penalidade quadratica sobre parametros consolidados.","textPreview":"Fisher diagonal online + penalidade quadratica sobre parametros consolidados.","textChars":77,"textLines":1,"bbox":[42,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/re1kzm1s","slide":20,"name":"ref-ewc","text":"EWC","textPreview":"EWC","textChars":3,"textLines":1,"bbox":[42,633,545,24]}
+{"kind":"textbox","id":"sh/sfa18rid","slide":20,"name":"method-si","text":"si","textPreview":"si","textChars":2,"textLines":1,"bbox":[655,145,545,46]}
+{"kind":"textbox","id":"sh/t0j21wjy","slide":20,"name":"desc-si","text":"Importancia sinaptica acumulada ao longo da trajetoria de otimizacao.","textPreview":"Importancia sinaptica acumulada ao longo da trajetoria de otimizacao.","textChars":69,"textLines":1,"bbox":[655,193,545,89.33]}
+{"kind":"textbox","id":"sh/e1sja103","slide":20,"name":"ref-si","text":"Synaptic Intelligence","textPreview":"Synaptic Intelligence","textChars":21,"textLines":1,"bbox":[655,286.33,545,24]}
+{"kind":"shape","id":"sh/f2lk361o","slide":20,"name":"rule-655-314.33333333333337","bbox":[655,314.33,545,1]}
+{"kind":"textbox","id":"sh/b6l0r6hw","slide":20,"name":"method-lwf_calibrated","text":"lwf_calibrated","textPreview":"lwf_calibrated","textChars":14,"textLines":1,"bbox":[655,318.33,545,46]}
+{"kind":"textbox","id":"sh/q5cji1gb","slide":20,"name":"desc-lwf_calibrated","text":"LwF com pesos das losses definidos pela fracao de classes antigas e novas.","textPreview":"LwF com pesos das losses definidos pela fracao de classes antigas e novas.","textChars":74,"textLines":1,"bbox":[655,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/x83itgz2","slide":20,"name":"ref-lwf_calibrated","text":"Learning without Forgetting","textPreview":"Learning without Forgetting","textChars":27,"textLines":1,"bbox":[655,459.67,545,24]}
+{"kind":"shape","id":"sh/c7u1kbyh","slide":20,"name":"rule-655-487.66666666666674","bbox":[655,487.67,545,1]}
+{"kind":"textbox","id":"sh/32l0nmh0","slide":20,"name":"method-replay_balanced","text":"replay_balanced","textPreview":"replay_balanced","textChars":15,"textLines":1,"bbox":[655,491.67,545,46]}
+{"kind":"textbox","id":"sh/2hsjehgf","slide":20,"name":"desc-replay_balanced","text":"Da peso 0,5 para loss atual e 0,5 para replay, independentemente do batch.","textPreview":"Da peso 0,5 para loss atual e 0,5 para replay, independentemente do batch.","textChars":74,"textLines":1,"bbox":[655,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/p43ipwzq","slide":20,"name":"ref-replay_balanced","text":"Variacao local de Replay","textPreview":"Variacao local de Replay","textChars":24,"textLines":1,"bbox":[655,633,545,24]}
+{"kind":"textbox","id":"sh/o3u1gry5","slide":20,"name":"footer-20","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/fe10jmho","slide":20,"name":"page-20","text":"20","textPreview":"20","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/z620zz","slide":20,"text":"[Sources]\n- https://openreview.net/forum?id=N8MaByOzUfb\n- https://arxiv.org/abs/1812.00420\n- https://doi.org/10.1073/pnas.1611835114\n- https://proceedings.mlr.press/v70/zenke17a.html\n- https://doi.org/10.1007/978-3-319-46493-0_37\n- https://arxiv.org/abs/1902.10486"}
+{"kind":"slide","id":"sl/zdjngh","slide":21,"title":"CATALOGO DOS 31 METODOS","textShapes":22}
+{"kind":"textbox","id":"sh/x8jexwb6","slide":21,"name":"eyebrow","text":"CATALOGO DOS 31 METODOS","textPreview":"CATALOGO DOS 31 METODOS","textChars":23,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/a5sv2hcf","slide":21,"name":"title","text":"Politicas de treino e hibridos finais","textPreview":"Politicas de treino e hibridos finais","textChars":37,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/v61cvmt0","slide":21,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"shape","id":"sh/83ad07u9","slide":21,"name":"rule-620-145","bbox":[620,145,2,520]}
+{"kind":"textbox","id":"sh/94jutcbu","slide":21,"name":"method-replay_more_epochs","text":"replay_more_epochs","textPreview":"replay_more_epochs","textChars":18,"textLines":1,"bbox":[42,145,545,46]}
+{"kind":"textbox","id":"sh/mh8vyhcj","slide":21,"name":"desc-replay_more_epochs","text":"Executa 20 epocas por tarefa; controle de orcamento, nao novo algoritmo.","textPreview":"Executa 20 epocas por tarefa; controle de orcamento, nao novo algoritmo.","textChars":72,"textLines":1,"bbox":[42,193,545,89.33]}
+{"kind":"textbox","id":"sh/ni1crmt4","slide":21,"name":"ref-replay_more_epochs","text":"Replay","textPreview":"Replay","textChars":6,"textLines":1,"bbox":[42,286.33,545,24]}
+{"kind":"shape","id":"sh/0fqdw7ud","slide":21,"name":"rule-42-314.33333333333337","bbox":[42,314.33,545,1]}
+{"kind":"textbox","id":"sh/lgzupcvy","slide":21,"name":"method-replay_early_stopping","text":"replay_early_stopping","textPreview":"replay_early_stopping","textChars":21,"textLines":1,"bbox":[42,318.33,545,46]}
+{"kind":"textbox","id":"sh/xsnitsfu","slide":21,"name":"desc-replay_early_stopping","text":"Ate 30 epocas, paciencia 3 e restauracao do melhor estado de validacao.","textPreview":"Ate 30 epocas, paciencia 3 e restauracao do melhor estado de validacao.","textChars":71,"textLines":1,"bbox":[42,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/c7e107y9","slide":21,"name":"ref-replay_early_stopping","text":"Early stopping + Replay","textPreview":"Early stopping + Replay","textChars":23,"textLines":1,"bbox":[42,459.67,545,24]}
+{"kind":"shape","id":"sh/b650r2xo","slide":21,"name":"rule-42-487.66666666666674","bbox":[42,487.67,545,1]}
+{"kind":"textbox","id":"sh/a5wjyxg3","slide":21,"name":"method-replay_global_lr_reduction","text":"replay_global_lr_reduction","textPreview":"replay_global_lr_reduction","textChars":26,"textLines":1,"bbox":[42,491.67,545,46]}
+{"kind":"textbox","id":"sh/p43ipsfi","slide":21,"name":"desc-replay_global_lr_reduction","text":"Reduz globalmente a LR por 1/31; controle para comparar seletividade.","textPreview":"Reduz globalmente a LR por 1/31; controle para comparar seletividade.","textChars":69,"textLines":1,"bbox":[42,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/o3u1wnyx","slide":21,"name":"ref-replay_global_lr_reduction","text":"AdamW + Replay","textPreview":"AdamW + Replay","textChars":14,"textLines":1,"bbox":[42,633,545,24]}
+{"kind":"textbox","id":"sh/n2l0nixc","slide":21,"name":"method-slowheat_replay_hidden_beta_30_budget_0.25","text":"slowheat_replay_hidden_beta_30_budget_0.25","textPreview":"slowheat_replay_hidden_beta_30_budget_0.25","textChars":42,"textLines":1,"bbox":[655,145,545,46]}
+{"kind":"textbox","id":"sh/21cjudg7","slide":21,"name":"desc-slowheat_replay_hidden_beta_30_budget_0.25","text":"Replay + SlowHeat hidden-only, β=30 e pelo menos 25% de unidades livres.","textPreview":"Replay + SlowHeat hidden-only, β=30 e pelo menos 25% de unidades livres.","textChars":72,"textLines":1,"bbox":[655,193,545,89.33]}
+{"kind":"textbox","id":"sh/103il8fm","slide":21,"name":"ref-slowheat_replay_hidden_beta_30_budget_0.25","text":"SlowHeat local + Replay","textPreview":"SlowHeat local + Replay","textChars":23,"textLines":1,"bbox":[655,286.33,545,24]}
+{"kind":"shape","id":"sh/0zuhs3y1","slide":21,"name":"rule-655-314.33333333333337","bbox":[655,314.33,545,1]}
+{"kind":"textbox","id":"sh/sjy18n6x","slide":21,"name":"method-slowheat_replay_partial_output_beta_30_budget_0.25","text":"slowheat_replay_partial_output_beta_30_budget_0.25","textPreview":"slowheat_replay_partial_output_beta_30_budget_0.25","textChars":50,"textLines":1,"bbox":[655,318.33,545,46]}
+{"kind":"textbox","id":"sh/tk7i1sni","slide":21,"name":"desc-slowheat_replay_partial_output_beta_30_budget_0.25","text":"Replay com protecao parcial da camada de saida, em vez de totalmente livre.","textPreview":"Replay com protecao parcial da camada de saida, em vez de totalmente livre.","textChars":75,"textLines":1,"bbox":[655,366.33,545,89.33]}
+{"kind":"textbox","id":"sh/6hwj6dor","slide":21,"name":"ref-slowheat_replay_partial_output_beta_30_budget_0.25","text":"SlowHeat local + Replay","textPreview":"SlowHeat local + Replay","textChars":23,"textLines":1,"bbox":[655,459.67,545,24]}
+{"kind":"shape","id":"sh/rip0zi5c","slide":21,"name":"rule-655-487.66666666666674","bbox":[655,487.67,545,1]}
+{"kind":"textbox","id":"sh/4fe1436l","slide":21,"name":"method-slowheat_replay_hidden_beta_30_budget_0.25\n_calibrated","text":"slowheat_replay_hidden_beta_30_budget_0.25\n_calibrated","textPreview":"slowheat_replay_hidden_beta_30_budget_0.25 | _calibrated","textChars":54,"textLines":2,"bbox":[655,491.67,545,46]}
+{"kind":"textbox","id":"sh/5gnix8n6","slide":21,"name":"desc-slowheat_replay_hidden_beta_30_budget_0.25\n_calibrated","text":"Adiciona offset local de logits para reduzir viés entre tarefas.","textPreview":"Adiciona offset local de logits para reduzir viés entre tarefas.","textChars":64,"textLines":1,"bbox":[655,539.67,545,89.33]}
+{"kind":"textbox","id":"sh/idwj2tov","slide":21,"name":"ref-slowheat_replay_hidden_beta_30_budget_0.25\n_calibrated","text":"SlowHeat local + Replay","textPreview":"SlowHeat local + Replay","textChars":23,"textLines":1,"bbox":[655,633,545,24]}
+{"kind":"textbox","id":"sh/je50vy50","slide":21,"name":"footer-21","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/obi1g765","slide":21,"name":"page-21","text":"21","textPreview":"21","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/zdjngh","slide":21,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/docs/project_methods_and_results.md\n- https://arxiv.org/abs/1902.10486\n- https://doi.org/10.1016/S0893-6080(98)00010-0\n- https://arxiv.org/abs/1711.05101"}
+{"kind":"slide","id":"sl/bo27o6","slide":22,"title":"ARTIGOS E FONTES","textShapes":17}
+{"kind":"textbox","id":"sh/5gvax8jy","slide":22,"name":"eyebrow","text":"ARTIGOS E FONTES","textPreview":"ARTIGOS E FONTES","textChars":16,"textLines":1,"bbox":[42,28,520,24]}
+{"kind":"textbox","id":"sh/it4rmt0n","slide":22,"name":"title","text":"Referencias principais - links clicaveis","textPreview":"Referencias principais - links clicaveis","textChars":40,"textLines":1,"bbox":[42,55,1170,62]}
+{"kind":"shape","id":"sh/3edsvy18","slide":22,"name":"rule-42-125","bbox":[42,125,1196,1]}
+{"kind":"textbox","id":"sh/cjmtsnip","slide":22,"name":"main-ref-0","text":"Adam · Kingma & Ba (2015)","textPreview":"Adam · Kingma & Ba (2015)","textChars":25,"textLines":1,"bbox":[42,156,555,36]}
+{"kind":"textbox","id":"sh/dkva18ja","slide":22,"name":"main-ref-1","text":"AdamW · Loshchilov & Hutter (2019)","textPreview":"AdamW · Loshchilov & Hutter (2019)","textChars":34,"textLines":1,"bbox":[648,156,555,36]}
+{"kind":"textbox","id":"sh/qh4bqd0j","slide":22,"name":"main-ref-2","text":"Tiny Episodic Memories · Chaudhry et al. (2019)","textPreview":"Tiny Episodic Memories · Chaudhry et al. (2019)","textChars":47,"textLines":1,"bbox":[42,232,555,36]}
+{"kind":"textbox","id":"sh/ridszi14","slide":22,"name":"main-ref-3","text":"DER++ · Buzzega et al. (NeurIPS 2020)","textPreview":"DER++ · Buzzega et al. (NeurIPS 2020)","textChars":37,"textLines":1,"bbox":[648,232,555,36]}
+{"kind":"textbox","id":"sh/0n6twnil","slide":22,"name":"main-ref-4","text":"ER-ACE · Caccia et al. (ICLR 2022)","textPreview":"ER-ACE · Caccia et al. (ICLR 2022)","textChars":34,"textLines":1,"bbox":[42,308,555,36]}
+{"kind":"textbox","id":"sh/1ofa5sj6","slide":22,"name":"main-ref-5","text":"A-GEM · Chaudhry et al. (ICLR 2019)","textPreview":"A-GEM · Chaudhry et al. (ICLR 2019)","textChars":35,"textLines":1,"bbox":[648,308,555,36]}
+{"kind":"textbox","id":"sh/5cbu9wvm","slide":22,"name":"main-ref-6","text":"EWC · Kirkpatrick et al. (PNAS 2017)","textPreview":"EWC · Kirkpatrick et al. (PNAS 2017)","textChars":36,"textLines":1,"bbox":[42,384,555,36]}
+{"kind":"textbox","id":"sh/kb2tgru1","slide":22,"name":"main-ref-7","text":"Synaptic Intelligence · Zenke et al. (ICML 2017)","textPreview":"Synaptic Intelligence · Zenke et al. (ICML 2017)","textChars":48,"textLines":1,"bbox":[648,384,555,36]}
+{"kind":"textbox","id":"sh/jatc7mdg","slide":22,"name":"main-ref-8","text":"Learning without Forgetting · Li & Hoiem (ECCV 2016)","textPreview":"Learning without Forgetting · Li & Hoiem (ECCV 2016)","textChars":52,"textLines":1,"bbox":[42,460,555,36]}
+{"kind":"textbox","id":"sh/i90behcv","slide":22,"name":"main-ref-9","text":"Knowledge Distillation · Hinton et al. (2015)","textPreview":"Knowledge Distillation · Hinton et al. (2015)","textChars":45,"textLines":1,"bbox":[648,460,555,36]}
+{"kind":"textbox","id":"sh/t0budgvi","slide":22,"name":"main-ref-10","text":"Taylor saliency · Molchanov et al. (ICLR 2017)","textPreview":"Taylor saliency · Molchanov et al. (ICLR 2017)","textChars":46,"textLines":1,"bbox":[42,536,555,36]}
+{"kind":"textbox","id":"sh/sz2dkbux","slide":22,"name":"main-ref-11","text":"Cenarios de continual learning · van de Ven & Tolias (2019)","textPreview":"Cenarios de continual learning · van de Ven & Tolias (2019)","textChars":59,"textLines":1,"bbox":[648,536,555,36]}
+{"kind":"textbox","id":"sh/7etcb6dc","slide":22,"name":"local-note","text":"Functional SlowHeat, DualHeat e as combinacoes/ablacoes sao contribuicoes locais ainda sem artigo externo revisado por pares.","textPreview":"Functional SlowHeat, DualHeat e as combinacoes/ablacoes sao contribuicoes locais ainda sem artigo externo revisado por pares.","textChars":125,"textLines":1,"bbox":[42,625,1120,34]}
+{"kind":"textbox","id":"sh/6dkbi1c7","slide":22,"name":"footer-22","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/94ru1cve","slide":22,"name":"page-22","text":"22","textPreview":"22","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/bo27o6","slide":22,"text":"[Sources]\n- https://arxiv.org/abs/1412.6980\n- https://arxiv.org/abs/1711.05101\n- https://arxiv.org/abs/1902.10486\n- https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html\n- https://openreview.net/forum?id=N8MaByOzUfb\n- https://arxiv.org/abs/1812.00420\n- https://doi.org/10.1073/pnas.1611835114\n- https://proceedings.mlr.press/v70/zenke17a.html\n- https://doi.org/10.1007/978-3-319-46493-0_37\n- https://arxiv.org/abs/1503.02531\n- https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference\n- https://arxiv.org/abs/1904.07734\n- /home/fachel/dual-heater-mlp-research/article/manuscript.md"}
+{"kind":"slide","id":"sl/xqxkp4","slide":23,"title":"SINTESE","textShapes":6}
+{"kind":"textbox","id":"sh/4zmpwfip","slide":23,"name":"closing-eyebrow","text":"SINTESE","textPreview":"SINTESE","textChars":7,"textLines":1,"bbox":[42,40,220,26]}
+{"kind":"textbox","id":"sh/3yd8nahk","slide":23,"name":"closing-title","text":"SlowHeat e promissor como complemento ao DER++ - ainda nao como melhoria geral confirmada.","textPreview":"SlowHeat e promissor como complemento ao DER++ - ainda nao como melhoria geral confirmada.","textChars":90,"textLines":1,"bbox":[42,173,1100,220]}
+{"kind":"textbox","id":"sh/ix47u50z","slide":23,"name":"closing-sub","text":"Proxima decisao: confirmar o contraste pareado e validar fora do MNIST.","textPreview":"Proxima decisao: confirmar o contraste pareado e validar fora do MNIST.","textChars":71,"textLines":1,"bbox":[42,510,790,75]}
+{"kind":"textbox","id":"sh/hwvql0ze","slide":23,"name":"closing-data","text":"85,06% Split · 95,56% Permuted · n=10","textPreview":"85,06% Split · 95,56% Permuted · n=10","textChars":37,"textLines":1,"bbox":[42,614,700,36]}
+{"kind":"textbox","id":"sh/gbmpsfit","slide":23,"name":"footer-23","text":"Resultados preliminares  |  n = 10 seeds","textPreview":"Resultados preliminares  |  n = 10 seeds","textChars":40,"textLines":1,"bbox":[42,684,600,18]}
+{"kind":"textbox","id":"sh/vad8jah8","slide":23,"name":"page-23","text":"23","textPreview":"23","textChars":2,"textLines":1,"bbox":[1170,681,68,20]}
+{"kind":"notes","id":"nt/xqxkp4","slide":23,"text":"[Sources]\n- /home/fachel/dual-heater-mlp-research/results/split_mniist_results.csv\n- /home/fachel/dual-heater-mlp-research/results/permutated_mnist_download.csv\n- /home/fachel/dual-heater-mlp-research/README.md"}

@@ -41,6 +41,7 @@ SUPPORTED_METHODS = {
     "slowheat_distillation",
     "derpp",
     "slowheat_derpp_hidden_beta_30_budget_0.25",
+    "slowheat_er_ace_hidden_beta_30_budget_0.25",
     "er_ace",
     "agem",
     "ewc",
@@ -59,6 +60,7 @@ REPLAY_METHODS = {
     "replay",
     "derpp",
     "slowheat_derpp_hidden_beta_30_budget_0.25",
+    "slowheat_er_ace_hidden_beta_30_budget_0.25",
     "er_ace",
     "agem",
     "replay_balanced",
@@ -98,6 +100,10 @@ def _uses_derpp(method: str) -> bool:
     return method in {"derpp", "slowheat_derpp_hidden_beta_30_budget_0.25"}
 
 
+def _uses_er_ace(method: str) -> bool:
+    return method in {"er_ace", "slowheat_er_ace_hidden_beta_30_budget_0.25"}
+
+
 def _uses_distillation(method: str) -> bool:
     match = _structured_match(method)
     return method in {"distillation", "slowheat_distillation", "lwf_calibrated"} or (
@@ -108,6 +114,7 @@ def _uses_distillation(method: str) -> bool:
 def _method_strength(method: str, default: float) -> float:
     if method in {
         "slowheat_derpp_hidden_beta_30_budget_0.25",
+        "slowheat_er_ace_hidden_beta_30_budget_0.25",
         "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
         "slowheat_replay_partial_output_beta_30_budget_0.25",
         "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
@@ -120,6 +127,7 @@ def _method_strength(method: str, default: float) -> float:
 def _method_budget(method: str, default: float) -> float:
     if method in {
         "slowheat_derpp_hidden_beta_30_budget_0.25",
+        "slowheat_er_ace_hidden_beta_30_budget_0.25",
         "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
         "slowheat_replay_partial_output_beta_30_budget_0.25",
         "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
@@ -134,6 +142,7 @@ def _method_budget(method: str, default: float) -> float:
 def _protects_output(method: str) -> bool:
     if method in {
         "slowheat_derpp_hidden_beta_30_budget_0.25",
+        "slowheat_er_ace_hidden_beta_30_budget_0.25",
         "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
         "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
     }:
@@ -1089,11 +1098,14 @@ def run_split_mnist(
                     if replay_loss is not None:
                         if method == "replay_balanced":
                             loss = 0.5 * current_loss + 0.5 * replay_loss
-                        elif method == "er_ace":
+                        elif _uses_er_ace(method):
                             ace_logits = _mask_unseen_logits(
                                 current_logits, tuple(task.classes)
                             )
-                            loss = 0.5 * F.cross_entropy(ace_logits, current_y) + 0.5 * replay_loss
+                            loss = (
+                                0.5 * F.cross_entropy(ace_logits, current_y)
+                                + 0.5 * replay_loss
+                            )
                         elif _uses_derpp(method):
                             assert replay_logits is not None and replay_targets is not None
                             loss = (
