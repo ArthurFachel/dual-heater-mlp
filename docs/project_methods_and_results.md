@@ -585,7 +585,6 @@ O parser também aceita nomes estruturados como `slowheat_beta_10_budget_0.25` o
 
 O protocolo completo inclui:
 
-- cinco ordens fixas de classes no Split-MNIST;
 - MLPs `256–128`, `512–256` e `512–512–256`;
 - memórias de 5, 10, 20, 50 e 100 exemplos por classe;
 - Permuted-MNIST domain-incremental;

@@ -82,7 +82,7 @@ apenas quando a configuração salva coincide. Use um novo `--output-dir` para
 uma execução confirmatória independente; não use `--fresh` para sobrescrever
 um diretório que já contenha resultados observados.
 
-A seção de generalização oferece cinco ordens de Split-MNIST, MLPs maiores,
+A seção de generalização oferece MLPs maiores,
 Permuted-MNIST domain-incremental, Split-CIFAR-10 em cinco tarefas de duas
 classes e Split-CIFAR-100 em dez tarefas de dez classes. Os dois protocolos
 CIFAR são Class-IL sem task ID e usam imagens normalizadas e achatadas no engine

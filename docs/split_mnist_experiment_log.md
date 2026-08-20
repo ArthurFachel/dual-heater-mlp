@@ -568,7 +568,6 @@ Os experimentos sustentam, neste protocolo específico:
 
 ### Generalização
 
-- múltiplas ordens de classes;
 - Permuted-MNIST como diagnóstico diferente;
 - Split-CIFAR-10 e Split-CIFAR-100 como streams visuais Class-IL;
 - arquiteturas maiores e diferentes budgets de memória.
@@ -686,7 +685,7 @@ estimativas comparativas, não medições de hardware.
 As ablações executáveis incluem hidden-only sem replay, budget adaptativo,
 saída parcialmente protegida, calibração da cabeça global, memórias de
 `5/10/20/50/100` exemplos por classe e replay com redução global de learning
-rate. Cinco ordens fixas de classes e MLPs maiores também foram adicionados.
+rate. MLPs maiores também foram adicionados.
 
 O engine foi generalizado para dimensões, quantidades de classes e tarefas de
 tamanhos diferentes. Adapters separados expõem Permuted-MNIST como

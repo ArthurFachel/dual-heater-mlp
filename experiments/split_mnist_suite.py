@@ -89,15 +89,6 @@ ALL_VISUAL_METHODS = (
     "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
 )
 
-CLASS_ORDERS = (
-    tuple(range(10)),
-    (8, 9, 6, 7, 4, 5, 2, 3, 0, 1),
-    (2, 7, 1, 6, 4, 9, 0, 5, 3, 8),
-    (5, 0, 8, 3, 6, 1, 9, 4, 7, 2),
-    (1, 4, 7, 0, 3, 6, 9, 2, 5, 8),
-)
-
-
 def baseline_config(*, device: str = "cpu") -> SplitMNISTConfig:
     """Return one configuration that can execute every requested baseline."""
 
@@ -323,7 +314,7 @@ def run_slowheat_derpp_test(
     )
 
 
-def run_order_and_capacity_generalization(
+def run_capacity_generalization(
     *,
     seeds: list[int],
     data_dir: str | Path,
@@ -333,35 +324,24 @@ def run_order_and_capacity_generalization(
     verbose: bool = True,
     resume: bool = False,
 ) -> dict[str, Any]:
-    """Run fixed class orders, larger MLPs and memory budgets."""
+    """Run the Split-MNIST benchmark with different MLP capacities."""
 
     root = Path(output_dir)
     base = replace(
         baseline_config(device=device), methods=SLOWHEAT_DERPP_METHODS
     )
-    results: dict[str, Any] = {"class_orders": {}, "architectures": {}}
-    for index, order in enumerate(CLASS_ORDERS):
-        results["class_orders"][str(index)] = _run(
-            replace(base, class_order=order),
-            seeds=seeds,
-            data_dir=data_dir,
-            output_dir=root / f"order_{index}",
-            download=download if index == 0 else False,
-            verbose=verbose,
-            paired_references=("replay", "derpp"),
-            resume=resume,
-        )
-    for name, hidden_dims in {
+    results: dict[str, Any] = {"architectures": {}}
+    for index, (name, hidden_dims) in enumerate({
         "mlp_256_128": (256, 128),
         "mlp_512_256": (512, 256),
         "mlp_512_512_256": (512, 512, 256),
-    }.items():
+    }.items()):
         results["architectures"][name] = _run(
             replace(base, hidden_dims=hidden_dims),
             seeds=seeds,
             data_dir=data_dir,
             output_dir=root / name,
-            download=False,
+            download=download if index == 0 else False,
             verbose=verbose,
             paired_references=("replay", "derpp"),
             resume=resume,

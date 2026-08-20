@@ -22,7 +22,12 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
         50,
         100,
     ]
-    assert len(plan["sections"]["split-mnist-generalization"]["class_orders"]) == 5
+    assert "class_orders" not in plan["sections"]["split-mnist-generalization"]
+    assert plan["sections"]["split-mnist-generalization"]["architectures"] == [
+        [256, 128],
+        [512, 256],
+        [512, 512, 256],
+    ]
     assert plan["sections"]["split-cifar10"]["protocol"] == {
         "scenario": "class_incremental",
         "task_count": 5,

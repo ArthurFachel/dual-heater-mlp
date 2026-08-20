@@ -36,13 +36,12 @@ from experiments.split_mnist_suite import (
     ABLATION_METHODS,
     ALL_BASELINES,
     ALL_VISUAL_METHODS,
-    CLASS_ORDERS,
     SLOWHEAT_DERPP_METHODS,
     run_ablation_matrix,
     run_all_baselines,
     run_all_visual_methods,
     run_equal_example_budget,
-    run_order_and_capacity_generalization,
+    run_capacity_generalization,
     run_slowheat_derpp_test,
 )
 from experiments.synthetic_cl import SYNTHETIC_METHODS, load_config
@@ -254,7 +253,6 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
         if name == "ablations":
             details["replay_memory_per_class"] = [5, 10, 20, 50, 100]
         elif name == "split-mnist-generalization":
-            details["class_orders"] = [list(order) for order in CLASS_ORDERS]
             details["architectures"] = [
                 [256, 128],
                 [512, 256],
@@ -354,7 +352,7 @@ def _run_section(
     if name == "slowheat-derpp":
         return run_slowheat_derpp_test(**common)
     if name == "split-mnist-generalization":
-        return run_order_and_capacity_generalization(**common)
+        return run_capacity_generalization(**common)
     if name == "permuted-mnist":
         return run_visual_generalization("permuted_mnist", **common)
     if name == "split-cifar10":
