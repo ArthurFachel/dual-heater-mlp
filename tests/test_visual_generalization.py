@@ -21,6 +21,7 @@ def test_generalization_configs_preserve_scenario_semantics():
         "permuted_mnist",
         "split_cifar10",
         "split_cifar10_cnn",
+        "split_cifar10_cnn_sweep",
         "split_cifar100",
     }
     assert configs["permuted_mnist"].scenario == "domain_incremental"
@@ -34,6 +35,10 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar10_cnn"].backbone == "cnn"
     assert configs["split_cifar10_cnn"].image_shape == (3, 32, 32)
     assert configs["split_cifar10_cnn"].methods == visual.CNN_VISUAL_METHODS
+    assert (
+        configs["split_cifar10_cnn_sweep"].methods
+        == visual.CNN_SWEEP_METHODS
+    )
     assert configs["permuted_mnist"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar10"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar100"].methods == ALL_VISUAL_METHODS
@@ -90,6 +95,8 @@ def test_cnn_backbone_runs_paired_vanilla_and_slowheat_methods():
             "slowheat_unidirectional",
             "slowheat",
             "hard_freeze",
+            "slowheat_unidirectional_beta_3_budget_0.50",
+            "slowheat_hidden_beta_10_budget_0.75",
         ),
     )
     inputs = torch.randn(4, 1, 8, 8)
@@ -111,6 +118,16 @@ def test_cnn_backbone_runs_paired_vanilla_and_slowheat_methods():
 
     assert reference.keys() == protected.keys()
     assert all(torch.equal(reference[name], protected[name]) for name in reference)
+    unidirectional = models["slowheat_unidirectional_beta_3_budget_0.50"]
+    assert all(layer.slow_strength == 3.0 for layer in unidirectional.get_slow_layers())
+    assert all(
+        layer.plasticity_budget == pytest.approx(0.5)
+        for layer in unidirectional.get_slow_layers()
+    )
+    hidden = models["slowheat_hidden_beta_10_budget_0.75"]
+    assert len(hidden.get_slow_layers()) == 2
+    assert isinstance(hidden.classifier, torch.nn.Linear)
+    assert all(layer.slow_strength == 10.0 for layer in hidden.get_slow_layers())
 
     results = run_split_mnist(config, tasks)
 
@@ -118,6 +135,9 @@ def test_cnn_backbone_runs_paired_vanilla_and_slowheat_methods():
     assert results["slowheat_none"]["capacity_history"] == []
     assert len(results["slowheat"]["capacity_history"]) == 1
     assert len(results["hard_freeze"]["capacity_history"]) == 1
+    assert len(
+        results["slowheat_unidirectional_beta_3_budget_0.50"]["capacity_history"]
+    ) == 1
     assert all(
         result["cost"]["estimated_total_flops"] > 0
         for result in results.values()
