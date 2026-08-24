@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
+from experiments.confirmatory_statistics import (
+    exact_two_sided_sign_test,
+    normal_summary,
+)
+from experiments.provenance import write_environment_manifest
 from experiments.synthetic_cl import SyntheticConfig, load_config, run_experiment
 
 METRIC_NAMES = (
@@ -19,34 +21,6 @@ METRIC_NAMES = (
     "backward_transfer",
     "forward_transfer",
 )
-
-
-def exact_two_sided_sign_test(differences: list[float]) -> float | None:
-    """Two-sided exact sign test, ignoring exact ties."""
-
-    nonzero = [value for value in differences if value != 0.0]
-    count = len(nonzero)
-    if count == 0:
-        return None
-    positives = sum(value > 0.0 for value in nonzero)
-    tail = min(positives, count - positives)
-    probability = 2.0 * sum(
-        math.comb(count, index) for index in range(tail + 1)
-    ) / (2**count)
-    return min(1.0, probability)
-
-
-def _summary(values: list[float]) -> dict[str, float]:
-    array = np.asarray(values, dtype=np.float64)
-    mean = float(np.mean(array))
-    if len(array) == 1:
-        return {"mean": mean, "std": 0.0, "ci95_normal_half_width": 0.0}
-    std = float(np.std(array, ddof=1))
-    return {
-        "mean": mean,
-        "std": std,
-        "ci95_normal_half_width": float(1.96 * std / np.sqrt(len(array))),
-    }
 
 
 def run_multi_seed(
@@ -63,6 +37,10 @@ def run_multi_seed(
         raise ValueError("seeds deve conter valores únicos")
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    write_environment_manifest(
+        output_path,
+        project_root=Path(__file__).resolve().parents[1],
+    )
 
     raw: dict[int, dict[str, dict[str, Any]]] = {}
     for seed in seeds:
@@ -88,7 +66,7 @@ def run_multi_seed(
             if any(value is None for value in values):
                 aggregate["methods"][method][metric] = None
             else:
-                aggregate["methods"][method][metric] = _summary(values)
+                aggregate["methods"][method][metric] = normal_summary(values)
 
     if "vanilla" in base_config.methods:
         for method in base_config.methods:
@@ -106,7 +84,7 @@ def run_multi_seed(
                     differences.append(float(candidate - baseline))
                 method_differences[metric] = (
                     {
-                        **_summary(differences),
+                        **normal_summary(differences),
                         "exact_sign_test_p": exact_two_sided_sign_test(differences),
                     }
                     if differences

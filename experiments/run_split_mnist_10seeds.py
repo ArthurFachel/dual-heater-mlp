@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 from pathlib import Path
 
-from experiments.split_mnist import SplitMNISTConfig, run_split_mnist_multi_seed
+from experiments.split_mnist import run_split_mnist_multi_seed
+from experiments.split_mnist_suite import baseline_config
 
 BENCHMARK_SEEDS = (11, 22, 33, 44, 55, 66, 77, 88, 99, 110)
 
@@ -27,22 +29,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    config = SplitMNISTConfig(
-        hidden_dims=(256, 128),
-        batch_size=128,
+    config = replace(
+        baseline_config(device=args.device),
         epochs_per_task=args.epochs,
         train_per_class=args.train_per_class,
-        validation_per_class=200,
         test_per_class=args.test_per_class,
-        learning_rate=1e-3,
-        weight_decay=1e-4,
-        slow_strength=30.0,
-        plasticity_budget=0.25,
-        optimizer_state_policy="follow_update",
-        replay_per_class=20,
-        replay_batch_size=64,
-        distillation_strength=1.0,
-        distillation_temperature=2.0,
         methods=(
             "vanilla",
             "slowheat_beta_10",
@@ -54,7 +45,6 @@ def main() -> None:
             "slowheat_replay",
             "slowheat_distillation",
         ),
-        device=args.device,
     )
     aggregate = run_split_mnist_multi_seed(
         config,

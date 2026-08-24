@@ -93,6 +93,24 @@ optimizer = SlowHeatAdamW(
 optimizer.register_slow_heat_model(model)
 ```
 
+For images, the same lifecycle is available through a true convolutional
+network. Its adaptive pooling keeps the Conv→Linear channel mapping explicit:
+
+```python
+from dual_heater import SlowHeatAdamW, SlowHeatCNN
+
+model = SlowHeatCNN(
+    in_channels=3,
+    num_classes=10,
+    channels=(32, 64),
+    pooled_size=(2, 2),
+    slow_strength=3.0,
+    plasticity_budget=0.25,
+)
+optimizer = SlowHeatAdamW(model.parameters(), lr=1e-3)
+optimizer.register_slow_heat_model(model)
+```
+
 After each task:
 
 ```python
@@ -205,8 +223,9 @@ See `docs/synthetic_ablation_pilot.md`.
 ## Known limitations
 
 - No completed result on a harder visual or language continual-learning
-  benchmark is versioned. Split-CIFAR-10/100 execution is implemented but has
-  no committed result artifacts.
+  benchmark is versioned. Partial Split-CIFAR-10 per-seed artifacts are kept as
+  execution diagnostics; there is no completed CIFAR aggregate or Split-CIFAR-100
+  result.
 - Replay, DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are implemented in
   the shared Split-MNIST/visual runner, but they have not all received
   method-specific tuning or independent replication. MAS, UCB, HAT, NAI,
@@ -215,9 +234,10 @@ See `docs/synthetic_ablation_pilot.md`.
   alignment have not yet been evaluated on a standard benchmark.
 - The pilot uses only three seeds and a simple Gaussian dataset.
 - The superseded synthetic pilot is archived under
-  `artifacts/synthetic_ablation_pilot/`; newer benchmark outputs under ignored
-  `results/` directories still need environment and Git metadata before
-  publication.
+  `artifacts/synthetic_ablation_pilot/`. Existing exploratory outputs under
+  `results/` remain versioned as historical evidence, while new generated
+  results are ignored. Current runners write `environment.json` with package,
+  Python, platform and Git provenance alongside new outputs.
 - LoRA output masking does not guarantee independent protection of every output because `lora_A` is shared across outputs.
 - The forward inhibition mechanism is a train-only regularizer; evaluation uses the uninhibited function.
 - Runtime and memory scalability have not been established. Persistent
@@ -261,6 +281,7 @@ src/dual_heater/
   lora.py            experimental LoRA adaptation
   optim.py           optimizer-aware update masking
   metrics.py         continual-learning metrics
+  _layers.py         shared activation and MLP validation helpers
 
 experiments/
   split_mnist.py                 shared benchmark and baseline engine
@@ -269,6 +290,7 @@ experiments/
   visual_generalization.py       Permuted-MNIST and Split-CIFAR adapters
   synthetic_cl.py                deterministic synthetic benchmark
   multi_seed.py                  serial synthetic aggregation
+  provenance.py                  environment and Git metadata for new runs
 
 tests/               unit and integration tests
 docs/                method contracts, protocols and experiment records
@@ -306,7 +328,7 @@ python run_all_tests.py --num-seeds 10 --all-datasets-all-methods --device cpu -
 
 This selects the synthetic benchmark plus Split-MNIST, Permuted-MNIST,
 Split-CIFAR-10 and Split-CIFAR-100. It runs all 11 synthetic methods on the
-synthetic stream and all 31 visual methods on each visual stream.
+synthetic stream and all 32 visual methods on each visual stream.
 `--num-seeds` is required and generates that many distinct, reproducible
 pseudorandom secondary seeds. The synthetic runner is CPU-only.
 
@@ -339,12 +361,27 @@ paired MLP engine, so these runs test harder visual streams but are not CNN
 benchmarks. See [`docs/split_cifar.md`](docs/split_cifar.md) for the exact
 protocol.
 
-Each visual all-methods section runs all 31 methods implemented or explicitly
+The small real-CNN pilot is a separate, opt-in section so it cannot alter the
+historical flattened-MLP runs:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 3 \
+  --sections split-cifar10-cnn \
+  --device cuda
+```
+
+It runs five paired methods (`vanilla`, no-consolidation, destination-only,
+factorized SlowHeat and hard freeze) for five epochs per task. Use `--dry-run`
+to inspect the exact protocol without downloading or training.
+
+Each visual all-methods section runs all 32 methods implemented or explicitly
 configured by the project, including vanilla, the SlowHeat controls and beta
 variants, Replay, distillation, DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF,
 fairness controls and the executable ablations. Use `--dry-run` to inspect the
-exact ordered list before starting this computationally expensive suite. No
-CIFAR result artifacts are currently versioned.
+exact ordered list before starting this computationally expensive suite.
+Partial Split-CIFAR-10 seed outputs are versioned, but the interrupted run has
+no aggregate and must not be presented as a completed CIFAR result.
 
 Unit/integration tests are optional and only run when explicitly requested
 with `--run-unit-tests`.

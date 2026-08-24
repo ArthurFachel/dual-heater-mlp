@@ -36,12 +36,14 @@ from experiments.split_mnist_suite import (
     ABLATION_METHODS,
     ALL_BASELINES,
     ALL_VISUAL_METHODS,
+    CAPACITY_ARCHITECTURES,
+    REPLAY_MEMORY_SIZES,
     SLOWHEAT_DERPP_METHODS,
     run_ablation_matrix,
     run_all_baselines,
     run_all_visual_methods,
-    run_equal_example_budget,
     run_capacity_generalization,
+    run_equal_example_budget,
     run_slowheat_derpp_test,
 )
 from experiments.synthetic_cl import SYNTHETIC_METHODS, load_config
@@ -63,12 +65,18 @@ SECTION_NAMES = (
     "split-mnist-generalization",
     "permuted-mnist",
     "split-cifar10",
+    "split-cifar10-cnn",
     "split-cifar100",
 )
 DEFAULT_SECTION_NAMES = tuple(
     name
     for name in SECTION_NAMES
-    if name not in {"synthetic-all-methods", "split-mnist-all-methods"}
+    if name
+    not in {
+        "synthetic-all-methods",
+        "split-mnist-all-methods",
+        "split-cifar10-cnn",
+    }
 )
 ALL_DATASET_METHOD_SECTIONS = (
     "synthetic-all-methods",
@@ -88,6 +96,7 @@ SECTION_OUTPUT_DIRS = {
     "split-mnist-generalization": "split_mnist_generalization",
     "permuted-mnist": "permuted_mnist",
     "split-cifar10": "split_cifar10",
+    "split-cifar10-cnn": "split_cifar10_cnn",
     "split-cifar100": "split_cifar100",
 }
 
@@ -202,6 +211,17 @@ def _project_path(path: Path) -> Path:
     return path.resolve() if path.is_absolute() else (PROJECT_ROOT / path).resolve()
 
 
+def _portable_project_path(path: Path) -> str:
+    """Keep run metadata relocatable when a path lives inside the repository."""
+
+    resolved = _project_path(path)
+    try:
+        relative = resolved.relative_to(PROJECT_ROOT)
+    except ValueError:
+        return str(resolved)
+    return "." if not relative.parts else relative.as_posix()
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -231,6 +251,7 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         "split-mnist-generalization": list(SLOWHEAT_DERPP_METHODS),
         "permuted-mnist": list(visual_configs["permuted_mnist"].methods),
         "split-cifar10": list(visual_configs["split_cifar10"].methods),
+        "split-cifar10-cnn": list(visual_configs["split_cifar10_cnn"].methods),
         "split-cifar100": list(visual_configs["split_cifar100"].methods),
     }
 
@@ -248,15 +269,15 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 if name == "confirmation"
                 else list(args.baseline_seeds)
             ),
-            "output_dir": str(output_dir / SECTION_OUTPUT_DIRS[name]),
+            "output_dir": _portable_project_path(
+                output_dir / SECTION_OUTPUT_DIRS[name]
+            ),
         }
         if name == "ablations":
-            details["replay_memory_per_class"] = [5, 10, 20, 50, 100]
+            details["replay_memory_per_class"] = list(REPLAY_MEMORY_SIZES)
         elif name == "split-mnist-generalization":
             details["architectures"] = [
-                [256, 128],
-                [512, 256],
-                [512, 512, 256],
+                list(dims) for dims in CAPACITY_ARCHITECTURES.values()
             ]
         elif name == "synthetic-all-methods":
             config = load_config(PROJECT_ROOT / "configs/synthetic_ablation_pilot.json")
@@ -268,7 +289,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 "inference_task_id": False,
                 "device": "cpu",
             }
-        elif name in {"split-cifar10", "split-cifar100"}:
+        elif name in {"split-cifar10", "split-cifar10-cnn", "split-cifar100"}:
             config = generalization_configs(args.device)[name.replace("-", "_")]
             details["protocol"] = {
                 "scenario": config.scenario,
@@ -277,13 +298,23 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 "class_count": len(config.class_order),
                 "inference_task_id": False,
             }
+            if config.backbone == "cnn":
+                details["protocol"].update(
+                    {
+                        "backbone": "cnn",
+                        "image_shape": list(config.image_shape or ()),
+                        "channels": list(config.cnn_channels),
+                        "pooled_size": list(config.cnn_pooled_size),
+                        "epochs_per_task": config.epochs_per_task,
+                    }
+                )
         sections[name] = details
     return {
         "status": "planned",
         "created_at": _now(),
-        "project_root": str(PROJECT_ROOT),
-        "data_dir": str(_project_path(args.data_dir)),
-        "output_dir": str(output_dir),
+        "project_root": ".",
+        "data_dir": _portable_project_path(args.data_dir),
+        "output_dir": _portable_project_path(output_dir),
         "device": args.device,
         "download": not args.no_download,
         "resume": not args.fresh,
@@ -293,7 +324,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 sys.executable,
                 "-m",
                 "pytest",
-                str(PROJECT_ROOT / "tests"),
+                "tests",
                 "-q",
                 "-p",
                 "no:cacheprovider",
@@ -357,6 +388,8 @@ def _run_section(
         return run_visual_generalization("permuted_mnist", **common)
     if name == "split-cifar10":
         return run_visual_generalization("split_cifar10", **common)
+    if name == "split-cifar10-cnn":
+        return run_visual_generalization("split_cifar10_cnn", **common)
     if name == "split-cifar100":
         return run_visual_generalization("split_cifar100", **common)
     raise ValueError(f"seção desconhecida: {name}")

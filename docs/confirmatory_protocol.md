@@ -41,8 +41,9 @@ vezes esse custo no backward, com overheads algorítmicos separados.
   combinada e consolidada ao fim de cada tarefa.
 - **A-GEM:** projeta o gradiente atual quando ele conflita com o gradiente de
   referência da memória.
-- **EWC:** Fisher diagonal online estimado dos gradientes de treino e penalidade
-  quadrática em torno do último ponto consolidado.
+- **EWC:** Fisher diagonal online estimada separadamente a partir da loss da
+  tarefa corrente, sem contaminar a estimativa com a própria penalidade EWC;
+  a penalidade quadrática permanece centrada no último ponto consolidado.
 - **SI:** acumula contribuição gradiente-deslocamento durante a tarefa e produz
   uma importância sináptica na fronteira.
 - **LwF calibrada:** distillation nas classes antigas com pesos determinados
@@ -86,14 +87,14 @@ A seção de generalização oferece MLPs maiores,
 Permuted-MNIST domain-incremental, Split-CIFAR-10 em cinco tarefas de duas
 classes e Split-CIFAR-100 em dez tarefas de dez classes. Os dois protocolos
 CIFAR são Class-IL sem task ID e usam imagens normalizadas e achatadas no engine
-MLP pareado. Cada seção CIFAR executa os 31 métodos visuais implementados ou
+MLP pareado. Cada seção CIFAR executa os 32 métodos visuais implementados ou
 configurados pelo projeto. As análises secundárias usam dez seeds pareadas; a
 confirmação permanece com as vinte seeds congeladas.
 
 Para executar o produto completo de datasets e métodos, use
 `python run_all_tests.py --num-seeds 10 --all-datasets-all-methods`. Esse modo seleciona o
 sintético com seus 11 métodos próprios e Split-MNIST, Permuted-MNIST,
-Split-CIFAR-10 e Split-CIFAR-100 com os 31 métodos do engine visual. O sintético
+Split-CIFAR-10 e Split-CIFAR-100 com os 32 métodos do engine visual. O sintético
 permanece CPU-only.
 
 O protocolo exato de dados, arquitetura, métodos e saídas de CIFAR está em

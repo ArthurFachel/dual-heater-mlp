@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Presentation, PresentationFile } from "@oai/artifact-tool";
 
-const ROOT = "/home/fachel/dual-heater-mlp-research";
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TMP = path.join(ROOT, "tmp/pdfs/functional_slowheat_deck");
 const OUT_PPTX = path.join(TMP, "functional_slowheat_apresentacao.pptx");
 const W = 1280;
@@ -49,8 +50,8 @@ function parseCsv(text) {
   });
 }
 
-const perm = parseCsv(await fs.readFile(path.join(ROOT, "results/permutated_mnist_download.csv"), "utf8"));
-const split = parseCsv(await fs.readFile(path.join(ROOT, "results/split_mniist_results.csv"), "utf8"));
+const perm = parseCsv(await fs.readFile(path.join(ROOT, "results/split_mnist_protocol/permuted_mnist/aggregate.csv"), "utf8"));
+const split = parseCsv(await fs.readFile(path.join(ROOT, "results/split_mnist_protocol/split_mnist_all_methods/aggregate.csv"), "utf8"));
 const byName = (rows, name) => rows.find((r) => r.method === name);
 const pct = (x, digits = 2) => `${(100 * x).toFixed(digits).replace(".", ",")}%`;
 const pp = (x, digits = 2) => `${(100 * x).toFixed(digits).replace(".", ",")} p.p.`;

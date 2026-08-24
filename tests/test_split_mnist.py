@@ -8,12 +8,20 @@ from experiments.split_mnist import (
     MNISTTask,
     SplitMNISTConfig,
     _classes_for_task,
+    _select_class_indices,
     build_paired_models,
     config_payload,
     run_split_mnist,
     run_split_mnist_epoch_sweep,
     run_split_mnist_multi_seed,
 )
+
+
+def test_class_selection_rejects_unavailable_sample_count():
+    targets = torch.tensor([0, 0, 1])
+
+    with pytest.raises(ValueError, match="2 exemplos, mas 3 foram solicitados"):
+        _select_class_indices(targets, 0, count=3, seed=1)
 
 
 def _tiny_tasks(config: SplitMNISTConfig) -> list[MNISTTask]:

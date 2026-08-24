@@ -1,13 +1,18 @@
 # Protocolo Split-CIFAR-10 e Split-CIFAR-100
 
-Status: implementado e coberto por testes; nenhum resultado CIFAR está
-versionado no repositório.
+Status: implementado e coberto por testes. Há quatro seeds parciais de
+Split-CIFAR-10 versionadas como diagnóstico de uma execução interrompida; não
+há agregado CIFAR completo nem resultado Split-CIFAR-100.
 
-Os adapters em `experiments/visual_generalization.py` expõem dois benchmarks
+Os adapters em `experiments/visual_generalization.py` expõem os benchmarks
 visuais com uma única cabeça compartilhada:
 
 - Split-CIFAR-10: 10 classes em 5 tarefas de 2 classes;
 - Split-CIFAR-100: 100 classes em 10 tarefas de 10 classes.
+
+Há também a seção opt-in `split-cifar10-cnn`, que mantém o mesmo stream
+Split-CIFAR-10, preserva as imagens como tensores NCHW e troca a MLP por uma
+CNN real `3→32→64`, com pooling adaptativo `2×2` e cabeça de 10 classes.
 
 Ambos usam Class-IL. A avaliação principal não recebe o identificador da
 tarefa e considera todas as classes vistas até o estágio. Classes futuras são
@@ -46,9 +51,16 @@ As imagens achatadas permitem reutilizar o engine MLP pareado. Esses
 experimentos testam streams visuais mais difíceis, mas não medem desempenho de
 SlowHeat em CNNs e não devem ser apresentados como tal.
 
+### Piloto CNN
+
+O piloto CNN usa 5 épocas por tarefa e os métodos `vanilla`, `slowheat_none`,
+`slowheat_unidirectional`, `slowheat` e `hard_freeze`. A inicialização dos
+parâmetros treináveis é idêntica entre controles dentro de cada seed. Os
+contrastes multi-seed são pareados contra `vanilla`.
+
 ## Métodos
 
-Cada seção executa os 31 itens de `ALL_VISUAL_METHODS`, na ordem abaixo:
+Cada seção executa os 32 itens de `ALL_VISUAL_METHODS`, na ordem abaixo:
 
 1. `vanilla`
 2. `slowheat`
@@ -68,19 +80,20 @@ Cada seção executa os 31 itens de `ALL_VISUAL_METHODS`, na ordem abaixo:
 16. `derpp`
 17. `slowheat_derpp_hidden_beta_30_budget_0.25`
 18. `er_ace`
-19. `agem`
-20. `ewc`
-21. `si`
-22. `lwf_calibrated`
-23. `replay_balanced`
-24. `replay_more_epochs`
-25. `replay_early_stopping`
-26. `replay_global_lr_reduction`
-27. `slowheat_replay_hidden_beta_30_budget_0.25`
-28. `slowheat_hidden_beta_30_budget_0.25`
-29. `slowheat_replay_hidden_adaptive_beta_30_budget_0.25`
-30. `slowheat_replay_partial_output_beta_30_budget_0.25`
-31. `slowheat_replay_hidden_beta_30_budget_0.25_calibrated`
+19. `slowheat_er_ace_hidden_beta_30_budget_0.25`
+20. `agem`
+21. `ewc`
+22. `si`
+23. `lwf_calibrated`
+24. `replay_balanced`
+25. `replay_more_epochs`
+26. `replay_early_stopping`
+27. `replay_global_lr_reduction`
+28. `slowheat_replay_hidden_beta_30_budget_0.25`
+29. `slowheat_hidden_beta_30_budget_0.25`
+30. `slowheat_replay_hidden_adaptive_beta_30_budget_0.25`
+31. `slowheat_replay_partial_output_beta_30_budget_0.25`
+32. `slowheat_replay_hidden_beta_30_budget_0.25_calibrated`
 
 Os métodos compartilham, dentro de cada seed, inicialização treinável,
 partições, agenda dos exemplos atuais e índices de memória determinísticos.
@@ -116,6 +129,25 @@ python run_all_tests.py \
   --device cpu
 ```
 
+Execute o piloto CNN pequeno, preferencialmente em GPU:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 3 \
+  --sections split-cifar10-cnn \
+  --device cuda
+```
+
+Para validar apenas o plano:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 3 \
+  --sections split-cifar10-cnn \
+  --device cuda \
+  --dry-run
+```
+
 O argumento obrigatório `--num-seeds` gera essa quantidade de seeds
 pseudoaleatórias distintas e reproduzíveis. Para definir valores específicos,
 use `--baseline-seeds` e passe exatamente a quantidade declarada em
@@ -132,7 +164,7 @@ chamada:
 python run_all_tests.py --num-seeds 10 --all-datasets-all-methods --device cpu --no-download
 ```
 
-Com 31 métodos, dez seeds e até dez tarefas por dataset, a suíte completa é
+Com 32 métodos, dez seeds e até dez tarefas por dataset, a suíte completa é
 computacionalmente cara. O `--dry-run` valida somente o plano; ele não carrega
 os datasets nem estima duração ou memória. Tempos de parede só devem ser
 comparados dentro da mesma execução e máquina.

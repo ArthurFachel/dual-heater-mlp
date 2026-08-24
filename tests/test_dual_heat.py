@@ -19,6 +19,12 @@ def test_dual_heat_rejects_invalid_strength_and_decay_values(kwargs):
         DualHeatLinear(3, 2, **kwargs)
 
 
+@pytest.mark.parametrize("dims", [(), (4,), (4, 0, 2)])
+def test_dual_heat_mlp_rejects_invalid_dimensions(dims):
+    with pytest.raises(ValueError, match="dimensões"):
+        DualHeatMLP(*dims)
+
+
 def test_dual_heat_linear_supports_sequence_inputs():
     layer = DualHeatLinear(8, 4)
     layer.train()

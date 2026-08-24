@@ -5,7 +5,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 
-ROOT = Path("/home/fachel/dual-heater-mlp-research")
+ROOT = Path(__file__).resolve().parents[3]
 RENDERED = ROOT / "tmp/pdfs/functional_slowheat_deck/rendered"
 OUTPUT = ROOT / "output/pdf/functional_slowheat_apresentacao.pdf"
 PAGE_W = 960.0

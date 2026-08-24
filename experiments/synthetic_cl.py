@@ -23,6 +23,8 @@ from dual_heater import (
     SlowHeatSGD,
     compute_cl_metrics,
 )
+from dual_heater._layers import activation
+from experiments.provenance import write_environment_manifest
 
 SYNTHETIC_METHODS = (
     "vanilla",
@@ -48,6 +50,9 @@ class SyntheticConfig:
     train_per_class: int = 24
     test_per_class: int = 12
     hidden_dims: tuple[int, ...] = (32, 16)
+    activation: str = "gelu"
+    center_scale: float = 1.5
+    noise_scale: float = 0.8
     batch_size: int = 16
     steps_per_task: int = 4
     learning_rate: float = 1e-3
@@ -78,7 +83,9 @@ class SyntheticConfig:
         if not self.hidden_dims or any(width < 1 for width in self.hidden_dims):
             raise ValueError("hidden_dims deve conter dimensões positivas")
         float_values = {
+            "center_scale": self.center_scale,
             "learning_rate": self.learning_rate,
+            "noise_scale": self.noise_scale,
             "weight_decay": self.weight_decay,
             "slow_strength": self.slow_strength,
             "plasticity_budget": self.plasticity_budget,
@@ -89,6 +96,8 @@ class SyntheticConfig:
                 raise ValueError(f"{name} deve ser finito")
         if self.learning_rate <= 0.0:
             raise ValueError("learning_rate deve ser > 0")
+        if self.center_scale <= 0.0 or self.noise_scale <= 0.0:
+            raise ValueError("center_scale e noise_scale devem ser > 0")
         if self.weight_decay < 0.0:
             raise ValueError("weight_decay deve ser >= 0")
         if self.slow_strength < 0.0:
@@ -103,6 +112,8 @@ class SyntheticConfig:
             raise ValueError("reduced_lr_factor deve estar em (0, 1]")
         if not self.methods:
             raise ValueError("methods não pode ser vazio")
+        if self.activation not in {"relu", "gelu", "tanh", "leaky"}:
+            raise ValueError("activation deve ser relu, gelu, tanh ou leaky")
         if len(set(self.methods)) != len(self.methods):
             raise ValueError("methods não pode conter duplicatas")
         supported = set(SYNTHETIC_METHODS)
@@ -111,10 +122,10 @@ class SyntheticConfig:
             raise ValueError(f"métodos desconhecidos: {sorted(unknown)}")
 
 
-def _vanilla_mlp(dims: tuple[int, ...]) -> nn.Sequential:
+def _vanilla_mlp(dims: tuple[int, ...], *, activation_name: str) -> nn.Sequential:
     layers: list[nn.Module] = []
     for input_dim, output_dim in pairwise(dims[:-1]):
-        layers.extend((nn.Linear(input_dim, output_dim), nn.GELU()))
+        layers.extend((nn.Linear(input_dim, output_dim), activation(activation_name)))
     layers.append(nn.Linear(dims[-2], dims[-1]))
     return nn.Sequential(*layers)
 
@@ -126,7 +137,7 @@ def build_paired_models(config: SyntheticConfig) -> dict[str, nn.Module]:
     dims = (config.n_features, *config.hidden_dims, config.class_count)
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(config.seed)
-        reference = _vanilla_mlp(dims)
+        reference = _vanilla_mlp(dims, activation_name=config.activation)
         reference_parameters = {
             name: parameter.detach().clone()
             for name, parameter in reference.named_parameters()
@@ -136,7 +147,9 @@ def build_paired_models(config: SyntheticConfig) -> dict[str, nn.Module]:
         for method in config.methods:
             torch.manual_seed(config.seed)
             if method in {"vanilla", "reduced_lr"}:
-                model: nn.Module = _vanilla_mlp(dims)
+                model: nn.Module = _vanilla_mlp(
+                    dims, activation_name=config.activation
+                )
             elif method.startswith("slowheat_"):
                 budget = (
                     0.0
@@ -145,7 +158,7 @@ def build_paired_models(config: SyntheticConfig) -> dict[str, nn.Module]:
                 )
                 model = SlowHeatMLP(
                     *dims,
-                    act="gelu",
+                    act=config.activation,
                     slow_strength=config.slow_strength,
                     plasticity_budget=budget,
                     protect_output=True,
@@ -188,7 +201,7 @@ def _make_tasks(config: SyntheticConfig) -> list[tuple[Tensor, Tensor, Tensor, T
         config.class_count,
         config.n_features,
         generator=generator,
-    ) * 1.5
+    ) * config.center_scale
     tasks: list[tuple[Tensor, Tensor, Tensor, Tensor]] = []
     for task in range(config.task_count):
         train_inputs: list[Tensor] = []
@@ -200,7 +213,7 @@ def _make_tasks(config: SyntheticConfig) -> list[tuple[Tensor, Tensor, Tensor, T
         for label in range(start, stop):
             train_inputs.append(
                 centers[label]
-                + 0.8
+                + config.noise_scale
                 * torch.randn(
                     config.train_per_class,
                     config.n_features,
@@ -212,7 +225,7 @@ def _make_tasks(config: SyntheticConfig) -> list[tuple[Tensor, Tensor, Tensor, T
             )
             test_inputs.append(
                 centers[label]
-                + 0.8
+                + config.noise_scale
                 * torch.randn(
                     config.test_per_class,
                     config.n_features,
@@ -305,6 +318,10 @@ def run_experiment(
     config.validate()
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    write_environment_manifest(
+        output_path,
+        project_root=Path(__file__).resolve().parents[1],
+    )
     tasks = _make_tasks(config)
     schedules = [
         make_batch_schedule(

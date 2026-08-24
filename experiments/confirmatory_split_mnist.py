@@ -18,6 +18,11 @@ from experiments.split_mnist import (
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 REFERENCE = "replay"
 PREREGISTERED_AT = "2026-08-15"
+PREREGISTRATION_SOURCE = (
+    Path(__file__).resolve().parents[1]
+    / "configs"
+    / "split_mnist_confirmation_preregistration.json"
+)
 
 # Chosen and committed before any confirmatory execution. The deliberately
 # distant range avoids every seed explicitly present in the repository and the
@@ -96,6 +101,30 @@ def preregistration_manifest() -> dict[str, Any]:
 
 def validate_preregistration() -> None:
     FROZEN_CONFIG.validate()
+    with PREREGISTRATION_SOURCE.open(encoding="utf-8") as handle:
+        committed = json.load(handle)
+    frozen_fields = committed.get("frozen", {})
+    expected_frozen = {
+        field: getattr(FROZEN_CONFIG, field)
+        for field in frozen_fields
+    }
+    expected_frozen["hidden_dims"] = list(FROZEN_CONFIG.hidden_dims)
+    expected_identity = {
+        "candidate": CANDIDATE,
+        "confirmatory_seeds": list(CONFIRMATORY_SEEDS),
+        "difference_direction": "candidate_minus_reference",
+        "frozen": expected_frozen,
+        "primary_endpoint": PRIMARY_ENDPOINT,
+        "preregistered_at": PREREGISTERED_AT,
+        "reference": REFERENCE,
+        "rule": "No changes after confirmatory outcomes are inspected.",
+        "status": "frozen_before_execution",
+    }
+    if committed != expected_identity:
+        raise RuntimeError(
+            "o pré-registro executável diverge de "
+            "configs/split_mnist_confirmation_preregistration.json"
+        )
     if len(CONFIRMATORY_SEEDS) != 20 or len(set(CONFIRMATORY_SEEDS)) != 20:
         raise RuntimeError("a confirmação requer exatamente 20 seeds únicas")
     overlap = set(CONFIRMATORY_SEEDS) & set(DECLARED_EXPLORATORY_SEEDS)

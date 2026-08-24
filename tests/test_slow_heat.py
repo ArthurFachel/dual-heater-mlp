@@ -11,6 +11,12 @@ def test_slow_heat_rejects_negative_strength():
         SlowHeatLinear(8, 4, slow_strength=-1.0)
 
 
+@pytest.mark.parametrize("dims", [(), (4,), (4, 0, 2)])
+def test_slow_heat_mlp_rejects_invalid_dimensions(dims):
+    with pytest.raises(ValueError, match="dimensões"):
+        SlowHeatMLP(*dims)
+
+
 def test_slow_heat_linear_supports_sequence_inputs():
     layer = SlowHeatLinear(8, 4)
     layer.train()
