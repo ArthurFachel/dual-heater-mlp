@@ -40,6 +40,18 @@ CNN_VISUAL_METHODS = (
     "slowheat",
     "hard_freeze",
 )
+CNN_SWEEP_METHODS = (
+    "vanilla",
+    "slowheat_none",
+    "slowheat_unidirectional_beta_3_budget_0.50",
+    "slowheat_unidirectional_beta_3_budget_0.75",
+    "slowheat_unidirectional_beta_10_budget_0.50",
+    "slowheat_unidirectional_beta_10_budget_0.75",
+    "slowheat_hidden_beta_3_budget_0.50",
+    "slowheat_hidden_beta_3_budget_0.75",
+    "slowheat_hidden_beta_10_budget_0.50",
+    "slowheat_hidden_beta_10_budget_0.75",
+)
 
 
 def load_permuted_mnist(
@@ -263,7 +275,7 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
         "replay_batch_size": 64,
         "device": device,
     }
-    return {
+    configs = {
         "permuted_mnist": SplitMNISTConfig(
             class_order=tuple(range(10)),
             classes_per_task=10,
@@ -321,6 +333,11 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             device=device,
         ),
     }
+    configs["split_cifar10_cnn_sweep"] = replace(
+        configs["split_cifar10_cnn"],
+        methods=CNN_SWEEP_METHODS,
+    )
+    return configs
 
 
 def run_visual_generalization(
@@ -340,6 +357,7 @@ def run_visual_generalization(
         "split_cifar10": load_split_cifar10,
         "split_cifar100": load_split_cifar100,
         "split_cifar10_cnn": load_split_cifar10,
+        "split_cifar10_cnn_sweep": load_split_cifar10,
     }
     if name not in configs:
         raise ValueError(f"benchmark desconhecido: {name}")

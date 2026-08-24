@@ -375,6 +375,20 @@ It runs five paired methods (`vanilla`, no-consolidation, destination-only,
 factorized SlowHeat and hard freeze) for five epochs per task. Use `--dry-run`
 to inspect the exact protocol without downloading or training.
 
+After the pilot, run the preselected CNN stability/plasticity sweep with ten
+paired seeds:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 10 \
+  --sections split-cifar10-cnn-sweep \
+  --device cuda
+```
+
+This separate section crosses destination-only and hidden-only protection with
+`beta={3,10}` and plasticity budget `{0.50,0.75}`. Its artifacts are written to
+`results/split_mnist_protocol/split_cifar10_cnn_sweep/`.
+
 Each visual all-methods section runs all 32 methods implemented or explicitly
 configured by the project, including vanilla, the SlowHeat controls and beta
 variants, Replay, distillation, DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF,

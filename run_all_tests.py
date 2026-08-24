@@ -66,6 +66,7 @@ SECTION_NAMES = (
     "permuted-mnist",
     "split-cifar10",
     "split-cifar10-cnn",
+    "split-cifar10-cnn-sweep",
     "split-cifar100",
 )
 DEFAULT_SECTION_NAMES = tuple(
@@ -76,6 +77,7 @@ DEFAULT_SECTION_NAMES = tuple(
         "synthetic-all-methods",
         "split-mnist-all-methods",
         "split-cifar10-cnn",
+        "split-cifar10-cnn-sweep",
     }
 )
 ALL_DATASET_METHOD_SECTIONS = (
@@ -97,6 +99,7 @@ SECTION_OUTPUT_DIRS = {
     "permuted-mnist": "permuted_mnist",
     "split-cifar10": "split_cifar10",
     "split-cifar10-cnn": "split_cifar10_cnn",
+    "split-cifar10-cnn-sweep": "split_cifar10_cnn_sweep",
     "split-cifar100": "split_cifar100",
 }
 
@@ -252,6 +255,9 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         "permuted-mnist": list(visual_configs["permuted_mnist"].methods),
         "split-cifar10": list(visual_configs["split_cifar10"].methods),
         "split-cifar10-cnn": list(visual_configs["split_cifar10_cnn"].methods),
+        "split-cifar10-cnn-sweep": list(
+            visual_configs["split_cifar10_cnn_sweep"].methods
+        ),
         "split-cifar100": list(visual_configs["split_cifar100"].methods),
     }
 
@@ -289,7 +295,12 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 "inference_task_id": False,
                 "device": "cpu",
             }
-        elif name in {"split-cifar10", "split-cifar10-cnn", "split-cifar100"}:
+        elif name in {
+            "split-cifar10",
+            "split-cifar10-cnn",
+            "split-cifar10-cnn-sweep",
+            "split-cifar100",
+        }:
             config = generalization_configs(args.device)[name.replace("-", "_")]
             details["protocol"] = {
                 "scenario": config.scenario,
@@ -390,6 +401,8 @@ def _run_section(
         return run_visual_generalization("split_cifar10", **common)
     if name == "split-cifar10-cnn":
         return run_visual_generalization("split_cifar10_cnn", **common)
+    if name == "split-cifar10-cnn-sweep":
+        return run_visual_generalization("split_cifar10_cnn_sweep", **common)
     if name == "split-cifar100":
         return run_visual_generalization("split_cifar100", **common)
     raise ValueError(f"seção desconhecida: {name}")

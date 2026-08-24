@@ -148,6 +148,28 @@ PYTHONPATH=src:. python run_all_tests.py \
   --dry-run
 ```
 
+### Sweep CNN de estabilidade/plasticidade
+
+O sweep seguinte preserva `vanilla` e `slowheat_none` como controles e cruza:
+
+- proteção `unidirectional` e `hidden-only`;
+- `beta ∈ {3, 10}`;
+- budget plástico `{0.50, 0.75}`.
+
+Execute as dez configurações com dez seeds pareadas:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 10 \
+  --sections split-cifar10-cnn-sweep \
+  --device cuda
+```
+
+Inspecione previamente os métodos e seeds com o mesmo comando acrescido de
+`--dry-run`. Os resultados ficam em
+`results/split_mnist_protocol/split_cifar10_cnn_sweep/`, isolados do piloto
+original.
+
 O argumento obrigatório `--num-seeds` gera essa quantidade de seeds
 pseudoaleatórias distintas e reproduzíveis. Para definir valores específicos,
 use `--baseline-seeds` e passe exatamente a quantidade declarada em

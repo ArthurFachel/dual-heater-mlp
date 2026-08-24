@@ -36,7 +36,7 @@ CALIBRATION_OFFSETS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 
 _STRUCTURED_METHOD = re.compile(
     r"slowheat"
-    r"(?:_(?P<auxiliary>replay|distillation))?"
+    r"(?:_(?P<auxiliary>replay|distillation|unidirectional))?"
     r"(?:_(?P<scope>hidden))?"
     r"_beta_(?P<beta>\d+(?:\.\d+)?)"
     r"(?:_budget_(?P<budget>\d+(?:\.\d+)?))?$"
@@ -169,6 +169,13 @@ def _uses_er_ace(method: str) -> bool:
 def _uses_distillation(method: str) -> bool:
     spec = _method_spec(method)
     return spec is not None and spec.distillation
+
+
+def _is_unidirectional(method: str) -> bool:
+    if method == "slowheat_unidirectional":
+        return True
+    match = _structured_match(method)
+    return match is not None and match.group("auxiliary") == "unidirectional"
 
 
 def _method_strength(method: str, default: float) -> float:
@@ -722,7 +729,7 @@ def _build_optimizer(
     )
     if not _slow_layers(model):
         raise TypeError("método SlowHeat requer um modelo instrumentado")
-    if method == "slowheat_unidirectional":
+    if _is_unidirectional(method):
         for layer in _slow_layers(model):
             optimizer.register_slow_heat_module(layer)
     else:
