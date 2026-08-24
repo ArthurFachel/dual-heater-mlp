@@ -33,19 +33,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-# ─── helpers ────────────────────────────────────
-
-def _act(name: str) -> nn.Module:
-    name = name.lower()
-    if name == "relu":
-        return nn.ReLU()
-    elif name == "gelu":
-        return nn.GELU()
-    elif name == "tanh":
-        return nn.Tanh()
-    elif name == "leaky":
-        return nn.LeakyReLU(0.1)
-    raise ValueError(f"Unknown activation: {name}")
+from ._layers import activation, validate_mlp_dims
 
 
 def _adapt_budget(
@@ -70,9 +58,203 @@ def _adapt_budget(
     return min(maximum, max(minimum, updated))
 
 
+class _SlowHeatImportanceMixin:
+    """Shared functional-importance lifecycle for linear and convolution layers."""
+
+    slow_strength: float
+    importance_decay: float
+    importance_eps: float
+    gradient_masking: bool
+    importance_memory: Tensor
+    slow_heat: Tensor
+    task_ema: Tensor
+    task_step: Tensor
+    consolidated_tasks: Tensor
+    plasticity_budget_state: Tensor
+
+    def _initialize_importance_state(
+        self,
+        *,
+        unit_count: int,
+        slow_strength: float,
+        plasticity_budget: float,
+        importance_decay: float,
+        importance_eps: float,
+        gradient_masking: bool,
+        state_device=None,
+    ) -> None:
+        if slow_strength < 0.0:
+            raise ValueError("slow_strength deve ser >= 0")
+        if not 0.0 <= plasticity_budget <= 1.0:
+            raise ValueError("plasticity_budget deve estar em [0, 1]")
+        if not 0.0 <= importance_decay < 1.0:
+            raise ValueError("importance_decay deve estar em [0, 1)")
+        if importance_eps <= 0.0:
+            raise ValueError("importance_eps deve ser > 0")
+        self.slow_strength = slow_strength
+        self.importance_decay = importance_decay
+        self.importance_eps = importance_eps
+        self.gradient_masking = gradient_masking
+        self.register_buffer(
+            "plasticity_budget_state",
+            torch.tensor(
+                float(plasticity_budget),
+                dtype=torch.float32,
+                device=state_device,
+            ),
+        )
+        self.register_buffer(
+            "importance_memory",
+            torch.zeros(unit_count, device=state_device),
+        )
+        self.register_buffer("slow_heat", torch.zeros(unit_count, device=state_device))
+        self.register_buffer("task_ema", torch.zeros(unit_count, device=state_device))
+        self.register_buffer(
+            "task_step",
+            torch.zeros(1, dtype=torch.long, device=state_device),
+        )
+        self.register_buffer(
+            "consolidated_tasks",
+            torch.zeros(1, dtype=torch.long, device=state_device),
+        )
+
+    def _reduce_contribution(self, contribution: Tensor) -> Tensor:
+        raise NotImplementedError
+
+    def _functional_importance_hook(
+        self,
+        preactivation: Tensor,
+        validity_mask: Tensor | None = None,
+    ):
+        """Track normalized first-order contribution ``|z * dL/dz|``."""
+
+        def hook(grad: Tensor) -> Tensor:
+            with torch.no_grad():
+                activation = preactivation
+                detached_grad = grad.detach()
+                if activation.dtype in {torch.float16, torch.bfloat16}:
+                    activation = activation.float()
+                if detached_grad.dtype in {torch.float16, torch.bfloat16}:
+                    detached_grad = detached_grad.float()
+                contribution = activation.abs() * detached_grad.abs()
+                if validity_mask is not None:
+                    contribution.mul_(
+                        validity_mask.to(
+                            device=contribution.device,
+                            dtype=contribution.dtype,
+                        )
+                    )
+                signal = self._reduce_contribution(contribution)
+                normalizer = signal.mean().clamp_min(self.importance_eps)
+                normalized = signal / normalizer
+                step = int(self.task_step.item())
+                if step == 0:
+                    self.task_ema.copy_(normalized)
+                else:
+                    decay = min(
+                        self.importance_decay,
+                        1.0 - 1.0 / (1.0 + float(step)),
+                    )
+                    self.task_ema.mul_(decay).add_(normalized, alpha=1.0 - decay)
+                self.task_step.add_(1)
+            return grad
+
+        return hook
+
+    def _apply_capacity_budget(self) -> None:
+        """Derive a scale-free protection vector with guaranteed free capacity."""
+
+        self.slow_heat.zero_()
+        max_protected = math.floor(
+            (1.0 - self.plasticity_budget) * self.importance_memory.numel() + 1e-12
+        )
+        positive = int(torch.count_nonzero(self.importance_memory > 0.0).item())
+        protected = min(max_protected, positive)
+        if protected == 0:
+            return
+        order = torch.argsort(self.importance_memory, descending=True, stable=True)
+        indices = order[:protected]
+        selected = self.importance_memory[indices]
+        self.slow_heat[indices] = selected / selected.max().clamp_min(
+            self.importance_eps
+        )
+
+    def consolidate(self, strategy: str = "max") -> None:
+        if strategy not in {"max", "mean", "sum"}:
+            raise ValueError("strategy deve ser 'max', 'mean' ou 'sum'")
+        if self.task_step.item() == 0:
+            raise RuntimeError("não é possível consolidar uma task sem backward")
+        with torch.no_grad():
+            if strategy == "max":
+                self.importance_memory.copy_(
+                    torch.maximum(self.importance_memory, self.task_ema)
+                )
+            elif strategy == "mean":
+                count = int(self.consolidated_tasks.item()) + 1
+                self.importance_memory.add_(
+                    (self.task_ema - self.importance_memory) / count
+                )
+            else:
+                self.importance_memory.add_(self.task_ema)
+            self._apply_capacity_budget()
+            self.consolidated_tasks.add_(1)
+            self.task_ema.zero_()
+            self.task_step.zero_()
+
+    def _gradient_mask_hook(self):
+        def hook(grad: Tensor) -> Tensor:
+            if not self.gradient_masking or self.slow_strength <= 0.0:
+                return grad
+            scale = 1.0 / (1.0 + self.slow_strength * self.slow_heat)
+            return grad * scale.view(-1, *([1] * (grad.dim() - 1)))
+
+        return hook
+
+    def get_lr_scales(self) -> Tensor:
+        return 1.0 / (1.0 + self.slow_strength * self.slow_heat)
+
+    def capacity_metrics(self) -> dict[str, float]:
+        protected = float((self.slow_heat > 0.0).float().mean().item())
+        return {
+            "protected_fraction": protected,
+            "plastic_fraction": 1.0 - protected,
+        }
+
+    @property
+    def plasticity_budget(self) -> float:
+        return float(self.plasticity_budget_state.item())
+
+    @plasticity_budget.setter
+    def plasticity_budget(self, value: float) -> None:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("plasticity_budget deve estar em [0, 1]")
+        self.plasticity_budget_state.fill_(value)
+
+    def adapt_capacity(
+        self,
+        *,
+        acquisition_score: float,
+        target_score: float,
+        adaptation_rate: float = 0.1,
+        minimum: float = 0.05,
+        maximum: float = 0.95,
+    ) -> float:
+        self.plasticity_budget = _adapt_budget(
+            self.plasticity_budget,
+            acquisition_score=acquisition_score,
+            target_score=target_score,
+            adaptation_rate=adaptation_rate,
+            minimum=minimum,
+            maximum=maximum,
+        )
+        with torch.no_grad():
+            self._apply_capacity_budget()
+        return self.plasticity_budget
+
+
 # ─── SlowHeatLinear ─────────────────────────────
 
-class SlowHeatLinear(nn.Module):
+class SlowHeatLinear(_SlowHeatImportanceMixin, nn.Module):
     """
     Camada linear com utilidade funcional e proteção por capacidade.
 
@@ -97,23 +279,15 @@ class SlowHeatLinear(nn.Module):
         bias: bool = True,
     ):
         super().__init__()
-        if slow_strength < 0.0:
-            raise ValueError("slow_strength deve ser >= 0")
-        if not 0.0 <= plasticity_budget <= 1.0:
-            raise ValueError("plasticity_budget deve estar em [0, 1]")
-        if not 0.0 <= importance_decay < 1.0:
-            raise ValueError("importance_decay deve estar em [0, 1)")
-        if importance_eps <= 0.0:
-            raise ValueError("importance_eps deve ser > 0")
         self.in_features = in_features
         self.out_features = out_features
-        self.slow_strength = slow_strength
-        self.importance_decay = importance_decay
-        self.importance_eps = importance_eps
-        self.gradient_masking = gradient_masking
-        self.register_buffer(
-            "plasticity_budget_state",
-            torch.tensor(float(plasticity_budget), dtype=torch.float32),
+        self._initialize_importance_state(
+            unit_count=out_features,
+            slow_strength=slow_strength,
+            plasticity_budget=plasticity_budget,
+            importance_decay=importance_decay,
+            importance_eps=importance_eps,
+            gradient_masking=gradient_masking,
         )
 
         # Parâmetros lineares padrão
@@ -124,15 +298,6 @@ class SlowHeatLinear(nn.Module):
             self.bias = nn.Parameter(torch.zeros(out_features))
         else:
             self.register_parameter("bias", None)
-
-        # Evidência consolidada e intensidade de proteção derivada do orçamento.
-        self.register_buffer("importance_memory", torch.zeros(out_features))
-        self.register_buffer("slow_heat", torch.zeros(out_features))
-
-        # Estatísticas intra-task: EMA suave da utilidade funcional normalizada.
-        self.register_buffer("task_ema", torch.zeros(out_features))
-        self.register_buffer("task_step", torch.zeros(1, dtype=torch.long))
-        self.register_buffer("consolidated_tasks", torch.zeros(1, dtype=torch.long))
 
         # Hook legado de modulação do gradiente no backward
         self.weight.register_hook(self._gradient_mask_hook())
@@ -147,126 +312,8 @@ class SlowHeatLinear(nn.Module):
 
         return z
 
-    def _functional_importance_hook(self, preactivation: Tensor):
-        """Track normalized first-order contribution ``|z * dL/dz|``."""
-
-        def hook(grad: Tensor) -> Tensor:
-            with torch.no_grad():
-                reduce_dims = tuple(range(grad.dim() - 1))
-                contribution = preactivation.abs() * grad.detach().abs()
-                if contribution.dtype in {torch.float16, torch.bfloat16}:
-                    contribution = contribution.float()
-                signal = contribution.sum(dim=reduce_dims)
-                normalizer = signal.mean().clamp_min(self.importance_eps)
-                normalized = signal / normalizer
-                step = int(self.task_step.item())
-                if step == 0:
-                    self.task_ema.copy_(normalized)
-                else:
-                    decay = min(
-                        self.importance_decay,
-                        1.0 - 1.0 / (1.0 + float(step)),
-                    )
-                    self.task_ema.mul_(decay).add_(normalized, alpha=1.0 - decay)
-                self.task_step.add_(1)
-            return grad
-
-        return hook
-
-    def _apply_capacity_budget(self) -> None:
-        """Derive a scale-free protection vector with guaranteed free capacity."""
-
-        self.slow_heat.zero_()
-        max_protected = int(
-            (1.0 - self.plasticity_budget) * self.importance_memory.numel()
-        )
-        positive = int(torch.count_nonzero(self.importance_memory > 0.0).item())
-        protected = min(max_protected, positive)
-        if protected == 0:
-            return
-        order = torch.argsort(self.importance_memory, descending=True, stable=True)
-        indices = order[:protected]
-        selected = self.importance_memory[indices]
-        scale = selected.max().clamp_min(self.importance_eps)
-        self.slow_heat[indices] = selected / scale
-
-    def consolidate(self, strategy: str = "max"):
-        """Consolida a importância da task e reseta só estatísticas intra-task."""
-        if strategy not in {"max", "mean", "sum"}:
-            raise ValueError("strategy deve ser 'max', 'mean' ou 'sum'")
-        if self.task_step.item() == 0:
-            raise RuntimeError("não é possível consolidar uma task sem backward")
-        with torch.no_grad():
-            if strategy == "max":
-                self.importance_memory.copy_(
-                    torch.maximum(self.importance_memory, self.task_ema)
-                )
-            elif strategy == "mean":
-                count = int(self.consolidated_tasks.item()) + 1
-                self.importance_memory.add_(
-                    (self.task_ema - self.importance_memory) / count
-                )
-            else:
-                self.importance_memory.add_(self.task_ema)
-            self._apply_capacity_budget()
-            self.consolidated_tasks.add_(1)
-            self.task_ema.zero_()
-            self.task_step.zero_()
-
-    def _gradient_mask_hook(self):
-        """Escala gradiente: 1/(1 + β·slow_heat)."""
-        def hook(grad: Tensor) -> Tensor:
-            if not self.gradient_masking or self.slow_strength <= 0.0:
-                return grad
-            scale = 1.0 / (1.0 + self.slow_strength * self.slow_heat)
-            return grad * scale.view(-1, *([1] * (grad.dim() - 1)))
-        return hook
-
-    def get_lr_scales(self) -> Tensor:
-        """Fatores de plasticidade; só são LR efetivos sob update compatível."""
-        return 1.0 / (1.0 + self.slow_strength * self.slow_heat)
-
-    def capacity_metrics(self) -> dict[str, float]:
-        """Report the realized protected/plastic fractions for diagnostics."""
-
-        protected = float((self.slow_heat > 0.0).float().mean().item())
-        return {
-            "protected_fraction": protected,
-            "plastic_fraction": 1.0 - protected,
-        }
-
-    @property
-    def plasticity_budget(self) -> float:
-        return float(self.plasticity_budget_state.item())
-
-    @plasticity_budget.setter
-    def plasticity_budget(self, value: float) -> None:
-        if not 0.0 <= value <= 1.0:
-            raise ValueError("plasticity_budget deve estar em [0, 1]")
-        self.plasticity_budget_state.fill_(value)
-
-    def adapt_capacity(
-        self,
-        *,
-        acquisition_score: float,
-        target_score: float,
-        adaptation_rate: float = 0.1,
-        minimum: float = 0.05,
-        maximum: float = 0.95,
-    ) -> float:
-        """Adjust free capacity from an external validation acquisition score."""
-
-        self.plasticity_budget = _adapt_budget(
-            self.plasticity_budget,
-            acquisition_score=acquisition_score,
-            target_score=target_score,
-            adaptation_rate=adaptation_rate,
-            minimum=minimum,
-            maximum=maximum,
-        )
-        with torch.no_grad():
-            self._apply_capacity_budget()
-        return self.plasticity_budget
+    def _reduce_contribution(self, contribution: Tensor) -> Tensor:
+        return contribution.sum(dim=tuple(range(contribution.dim() - 1)))
 
     def extra_repr(self) -> str:
         return (
@@ -277,7 +324,7 @@ class SlowHeatLinear(nn.Module):
 
 # ─── SlowHeatConv2d ─────────────────────────────
 
-class SlowHeatConv2d(nn.Module):
+class SlowHeatConv2d(_SlowHeatImportanceMixin, nn.Conv2d):
     """
     Conv2d com utilidade funcional e proteção por capacidade.
 
@@ -290,167 +337,204 @@ class SlowHeatConv2d(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: int,
+        kernel_size: int | tuple[int, int],
         slow_strength: float = 3.0,
         plasticity_budget: float = 0.25,
         importance_decay: float = 0.99,
         importance_eps: float = 1e-8,
         gradient_masking: bool = True,
-        stride: int = 1,
-        padding: int = 0,
+        stride: int | tuple[int, int] = 1,
+        padding: str | int | tuple[int, int] = 0,
+        dilation: int | tuple[int, int] = 1,
+        groups: int = 1,
         bias: bool = True,
+        padding_mode: str = "zeros",
+        device=None,
+        dtype=None,
     ):
-        super().__init__()
-        if slow_strength < 0.0:
-            raise ValueError("slow_strength deve ser >= 0")
-        if not 0.0 <= plasticity_budget <= 1.0:
-            raise ValueError("plasticity_budget deve estar em [0, 1]")
-        if not 0.0 <= importance_decay < 1.0:
-            raise ValueError("importance_decay deve estar em [0, 1)")
-        if importance_eps <= 0.0:
-            raise ValueError("importance_eps deve ser > 0")
-        self.slow_strength = slow_strength
-        self.importance_decay = importance_decay
-        self.importance_eps = importance_eps
-        self.gradient_masking = gradient_masking
-        self.register_buffer(
-            "plasticity_budget_state",
-            torch.tensor(float(plasticity_budget), dtype=torch.float32),
+        super().__init__(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+            padding_mode=padding_mode,
+            device=device,
+            dtype=dtype,
         )
-        self._stride = stride
-        self._padding = padding
-
-        self.weight = nn.Parameter(
-            torch.randn(out_channels, in_channels, kernel_size, kernel_size)
-            / (in_channels * kernel_size * kernel_size)**0.5
+        self._initialize_importance_state(
+            unit_count=out_channels,
+            slow_strength=slow_strength,
+            plasticity_budget=plasticity_budget,
+            importance_decay=importance_decay,
+            importance_eps=importance_eps,
+            gradient_masking=gradient_masking,
+            state_device=self.weight.device,
         )
-        if bias:
-            self.bias = nn.Parameter(torch.zeros(out_channels))
-        else:
-            self.register_parameter("bias", None)
-
-        self.register_buffer("importance_memory", torch.zeros(out_channels))
-        self.register_buffer("slow_heat", torch.zeros(out_channels))
-        # Within-task EMA
-        self.register_buffer("task_ema", torch.zeros(out_channels))
-        self.register_buffer("task_step", torch.zeros(1, dtype=torch.long))
-        self.register_buffer("consolidated_tasks", torch.zeros(1, dtype=torch.long))
-
         # Hook legado de modulação do gradiente
         self.weight.register_hook(self._gradient_mask_hook())
-        if bias:
+        if self.bias is not None:
             self.bias.register_hook(self._gradient_mask_hook())
 
-    def forward(self, x) -> Tensor:
-        z = F.conv2d(x, self.weight, self.bias, stride=self.stride,
-                     padding=self.padding)
+    def forward(
+        self,
+        x: Tensor,
+        validity_mask: Tensor | None = None,
+    ) -> Tensor:
+        z = super().forward(x)
+
+        broadcast_mask = None
+        if validity_mask is not None:
+            if validity_mask.ndim == 3:
+                validity_mask = validity_mask.unsqueeze(1)
+            try:
+                broadcast_mask = torch.broadcast_to(validity_mask, z.shape).detach()
+            except RuntimeError as error:
+                raise ValueError(
+                    "validity_mask deve ser compatível com [B, C_out, H, W]"
+                ) from error
+            if not torch.isfinite(broadcast_mask).all():
+                raise ValueError("validity_mask deve conter somente valores finitos")
+            if torch.any(broadcast_mask < 0) or torch.any(broadcast_mask > 1):
+                raise ValueError("validity_mask deve estar em [0, 1]")
 
         if self.training and z.requires_grad:
-            z.register_hook(self._functional_importance_hook(z.detach()))
+            z.register_hook(
+                self._functional_importance_hook(z.detach(), broadcast_mask)
+            )
 
         return z
 
-    def _functional_importance_hook(self, preactivation: Tensor):
-        def hook(grad: Tensor) -> Tensor:
-            with torch.no_grad():
-                contribution = preactivation.abs() * grad.detach().abs()
-                if contribution.dtype in {torch.float16, torch.bfloat16}:
-                    contribution = contribution.float()
-                signal = contribution.sum(dim=[0, 2, 3])
-                normalized = signal / signal.mean().clamp_min(self.importance_eps)
-                step = int(self.task_step.item())
-                if step == 0:
-                    self.task_ema.copy_(normalized)
-                else:
-                    decay = min(
-                        self.importance_decay,
-                        1.0 - 1.0 / (1.0 + float(step)),
-                    )
-                    self.task_ema.mul_(decay).add_(normalized, alpha=1.0 - decay)
-                self.task_step.add_(1)
-            return grad
+    def _reduce_contribution(self, contribution: Tensor) -> Tensor:
+        return contribution.sum(dim=(0, 2, 3))
 
-        return hook
-
-    def _apply_capacity_budget(self) -> None:
-        self.slow_heat.zero_()
-        max_protected = int(
-            (1.0 - self.plasticity_budget) * self.importance_memory.numel()
-        )
-        positive = int(torch.count_nonzero(self.importance_memory > 0.0).item())
-        protected = min(max_protected, positive)
-        if protected == 0:
-            return
-        order = torch.argsort(self.importance_memory, descending=True, stable=True)
-        indices = order[:protected]
-        selected = self.importance_memory[indices]
-        self.slow_heat[indices] = selected / selected.max().clamp_min(
-            self.importance_eps
+    def extra_repr(self) -> str:
+        base = nn.Conv2d.extra_repr(self)
+        return (
+            f"{base}, \u03b2={self.slow_strength}, "
+            f"plasticity={self.plasticity_budget:.3f}"
         )
 
-    @property
-    def stride(self):
-        return getattr(self, '_stride', 1)
-    @stride.setter
-    def stride(self, v):
-        self._stride = v
-    @property
-    def padding(self):
-        return getattr(self, '_padding', 0)
-    @padding.setter
-    def padding(self, v):
-        self._padding = v
 
-    def consolidate(self, strategy: str = "max"):
-        if strategy not in {"max", "mean", "sum"}:
-            raise ValueError("strategy deve ser 'max', 'mean' ou 'sum'")
-        if self.task_step.item() == 0:
-            raise RuntimeError("não é possível consolidar uma task sem backward")
-        with torch.no_grad():
-            if strategy == "max":
-                self.importance_memory.copy_(
-                    torch.maximum(self.importance_memory, self.task_ema)
-                )
-            elif strategy == "mean":
-                count = int(self.consolidated_tasks.item()) + 1
-                self.importance_memory.add_(
-                    (self.task_ema - self.importance_memory) / count
-                )
-            else:
-                self.importance_memory.add_(self.task_ema)
-            self._apply_capacity_budget()
-            self.consolidated_tasks.add_(1)
-            self.task_ema.zero_()
-            self.task_step.zero_()
+# ─── SlowHeatCNN ─────────────────────────────────
 
-    def _gradient_mask_hook(self):
-        def hook(grad: Tensor) -> Tensor:
-            if not self.gradient_masking or self.slow_strength <= 0.0:
-                return grad
-            scale = 1.0 / (1.0 + self.slow_strength * self.slow_heat)
-            # grad shape: [out, in, kH, kW] or [out] for bias
-            return grad * scale.view(-1, *([1] * (grad.dim() - 1)))
-        return hook
+class SlowHeatCNN(nn.Module):
+    """Sequential CNN with functional, channel-wise SlowHeat protection.
 
-    def get_lr_scales(self) -> Tensor:
-        return 1.0 / (1.0 + self.slow_strength * self.slow_heat)
+    The adaptive pooling fixes the Conv→Linear mapping. Optimizer registration
+    repeats each source-channel factor over every pooled spatial position.
+    """
 
-    def capacity_metrics(self) -> dict[str, float]:
-        protected = float((self.slow_heat > 0.0).float().mean().item())
-        return {
-            "protected_fraction": protected,
-            "plastic_fraction": 1.0 - protected,
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        *,
+        channels: tuple[int, int] = (32, 64),
+        pooled_size: int | tuple[int, int] = (2, 2),
+        act: str = "relu",
+        slow_strength: float = 3.0,
+        plasticity_budget: float = 0.25,
+        importance_decay: float = 0.99,
+        importance_eps: float = 1e-8,
+        protect_output: bool = True,
+        output_slow_strength: float | None = None,
+    ) -> None:
+        super().__init__()
+        if (
+            not isinstance(in_channels, int)
+            or isinstance(in_channels, bool)
+            or in_channels < 1
+        ):
+            raise ValueError("in_channels deve ser um inteiro positivo")
+        if (
+            not isinstance(num_classes, int)
+            or isinstance(num_classes, bool)
+            or num_classes < 1
+        ):
+            raise ValueError("num_classes deve ser um inteiro positivo")
+        if len(channels) != 2 or any(
+            not isinstance(width, int)
+            or isinstance(width, bool)
+            or width < 1
+            for width in channels
+        ):
+            raise ValueError("channels deve conter dois inteiros positivos")
+        if isinstance(pooled_size, int):
+            pooled_shape = (pooled_size, pooled_size)
+        else:
+            pooled_shape = tuple(pooled_size)
+        if len(pooled_shape) != 2 or any(
+            not isinstance(size, int)
+            or isinstance(size, bool)
+            or size < 1
+            for size in pooled_shape
+        ):
+            raise ValueError("pooled_size deve conter dimensões positivas")
+
+        common = {
+            "slow_strength": slow_strength,
+            "plasticity_budget": plasticity_budget,
+            "importance_decay": importance_decay,
+            "importance_eps": importance_eps,
         }
+        self.conv1 = SlowHeatConv2d(
+            in_channels,
+            channels[0],
+            kernel_size=3,
+            padding=1,
+            **common,
+        )
+        self.conv2 = SlowHeatConv2d(
+            channels[0],
+            channels[1],
+            kernel_size=3,
+            padding=1,
+            **common,
+        )
+        self.activation1 = activation(act)
+        self.activation2 = activation(act)
+        self.pool = nn.MaxPool2d(2)
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_shape)
+        self.flatten = nn.Flatten()
+        classifier_features = channels[1] * pooled_shape[0] * pooled_shape[1]
+        if protect_output:
+            classifier_common = dict(common)
+            if output_slow_strength is not None:
+                classifier_common["slow_strength"] = output_slow_strength
+            self.classifier: nn.Module = SlowHeatLinear(
+                classifier_features,
+                num_classes,
+                **classifier_common,
+            )
+        else:
+            self.classifier = nn.Linear(classifier_features, num_classes)
+        self.pooled_size = pooled_shape
 
-    @property
-    def plasticity_budget(self) -> float:
-        return float(self.plasticity_budget_state.item())
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.pool(self.activation1(self.conv1(x)))
+        x = self.pool(self.activation2(self.conv2(x)))
+        x = self.adaptive_pool(x)
+        return self.classifier(self.flatten(x))
 
-    @plasticity_budget.setter
-    def plasticity_budget(self, value: float) -> None:
-        if not 0.0 <= value <= 1.0:
-            raise ValueError("plasticity_budget deve estar em [0, 1]")
-        self.plasticity_budget_state.fill_(value)
+    def get_slow_layers(
+        self,
+    ) -> list[SlowHeatConv2d | SlowHeatLinear]:
+        return [
+            module
+            for module in (self.conv1, self.conv2, self.classifier)
+            if isinstance(module, (SlowHeatConv2d, SlowHeatLinear))
+        ]
+
+    def consolidate(self, strategy: str = "max") -> None:
+        for layer in self.get_slow_layers():
+            layer.consolidate(strategy=strategy)
+
+    def get_lr_scales(self) -> list[Tensor]:
+        return [layer.get_lr_scales() for layer in self.get_slow_layers()]
 
     def adapt_capacity(
         self,
@@ -460,25 +544,17 @@ class SlowHeatConv2d(nn.Module):
         adaptation_rate: float = 0.1,
         minimum: float = 0.05,
         maximum: float = 0.95,
-    ) -> float:
-        self.plasticity_budget = _adapt_budget(
-            self.plasticity_budget,
-            acquisition_score=acquisition_score,
-            target_score=target_score,
-            adaptation_rate=adaptation_rate,
-            minimum=minimum,
-            maximum=maximum,
-        )
-        with torch.no_grad():
-            self._apply_capacity_budget()
-        return self.plasticity_budget
-
-    def extra_repr(self) -> str:
-        return (
-            f"in={self.weight.shape[1]}x{self.weight.shape[2]}, "
-            f"out={self.weight.shape[0]}, "
-            f"\u03b2={self.slow_strength}, plasticity={self.plasticity_budget:.3f}"
-        )
+    ) -> list[float]:
+        return [
+            layer.adapt_capacity(
+                acquisition_score=acquisition_score,
+                target_score=target_score,
+                adaptation_rate=adaptation_rate,
+                minimum=minimum,
+                maximum=maximum,
+            )
+            for layer in self.get_slow_layers()
+        ]
 
 
 # ─── SlowHeatMLP ────────────────────────────────
@@ -502,6 +578,7 @@ class SlowHeatMLP(nn.Sequential):
         protect_output: bool = True,
         output_slow_strength: float | None = None,
     ):
+        validate_mlp_dims(dims)
         layers: list[nn.Module] = []
         for i in range(len(dims) - 2):
             layers.append(
@@ -511,7 +588,7 @@ class SlowHeatMLP(nn.Sequential):
                     plasticity_budget=plasticity_budget,
                 )
             )
-            layers.append(_act(act))
+            layers.append(activation(act))
         if protect_output:
             layers.append(
                 SlowHeatLinear(

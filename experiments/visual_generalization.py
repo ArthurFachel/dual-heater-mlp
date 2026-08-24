@@ -7,6 +7,7 @@ or evaluated at import time.
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,14 +15,31 @@ import torch
 from torch import Tensor
 
 from experiments.split_mnist import (
+    TEST_SPLIT_SEED_MULTIPLIER,
+    TRAIN_SPLIT_SEED_MULTIPLIER,
     MNISTTask,
     SplitMNISTConfig,
     _classes_for_task,
     _normalized_images,
     _select_class_indices,
+    _split_train_validation_indices,
     run_split_mnist_multi_seed,
 )
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS
+
+MNIST_INPUT_DIM = 28 * 28
+CIFAR_IMAGE_SHAPE = (3, 32, 32)
+CIFAR_MEAN = (0.4914, 0.4822, 0.4465)
+CIFAR_STD = (0.2470, 0.2435, 0.2616)
+PERMUTATION_SEED_MULTIPLIER = 100_003
+PERMUTATION_DOMAIN_STRIDE = 7_919
+CNN_VISUAL_METHODS = (
+    "vanilla",
+    "slowheat_none",
+    "slowheat_unidirectional",
+    "slowheat",
+    "hard_freeze",
+)
 
 
 def load_permuted_mnist(
@@ -35,7 +53,7 @@ def load_permuted_mnist(
     config.validate()
     if config.scenario != "domain_incremental" or len(config.class_order) != 10:
         raise ValueError("Permuted-MNIST requer 10 classes domain-incremental")
-    if config.input_dim != 784:
+    if config.input_dim != MNIST_INPUT_DIM:
         raise ValueError("Permuted-MNIST requer input_dim=784")
     try:
         from torchvision.datasets import MNIST
@@ -56,24 +74,18 @@ def load_permuted_mnist(
     test_parts: list[Tensor] = []
     test_labels: list[Tensor] = []
     for label in config.class_order:
-        all_train = _select_class_indices(
+        train_indices, validation_indices = _split_train_validation_indices(
             train_targets,
             label,
-            count=None,
-            seed=config.seed * 1_003 + label,
-        )
-        validation_indices = all_train[: config.validation_per_class]
-        remaining = all_train[config.validation_per_class :]
-        train_indices = (
-            remaining
-            if config.train_per_class is None
-            else remaining[: config.train_per_class]
+            train_count=config.train_per_class,
+            validation_count=config.validation_per_class,
+            seed=config.seed * TRAIN_SPLIT_SEED_MULTIPLIER + label,
         )
         test_indices = _select_class_indices(
             test_targets,
             label,
             count=config.test_per_class,
-            seed=config.seed * 2_003 + label,
+            seed=config.seed * TEST_SPLIT_SEED_MULTIPLIER + label,
         )
         train_parts.append(train_images[train_indices])
         train_labels.append(train_targets[train_indices])
@@ -91,9 +103,10 @@ def load_permuted_mnist(
     tasks: list[MNISTTask] = []
     for domain in range(config.task_count):
         permutation = torch.randperm(
-            784,
+            MNIST_INPUT_DIM,
             generator=torch.Generator().manual_seed(
-                config.seed * 100_003 + domain * 7_919
+                config.seed * PERMUTATION_SEED_MULTIPLIER
+                + domain * PERMUTATION_DOMAIN_STRIDE
             ),
         )
         tasks.append(
@@ -110,11 +123,14 @@ def load_permuted_mnist(
     return tasks
 
 
-def _normalized_cifar_images(dataset: object) -> Tensor:
+def _normalized_cifar_images(dataset: object, *, flatten: bool = True) -> Tensor:
     images = torch.as_tensor(dataset.data, dtype=torch.float32).div_(255.0)
-    mean = images.new_tensor((0.4914, 0.4822, 0.4465))
-    std = images.new_tensor((0.2470, 0.2435, 0.2616))
-    return images.sub_(mean).div_(std).flatten(1)
+    mean = images.new_tensor(CIFAR_MEAN)
+    std = images.new_tensor(CIFAR_STD)
+    images = images.sub_(mean).div_(std)
+    if flatten:
+        return images.flatten(1)
+    return images.permute(0, 3, 1, 2).contiguous()
 
 
 def _load_split_cifar(
@@ -136,7 +152,7 @@ def _load_split_cifar(
             f"Split-{dataset_name.upper()} requer {class_count} classes "
             "class-incremental"
         )
-    if config.input_dim != 3 * 32 * 32:
+    if config.input_dim != math.prod(CIFAR_IMAGE_SHAPE):
         raise ValueError(f"Split-{dataset_name.upper()} requer input_dim=3072")
 
     try:
@@ -154,8 +170,9 @@ def _load_split_cifar(
     test_dataset = dataset_class(
         root=str(data_dir), train=False, download=download
     )
-    train_images = _normalized_cifar_images(train_dataset)
-    test_images = _normalized_cifar_images(test_dataset)
+    flatten = config.backbone == "mlp"
+    train_images = _normalized_cifar_images(train_dataset, flatten=flatten)
+    test_images = _normalized_cifar_images(test_dataset, flatten=flatten)
     train_targets = torch.as_tensor(train_dataset.targets, dtype=torch.long)
     test_targets = torch.as_tensor(test_dataset.targets, dtype=torch.long)
     tasks: list[MNISTTask] = []
@@ -169,24 +186,18 @@ def _load_split_cifar(
         test_parts: list[Tensor] = []
         test_labels: list[Tensor] = []
         for label in classes:
-            all_train = _select_class_indices(
+            train_indices, validation_indices = _split_train_validation_indices(
                 train_targets,
                 label,
-                count=None,
-                seed=config.seed * 1_003 + label,
-            )
-            validation_indices = all_train[: config.validation_per_class]
-            remaining = all_train[config.validation_per_class :]
-            train_indices = (
-                remaining
-                if config.train_per_class is None
-                else remaining[: config.train_per_class]
+                train_count=config.train_per_class,
+                validation_count=config.validation_per_class,
+                seed=config.seed * TRAIN_SPLIT_SEED_MULTIPLIER + label,
             )
             test_indices = _select_class_indices(
                 test_targets,
                 label,
                 count=config.test_per_class,
-                seed=config.seed * 2_003 + label,
+                seed=config.seed * TEST_SPLIT_SEED_MULTIPLIER + label,
             )
             train_parts.append(train_images[train_indices])
             train_labels.append(train_targets[train_indices])
@@ -258,7 +269,7 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             classes_per_task=10,
             scenario="domain_incremental",
             domain_task_count=5,
-            input_dim=784,
+            input_dim=MNIST_INPUT_DIM,
             hidden_dims=(512, 256),
             methods=ALL_VISUAL_METHODS,
             **common,
@@ -267,7 +278,7 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             class_order=tuple(range(10)),
             classes_per_task=2,
             scenario="class_incremental",
-            input_dim=3 * 32 * 32,
+            input_dim=math.prod(CIFAR_IMAGE_SHAPE),
             hidden_dims=(1024, 512),
             train_per_class=4_000,
             validation_per_class=500,
@@ -279,13 +290,35 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             class_order=tuple(range(100)),
             classes_per_task=10,
             scenario="class_incremental",
-            input_dim=3 * 32 * 32,
+            input_dim=math.prod(CIFAR_IMAGE_SHAPE),
             hidden_dims=(1024, 512),
             train_per_class=400,
             validation_per_class=50,
             test_per_class=100,
             methods=ALL_VISUAL_METHODS,
             **common,
+        ),
+        "split_cifar10_cnn": SplitMNISTConfig(
+            class_order=tuple(range(10)),
+            classes_per_task=2,
+            scenario="class_incremental",
+            input_dim=math.prod(CIFAR_IMAGE_SHAPE),
+            hidden_dims=(1,),
+            backbone="cnn",
+            image_shape=CIFAR_IMAGE_SHAPE,
+            cnn_channels=(32, 64),
+            cnn_pooled_size=(2, 2),
+            batch_size=128,
+            epochs_per_task=5,
+            train_per_class=4_000,
+            validation_per_class=500,
+            test_per_class=1_000,
+            learning_rate=1e-3,
+            weight_decay=1e-4,
+            slow_strength=30.0,
+            plasticity_budget=0.25,
+            methods=CNN_VISUAL_METHODS,
+            device=device,
         ),
     }
 
@@ -306,6 +339,7 @@ def run_visual_generalization(
         "permuted_mnist": load_permuted_mnist,
         "split_cifar10": load_split_cifar10,
         "split_cifar100": load_split_cifar100,
+        "split_cifar10_cnn": load_split_cifar10,
     }
     if name not in configs:
         raise ValueError(f"benchmark desconhecido: {name}")
@@ -316,7 +350,11 @@ def run_visual_generalization(
         output_dir=output_dir,
         download=download,
         verbose=verbose,
-        paired_references=("replay", "derpp"),
+        paired_references=(
+            ("vanilla",)
+            if configs[name].backbone == "cnn"
+            else ("replay", "derpp")
+        ),
         task_loader=loaders[name],
         resume=resume,
     )

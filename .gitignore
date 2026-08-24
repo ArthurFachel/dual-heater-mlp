@@ -12,6 +12,9 @@ build/
 dist/
 *.egg-info/
 outputs/
+output/
 checkpoints/
 data/
+results/
+tmp/
 .DS_Store

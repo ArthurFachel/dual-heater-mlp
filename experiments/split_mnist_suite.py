@@ -16,6 +16,12 @@ from experiments.split_mnist import (
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
 SLOWHEAT_ER_ACE = "slowheat_er_ace_hidden_beta_30_budget_0.25"
+REPLAY_MEMORY_SIZES = (5, 10, 20, 50, 100)
+CAPACITY_ARCHITECTURES = {
+    "mlp_256_128": (256, 128),
+    "mlp_512_256": (512, 256),
+    "mlp_512_512_256": (512, 512, 256),
+}
 
 ALL_BASELINES = (
     "vanilla",
@@ -257,7 +263,7 @@ def run_ablation_matrix(
         ),
         "memory_sizes": {},
     }
-    for index, memory_size in enumerate((5, 10, 20, 50, 100)):
+    for index, memory_size in enumerate(REPLAY_MEMORY_SIZES):
         memory_config = replace(
             base,
             replay_per_class=memory_size,
@@ -277,7 +283,7 @@ def run_ablation_matrix(
             {
                 "seeds": seeds,
                 "method_config": config_payload(base),
-                "memory_sizes": [5, 10, 20, 50, 100],
+                "memory_sizes": list(REPLAY_MEMORY_SIZES),
             },
             handle,
             indent=2,
@@ -331,11 +337,7 @@ def run_capacity_generalization(
         baseline_config(device=device), methods=SLOWHEAT_DERPP_METHODS
     )
     results: dict[str, Any] = {"architectures": {}}
-    for index, (name, hidden_dims) in enumerate({
-        "mlp_256_128": (256, 128),
-        "mlp_512_256": (512, 256),
-        "mlp_512_512_256": (512, 512, 256),
-    }.items()):
+    for index, (name, hidden_dims) in enumerate(CAPACITY_ARCHITECTURES.items()):
         results["architectures"][name] = _run(
             replace(base, hidden_dims=hidden_dims),
             seeds=seeds,

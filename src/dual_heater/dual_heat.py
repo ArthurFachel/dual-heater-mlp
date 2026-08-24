@@ -44,6 +44,8 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
+from ._layers import activation, validate_mlp_dims
+
 
 class DualHeatLinear(nn.Module):
     """
@@ -217,21 +219,6 @@ class DualHeatLinear(nn.Module):
         )
 
 
-# ─── helpers ────────────────────────────────────
-
-def _act(name: str) -> nn.Module:
-    name = name.lower()
-    if name == "relu":
-        return nn.ReLU()
-    elif name == "gelu":
-        return nn.GELU()
-    elif name == "tanh":
-        return nn.Tanh()
-    elif name == "leaky":
-        return nn.LeakyReLU(0.1)
-    raise ValueError(f"Unknown activation: {name}")
-
-
 class DualHeatMLP(nn.Sequential):
     """MLP com DualHeatLinear v3 nas camadas ocultas."""
     def __init__(
@@ -246,6 +233,7 @@ class DualHeatMLP(nn.Sequential):
         importance: str = "activation",
         protect_output: bool = False,
     ):
+        validate_mlp_dims(dims)
         layers: list[nn.Module] = []
         for i in range(len(dims) - 2):
             layers.append(
@@ -259,7 +247,7 @@ class DualHeatMLP(nn.Sequential):
                     importance=importance,
                 )
             )
-            layers.append(_act(act))
+            layers.append(activation(act))
         if protect_output:
             layers.append(
                 DualHeatLinear(

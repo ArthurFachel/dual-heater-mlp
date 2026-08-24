@@ -19,58 +19,20 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from dual_heater import SlowHeatAdamW, SlowHeatMLP, compute_cl_metrics
+from dual_heater import SlowHeatAdamW, SlowHeatCNN, SlowHeatMLP, compute_cl_metrics
 from experiments.confirmatory_statistics import (
     PRIMARY_ENDPOINT,
+    normal_summary,
     paired_confirmatory_summary,
 )
+from experiments.provenance import write_environment_manifest
 from experiments.synthetic_cl import make_batch_schedule
 
-SUPPORTED_METHODS = {
-    "vanilla",
-    "slowheat",
-    "slowheat_adaptive",
-    "slowheat_native_state",
-    "slowheat_unidirectional",
-    "slowheat_unbudgeted",
-    "slowheat_none",
-    "hard_freeze",
-    "replay",
-    "distillation",
-    "slowheat_replay",
-    "slowheat_distillation",
-    "derpp",
-    "slowheat_derpp_hidden_beta_30_budget_0.25",
-    "slowheat_er_ace_hidden_beta_30_budget_0.25",
-    "er_ace",
-    "agem",
-    "ewc",
-    "si",
-    "lwf_calibrated",
-    "replay_balanced",
-    "replay_more_epochs",
-    "replay_early_stopping",
-    "replay_global_lr_reduction",
-    "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
-    "slowheat_replay_partial_output_beta_30_budget_0.25",
-    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
-}
-
-REPLAY_METHODS = {
-    "replay",
-    "derpp",
-    "slowheat_derpp_hidden_beta_30_budget_0.25",
-    "slowheat_er_ace_hidden_beta_30_budget_0.25",
-    "er_ace",
-    "agem",
-    "replay_balanced",
-    "replay_more_epochs",
-    "replay_early_stopping",
-    "replay_global_lr_reduction",
-    "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
-    "slowheat_replay_partial_output_beta_30_budget_0.25",
-    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
-}
+EVALUATION_BATCH_SIZE = 1_024
+TRAIN_SPLIT_SEED_MULTIPLIER = 1_003
+TEST_SPLIT_SEED_MULTIPLIER = 2_003
+REPLAY_SCHEDULE_SEED_OFFSET = 10_000
+CALIBRATION_OFFSETS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 
 _STRUCTURED_METHOD = re.compile(
     r"slowheat"
@@ -81,74 +43,147 @@ _STRUCTURED_METHOD = re.compile(
 )
 
 
+@dataclass(frozen=True)
+class MethodSpec:
+    """Declarative capabilities for one benchmark method."""
+
+    slowheat: bool = False
+    replay: bool = False
+    distillation: bool = False
+    derpp: bool = False
+    er_ace: bool = False
+    strength: float | None = None
+    budget: float | None = None
+    protect_output: bool = True
+
+
+_METHOD_SPECS = {
+    "vanilla": MethodSpec(),
+    "slowheat": MethodSpec(slowheat=True),
+    "slowheat_adaptive": MethodSpec(slowheat=True),
+    "slowheat_native_state": MethodSpec(slowheat=True),
+    "slowheat_unidirectional": MethodSpec(slowheat=True),
+    "slowheat_unbudgeted": MethodSpec(slowheat=True),
+    "slowheat_none": MethodSpec(slowheat=True),
+    "hard_freeze": MethodSpec(slowheat=True),
+    "replay": MethodSpec(replay=True),
+    "distillation": MethodSpec(distillation=True),
+    "slowheat_replay": MethodSpec(slowheat=True, replay=True),
+    "slowheat_distillation": MethodSpec(slowheat=True, distillation=True),
+    "derpp": MethodSpec(replay=True, derpp=True),
+    "slowheat_derpp_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        derpp=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "er_ace": MethodSpec(replay=True, er_ace=True),
+    "slowheat_er_ace_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        er_ace=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "agem": MethodSpec(replay=True),
+    "ewc": MethodSpec(),
+    "si": MethodSpec(),
+    "lwf_calibrated": MethodSpec(distillation=True),
+    "replay_balanced": MethodSpec(replay=True),
+    "replay_more_epochs": MethodSpec(replay=True),
+    "replay_early_stopping": MethodSpec(replay=True),
+    "replay_global_lr_reduction": MethodSpec(replay=True),
+    "slowheat_replay_hidden_adaptive_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "slowheat_replay_partial_output_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        strength=30.0,
+        budget=0.25,
+    ),
+    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated": MethodSpec(
+        slowheat=True,
+        replay=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+}
+
+SUPPORTED_METHODS = set(_METHOD_SPECS)
+
+
 def _structured_match(method: str) -> re.Match[str] | None:
     return _STRUCTURED_METHOD.fullmatch(method)
 
 
+def _method_spec(method: str) -> MethodSpec | None:
+    if spec := _METHOD_SPECS.get(method):
+        return spec
+    match = _structured_match(method)
+    if match is None:
+        return None
+    auxiliary = match.group("auxiliary")
+    return MethodSpec(
+        slowheat=True,
+        replay=auxiliary == "replay",
+        distillation=auxiliary == "distillation",
+        strength=float(match.group("beta")),
+        budget=(
+            None
+            if match.group("budget") is None
+            else float(match.group("budget"))
+        ),
+        protect_output=match.group("scope") != "hidden",
+    )
+
+
 def _is_slowheat(method: str) -> bool:
-    return method.startswith("slowheat_") or method in {"slowheat", "hard_freeze"}
+    spec = _method_spec(method)
+    return spec is not None and spec.slowheat
 
 
 def _uses_replay(method: str) -> bool:
-    match = _structured_match(method)
-    return method in REPLAY_METHODS | {"slowheat_replay"} or (
-        match is not None and match.group("auxiliary") == "replay"
-    )
+    spec = _method_spec(method)
+    return spec is not None and spec.replay
 
 
 def _uses_derpp(method: str) -> bool:
-    return method in {"derpp", "slowheat_derpp_hidden_beta_30_budget_0.25"}
+    spec = _method_spec(method)
+    return spec is not None and spec.derpp
 
 
 def _uses_er_ace(method: str) -> bool:
-    return method in {"er_ace", "slowheat_er_ace_hidden_beta_30_budget_0.25"}
+    spec = _method_spec(method)
+    return spec is not None and spec.er_ace
 
 
 def _uses_distillation(method: str) -> bool:
-    match = _structured_match(method)
-    return method in {"distillation", "slowheat_distillation", "lwf_calibrated"} or (
-        match is not None and match.group("auxiliary") == "distillation"
-    )
+    spec = _method_spec(method)
+    return spec is not None and spec.distillation
 
 
 def _method_strength(method: str, default: float) -> float:
-    if method in {
-        "slowheat_derpp_hidden_beta_30_budget_0.25",
-        "slowheat_er_ace_hidden_beta_30_budget_0.25",
-        "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
-        "slowheat_replay_partial_output_beta_30_budget_0.25",
-        "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
-    }:
-        return 30.0
-    match = _structured_match(method)
-    return float(match.group("beta")) if match else default
+    spec = _method_spec(method)
+    return default if spec is None or spec.strength is None else spec.strength
 
 
 def _method_budget(method: str, default: float) -> float:
-    if method in {
-        "slowheat_derpp_hidden_beta_30_budget_0.25",
-        "slowheat_er_ace_hidden_beta_30_budget_0.25",
-        "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
-        "slowheat_replay_partial_output_beta_30_budget_0.25",
-        "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
-    }:
-        return 0.25
-    match = _structured_match(method)
-    if match is None or match.group("budget") is None:
-        return default
-    return float(match.group("budget"))
+    spec = _method_spec(method)
+    return default if spec is None or spec.budget is None else spec.budget
 
 
 def _protects_output(method: str) -> bool:
-    if method in {
-        "slowheat_derpp_hidden_beta_30_budget_0.25",
-        "slowheat_er_ace_hidden_beta_30_budget_0.25",
-        "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
-        "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
-    }:
-        return False
-    match = _structured_match(method)
-    return match is None or match.group("scope") != "hidden"
+    spec = _method_spec(method)
+    return True if spec is None else spec.protect_output
 
 
 @dataclass(frozen=True)
@@ -161,6 +196,10 @@ class SplitMNISTConfig:
     scenario: str = "class_incremental"
     domain_task_count: int | None = None
     hidden_dims: tuple[int, ...] = (256, 128)
+    backbone: str = "mlp"
+    image_shape: tuple[int, int, int] | None = None
+    cnn_channels: tuple[int, int] = (32, 64)
+    cnn_pooled_size: tuple[int, int] = (2, 2)
     batch_size: int = 128
     epochs_per_task: int = 2
     train_per_class: int | None = 1_000
@@ -272,6 +311,29 @@ class SplitMNISTConfig:
                 raise ValueError(f"{name} deve ser >= 1 ou None")
         if not self.hidden_dims or any(width < 1 for width in self.hidden_dims):
             raise ValueError("hidden_dims deve conter dimensões positivas")
+        if self.backbone not in {"mlp", "cnn"}:
+            raise ValueError("backbone deve ser 'mlp' ou 'cnn'")
+        if self.backbone == "mlp":
+            if self.image_shape is not None:
+                raise ValueError("image_shape só é válido para backbone CNN")
+        else:
+            if (
+                self.image_shape is None
+                or len(self.image_shape) != 3
+                or any(size < 1 for size in self.image_shape)
+                or math.prod(self.image_shape) != self.input_dim
+            ):
+                raise ValueError(
+                    "backbone CNN requer image_shape [C, H, W] compatível com input_dim"
+                )
+            if len(self.cnn_channels) != 2 or any(
+                width < 1 for width in self.cnn_channels
+            ):
+                raise ValueError("cnn_channels deve conter dois canais positivos")
+            if len(self.cnn_pooled_size) != 2 or any(
+                size < 1 for size in self.cnn_pooled_size
+            ):
+                raise ValueError("cnn_pooled_size deve conter dimensões positivas")
         finite_values = {
             "learning_rate": self.learning_rate,
             "weight_decay": self.weight_decay,
@@ -369,6 +431,14 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
     payload = asdict(config)
     if config.task_class_counts is None:
         payload.pop("task_class_counts")
+    if config.backbone == "mlp":
+        for field in (
+            "backbone",
+            "image_shape",
+            "cnn_channels",
+            "cnn_pooled_size",
+        ):
+            payload.pop(field)
     return payload
 
 
@@ -405,9 +475,39 @@ def _select_class_indices(
     seed: int,
 ) -> Tensor:
     indices = torch.nonzero(targets == label, as_tuple=False).flatten()
+    if count is not None and len(indices) < count:
+        raise ValueError(
+            f"classe {label} contém {len(indices)} exemplos, mas {count} foram solicitados"
+        )
     order = torch.randperm(len(indices), generator=torch.Generator().manual_seed(seed))
     selected = indices[order]
     return selected if count is None else selected[:count]
+
+
+def _split_train_validation_indices(
+    targets: Tensor,
+    label: int,
+    *,
+    train_count: int | None,
+    validation_count: int,
+    seed: int,
+) -> tuple[Tensor, Tensor]:
+    """Create a disjoint split and fail if the declared sample counts do not fit."""
+
+    all_indices = _select_class_indices(targets, label, count=None, seed=seed)
+    required = validation_count + (0 if train_count is None else train_count)
+    if len(all_indices) < required:
+        requested_train = "todos os restantes" if train_count is None else train_count
+        raise ValueError(
+            f"classe {label} contém {len(all_indices)} exemplos, insuficientes para "
+            f"validação={validation_count} e treino={requested_train}"
+        )
+    validation_indices = all_indices[:validation_count]
+    remaining = all_indices[validation_count:]
+    train_indices = remaining if train_count is None else remaining[:train_count]
+    if len(train_indices) == 0:
+        raise ValueError(f"classe {label} ficou sem exemplos de treino")
+    return train_indices, validation_indices
 
 
 def load_split_mnist(
@@ -449,24 +549,18 @@ def load_split_mnist(
         test_label_parts: list[Tensor] = []
 
         for label in classes:
-            all_train = _select_class_indices(
+            train_indices, validation_indices = _split_train_validation_indices(
                 train_targets,
                 label,
-                count=None,
-                seed=config.seed * 1_003 + label,
-            )
-            validation_indices = all_train[: config.validation_per_class]
-            remaining = all_train[config.validation_per_class :]
-            train_indices = (
-                remaining
-                if config.train_per_class is None
-                else remaining[: config.train_per_class]
+                train_count=config.train_per_class,
+                validation_count=config.validation_per_class,
+                seed=config.seed * TRAIN_SPLIT_SEED_MULTIPLIER + label,
             )
             test_indices = _select_class_indices(
                 test_targets,
                 label,
                 count=config.test_per_class,
-                seed=config.seed * 2_003 + label,
+                seed=config.seed * TEST_SPLIT_SEED_MULTIPLIER + label,
             )
             train_parts.append(train_images[train_indices])
             train_label_parts.append(train_targets[train_indices])
@@ -497,6 +591,48 @@ def _vanilla_mlp(dims: tuple[int, ...]) -> nn.Sequential:
     return nn.Sequential(*layers)
 
 
+class _VanillaCNN(nn.Module):
+    """Native control with the same trainable topology as ``SlowHeatCNN``."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        *,
+        channels: tuple[int, int],
+        pooled_size: tuple[int, int],
+    ) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(channels[0], channels[1], kernel_size=3, padding=1)
+        self.activation1 = nn.ReLU()
+        self.activation2 = nn.ReLU()
+        self.pool = nn.MaxPool2d(2)
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_size)
+        self.flatten = nn.Flatten()
+        self.classifier = nn.Linear(
+            channels[1] * pooled_size[0] * pooled_size[1],
+            num_classes,
+        )
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        inputs = self.pool(self.activation1(self.conv1(inputs)))
+        inputs = self.pool(self.activation2(self.conv2(inputs)))
+        return self.classifier(self.flatten(self.adaptive_pool(inputs)))
+
+
+def _vanilla_model(config: SplitMNISTConfig, dims: tuple[int, ...]) -> nn.Module:
+    if config.backbone == "mlp":
+        return _vanilla_mlp(dims)
+    assert config.image_shape is not None
+    return _VanillaCNN(
+        config.image_shape[0],
+        len(config.class_order),
+        channels=config.cnn_channels,
+        pooled_size=config.cnn_pooled_size,
+    )
+
+
 def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
     """Build all methods with byte-identical trainable initialization."""
 
@@ -504,7 +640,7 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
     dims = (config.input_dim, *config.hidden_dims, len(config.class_order))
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(config.seed)
-        reference = _vanilla_mlp(dims)
+        reference = _vanilla_model(config, dims)
         reference_parameters = {
             name: parameter.detach().clone()
             for name, parameter in reference.named_parameters()
@@ -513,31 +649,52 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
         for method in config.methods:
             torch.manual_seed(config.seed)
             if not _is_slowheat(method):
-                model: nn.Module = _vanilla_mlp(dims)
+                model = _vanilla_model(config, dims)
             else:
                 budget = (
                     0.0
                     if method == "slowheat_unbudgeted"
                     else _method_budget(method, config.plasticity_budget)
                 )
-                model = SlowHeatMLP(
-                    *dims,
-                    act="relu",
-                    slow_strength=_method_strength(method, config.slow_strength),
-                    plasticity_budget=budget,
-                    protect_output=_protects_output(method),
-                    output_slow_strength=(
-                        config.partial_output_slow_strength
-                        if method
-                        == "slowheat_replay_partial_output_beta_30_budget_0.25"
-                        else None
-                    ),
+                output_strength = (
+                    config.partial_output_slow_strength
+                    if method
+                    == "slowheat_replay_partial_output_beta_30_budget_0.25"
+                    else None
                 )
+                slow_strength = _method_strength(method, config.slow_strength)
+                if config.backbone == "mlp":
+                    model = SlowHeatMLP(
+                        *dims,
+                        act="relu",
+                        slow_strength=slow_strength,
+                        plasticity_budget=budget,
+                        protect_output=_protects_output(method),
+                        output_slow_strength=output_strength,
+                    )
+                else:
+                    assert config.image_shape is not None
+                    model = SlowHeatCNN(
+                        config.image_shape[0],
+                        len(config.class_order),
+                        channels=config.cnn_channels,
+                        pooled_size=config.cnn_pooled_size,
+                        act="relu",
+                        slow_strength=slow_strength,
+                        plasticity_budget=budget,
+                        protect_output=_protects_output(method),
+                        output_slow_strength=output_strength,
+                    )
             with torch.no_grad():
                 for name, parameter in model.named_parameters():
                     parameter.copy_(reference_parameters[name])
             models[method] = model.to(config.device)
     return models
+
+
+def _slow_layers(model: nn.Module) -> list[nn.Module]:
+    getter = getattr(model, "get_slow_layers", None)
+    return list(getter()) if callable(getter) else []
 
 
 def _build_optimizer(
@@ -563,9 +720,10 @@ def _build_optimizer(
         weight_decay=config.weight_decay,
         state_policy=state_policy,
     )
-    assert isinstance(model, SlowHeatMLP)
+    if not _slow_layers(model):
+        raise TypeError("método SlowHeat requer um modelo instrumentado")
     if method == "slowheat_unidirectional":
-        for layer in model.get_slow_layers():
+        for layer in _slow_layers(model):
             optimizer.register_slow_heat_module(layer)
     else:
         optimizer.register_slow_heat_model(model, hard=method == "hard_freeze")
@@ -584,9 +742,9 @@ def _accuracy(
 ) -> float:
     model.eval()
     correct = 0
-    for start in range(0, len(inputs), 1_024):
-        batch_x = inputs[start : start + 1_024].to(device)
-        batch_y = targets[start : start + 1_024].to(device)
+    for start in range(0, len(inputs), EVALUATION_BATCH_SIZE):
+        batch_x = inputs[start : start + EVALUATION_BATCH_SIZE].to(device)
+        batch_y = targets[start : start + EVALUATION_BATCH_SIZE].to(device)
         logits = model(batch_x)
         if logit_bias is not None:
             logits = logits + logit_bias.to(device)
@@ -609,9 +767,9 @@ def _task_aware_accuracy(
     model.eval()
     classes = torch.tensor(task.classes, device=device)
     correct = 0
-    for start in range(0, len(task.test_x), 1_024):
-        batch_x = task.test_x[start : start + 1_024].to(device)
-        batch_y = task.test_y[start : start + 1_024].to(device)
+    for start in range(0, len(task.test_x), EVALUATION_BATCH_SIZE):
+        batch_x = task.test_x[start : start + EVALUATION_BATCH_SIZE].to(device)
+        batch_y = task.test_y[start : start + EVALUATION_BATCH_SIZE].to(device)
         logits = model(batch_x)
         if logit_bias is not None:
             logits = logits + logit_bias.to(device)
@@ -751,6 +909,44 @@ def _linear_forward_flops(model: nn.Module) -> int:
 
 
 @torch.no_grad()
+def _model_forward_flops(model: nn.Module, sample_input: Tensor) -> int:
+    """Estimate one-example Linear/Conv2d forward FLOPs from actual shapes."""
+
+    total = 0
+    handles: list[Any] = []
+
+    def count(module: nn.Module, _inputs: tuple[Tensor, ...], output: Tensor) -> None:
+        nonlocal total
+        examples = max(1, output.shape[0])
+        outputs_per_example = output.numel() // examples
+        weight = getattr(module, "weight", None)
+        if not isinstance(weight, Tensor):
+            return
+        if weight.ndim == 4:
+            operations_per_output = weight.shape[1] * weight.shape[2] * weight.shape[3]
+        elif weight.ndim == 2:
+            operations_per_output = weight.shape[1]
+        else:
+            return
+        total += 2 * outputs_per_example * operations_per_output
+
+    for module in model.modules():
+        weight = getattr(module, "weight", None)
+        if isinstance(weight, Tensor) and weight.ndim in {2, 4}:
+            handles.append(module.register_forward_hook(count))
+    was_training = model.training
+    try:
+        model.eval()
+        device = next(model.parameters()).device
+        model(sample_input[:1].to(device))
+    finally:
+        for handle in handles:
+            handle.remove()
+        model.train(was_training)
+    return total
+
+
+@torch.no_grad()
 def _validation_average(
     model: nn.Module,
     tasks: list[MNISTTask],
@@ -791,7 +987,7 @@ def _calibrate_old_class_bias(
     seen_classes = _classes_through_stage(config, stage)
     best_score = -math.inf
     # Fixed grid is part of the declared procedure, not tuned on test outcomes.
-    for offset in (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0):
+    for offset in CALIBRATION_OFFSETS:
         candidate = torch.zeros_like(bias)
         candidate[list(old_classes)] = offset
         score = _validation_average(
@@ -808,7 +1004,10 @@ def _calibrate_old_class_bias(
     return bias
 
 
-def _new_cost_record(model: nn.Module) -> dict[str, float | int]:
+def _new_cost_record(
+    model: nn.Module,
+    sample_input: Tensor | None = None,
+) -> dict[str, float | int]:
     return {
         "current_examples": 0,
         "replay_examples": 0,
@@ -826,11 +1025,18 @@ def _new_cost_record(model: nn.Module) -> dict[str, float | int]:
         "replay_memory_bytes": 0,
         "stored_logits_bytes": 0,
         "model_parameters": sum(parameter.numel() for parameter in model.parameters()),
+        "forward_flops_per_example": (
+            _linear_forward_flops(model)
+            if sample_input is None
+            else _model_forward_flops(model, sample_input)
+        ),
     }
 
 
 def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, Any]:
-    forward_flops = _linear_forward_flops(model)
+    forward_flops = int(
+        cost.get("forward_flops_per_example", _linear_forward_flops(model))
+    )
     learner = int(cost["learner_forward_examples"])
     teacher = int(cost["teacher_forward_examples"])
     backward = int(cost["learner_backward_examples"])
@@ -854,7 +1060,8 @@ def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, 
             "estimated_overhead_flops": overhead,
             "estimated_total_flops": core + overhead,
             "flop_convention": (
-                "Linear forward=2 FLOPs/weight/example; backward=2x forward. "
+                "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor "
+                "shapes; backward=2x forward. "
                 "Hooks, masks, regularizers and consolidation are reported "
                 "separately as operation-count approximations."
             ),
@@ -939,7 +1146,7 @@ def run_split_mnist(
                 sample_count=len(memory[0]),
                 batch_size=config.replay_batch_size,
                 steps=len(schedules[stage]),
-                seed=config.seed + 10_000 + stage,
+                seed=config.seed + REPLAY_SCHEDULE_SEED_OFFSET + stage,
             )
             if memory is not None
             else None
@@ -981,7 +1188,7 @@ def run_split_mnist(
             for name, parameter in model.named_parameters()
         }
         logit_bias = torch.zeros(len(config.class_order), device=config.device)
-        cost = _new_cost_record(model)
+        cost = _new_cost_record(model, tasks[0].train_x[:1])
         remembered_samples = config.replay_per_class * len(config.class_order)
         if _uses_replay(method):
             # Inputs are materialized as float32 and labels as int64.
@@ -1159,6 +1366,26 @@ def run_split_mnist(
                             for name, parameter in model.named_parameters()
                         }
 
+                    fisher_gradients: tuple[Tensor | None, ...] | None = None
+                    fisher_parameters: tuple[tuple[str, nn.Parameter], ...] = ()
+                    if method == "ewc":
+                        # The empirical Fisher must come from the current-task
+                        # likelihood, not from the EWC-regularized total loss.
+                        fisher_parameters = tuple(model.named_parameters())
+                        fisher_gradients = torch.autograd.grad(
+                            current_loss,
+                            tuple(parameter for _, parameter in fisher_parameters),
+                            retain_graph=True,
+                            allow_unused=True,
+                        )
+                        fisher_steps += 1
+                        for (name, _), gradient in zip(
+                            fisher_parameters, fisher_gradients, strict=True
+                        ):
+                            if gradient is not None:
+                                fisher_sum[name].add_(gradient.detach().square())
+                        cost["learner_backward_examples"] += current_count
+
                     if method == "agem" and replay_loss is not None:
                         current_loss.backward()
                         current_gradient = _gradient_vector(model)
@@ -1186,19 +1413,14 @@ def run_split_mnist(
                             )
                             for name, parameter in model.named_parameters()
                         }
-                    if method == "ewc":
-                        fisher_steps += 1
-                        for name, parameter in model.named_parameters():
-                            if parameter.grad is not None:
-                                fisher_sum[name].add_(parameter.grad.detach().square())
-
                     step_started = time.perf_counter()
                     optimizer.step()
                     cost["optimizer_step_seconds"] += time.perf_counter() - step_started
                     cost["optimizer_steps"] += 1
-                    if isinstance(model, SlowHeatMLP):
+                    slow_layers = _slow_layers(model)
+                    if slow_layers:
                         slow_units = sum(
-                            layer.slow_heat.numel() for layer in model.get_slow_layers()
+                            layer.slow_heat.numel() for layer in slow_layers
                         )
                         cost["slowheat_hook_flops"] += 4 * slow_units * (
                             current_count + replay_count
@@ -1206,7 +1428,7 @@ def run_split_mnist(
                         masked_parameters = sum(
                             layer.weight.numel()
                             + (0 if layer.bias is None else layer.bias.numel())
-                            for layer in model.get_slow_layers()
+                            for layer in slow_layers
                         )
                         cost["mask_application_flops"] += masked_parameters
 
@@ -1279,7 +1501,8 @@ def run_split_mnist(
                     si_anchors[name] = parameter.detach().clone()
                 cost["consolidation_flops"] += 4 * int(cost["model_parameters"])
 
-            if isinstance(model, SlowHeatMLP) and method != "slowheat_none":
+            slow_layers = _slow_layers(model)
+            if slow_layers and method != "slowheat_none":
                 consolidation_started = time.perf_counter()
                 if method in {
                     "slowheat_adaptive",
@@ -1299,10 +1522,10 @@ def run_split_mnist(
                 cost["consolidation_flops"] += sum(
                     layer.slow_heat.numel()
                     * max(1, math.ceil(math.log2(layer.slow_heat.numel())))
-                    for layer in model.get_slow_layers()
+                    for layer in slow_layers
                 )
                 capacity_history.append(
-                    [layer.capacity_metrics() for layer in model.get_slow_layers()]
+                    [layer.capacity_metrics() for layer in slow_layers]
                 )
 
             if method == "slowheat_replay_hidden_beta_30_budget_0.25_calibrated":
@@ -1379,6 +1602,10 @@ def run_split_mnist(
     if output_dir is not None:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
+        write_environment_manifest(
+            output_path,
+            project_root=Path(__file__).resolve().parents[1],
+        )
         with (output_path / "config.json").open("w", encoding="utf-8") as handle:
             json.dump(config_payload(config), handle, indent=2, sort_keys=True)
         with (output_path / "results.json").open("w", encoding="utf-8") as handle:
@@ -1469,16 +1696,7 @@ AGGREGATE_METRICS = {
 
 
 def _aggregate_summary(values: list[float]) -> dict[str, float]:
-    array = np.asarray(values, dtype=np.float64)
-    mean = float(np.mean(array))
-    std = float(np.std(array, ddof=1)) if len(array) > 1 else 0.0
-    return {
-        "mean": mean,
-        "std": std,
-        "ci95_normal_half_width": (
-            float(1.96 * std / np.sqrt(len(array))) if len(array) > 1 else 0.0
-        ),
-    }
+    return normal_summary(values)
 
 
 def _result_metric(result: dict[str, Any], metric: str) -> float:
@@ -1507,6 +1725,10 @@ def run_split_mnist_multi_seed(
         raise ValueError("seeds deve ser não vazio e conter valores únicos")
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    write_environment_manifest(
+        output_path,
+        project_root=Path(__file__).resolve().parents[1],
+    )
     raw: dict[int, dict[str, dict[str, Any]]] = {}
     for index, seed in enumerate(seeds):
         config = replace(base_config, seed=seed)

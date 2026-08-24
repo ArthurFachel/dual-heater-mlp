@@ -4,10 +4,11 @@
 
 Technical manuscript draft. The current implementation is validated by unit
 and integration tests. Exploratory Split-MNIST comparisons against Replay,
-DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented, but their raw
-per-seed artifacts are not versioned and the frozen independent confirmation
-has no versioned execution artifacts. Split-CIFAR-10/100 support is implemented
-without versioned results. The three-seed pilot in Section 5 predates the
+DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented and their raw
+per-seed artifacts are versioned, but the frozen independent confirmation has
+no versioned execution artifacts. Split-CIFAR-10/100 support is implemented;
+only partial, non-aggregate Split-CIFAR-10 diagnostics are versioned. The
+three-seed pilot in Section 5 predates the
 functional-importance, factorized-protection, capacity-budget and
 optimizer-state changes; it is retained only as historical motivation and
 must not be reported as evidence for the current method.

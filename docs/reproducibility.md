@@ -5,6 +5,12 @@ class-incremental benchmark with one shared output head. Evaluation receives no
 task ID, but SlowHeat receives oracle task-boundary events for `consolidate()`.
 The protocol is therefore not task-free.
 
+Every new single- or multi-seed output directory includes an `environment.json`
+manifest with Python/platform versions, direct research-package versions, Git
+commit/branch/dirty state and the invoking command. Generated `results/`
+directories are ignored by default; only reviewed publication artifacts should
+be promoted deliberately to an archive.
+
 The classifier has final capacity from initialization for paired parameter
 comparisons, but logits beyond the classes seen at a stage are sliced out of
 both cross-entropy and evaluation. Future classifier rows consequently receive
@@ -15,6 +21,8 @@ paired random model with the same stage-specific visible-class count.
 
 - Every method receives byte-identical trainable parameter initialization.
 - Dataset generation and train/test splits are deterministic for each seed.
+- Activation, class-center scale and Gaussian-noise scale are explicit config
+  fields rather than hidden generator constants.
 - Minibatch index schedules are precomputed once and reused by every method.
 - Every stage evaluates all tasks seen so far and stores the lower triangle of `A[t, k]`.
 - Average accuracy, average forgetting, backward transfer and forward transfer are computed by `dual_heater.metrics`.

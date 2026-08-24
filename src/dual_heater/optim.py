@@ -80,6 +80,7 @@ class _PlasticityMaskMixin:
         module: torch.nn.Module,
         *,
         input_module: torch.nn.Module | None = None,
+        input_expansion: int = 1,
         hard: bool = False,
     ) -> None:
         """Atomically register factorized masks derived from SlowHeat layers.
@@ -107,8 +108,17 @@ class _PlasticityMaskMixin:
                 "todos os parâmetros do módulo devem pertencer ao optimizer"
             )
 
+        if (
+            not isinstance(input_expansion, int)
+            or isinstance(input_expansion, bool)
+            or input_expansion < 1
+        ):
+            raise ValueError("input_expansion deve ser um inteiro positivo")
+
         typed_input: _SlowHeatModule | None = None
         input_position: tuple[int, int] | None = None
+        grouped_convolution = False
+        groups = 1
         if input_module is not None:
             input_heat = getattr(input_module, "slow_heat", None)
             input_strength = getattr(input_module, "slow_strength", None)
@@ -124,7 +134,28 @@ class _PlasticityMaskMixin:
                 raise ValueError(
                     "proteção fatorada requer parâmetro com ao menos 2 dims"
                 )
-            if typed_module.weight.shape[1] != typed_input.slow_heat.numel():
+            source_units = typed_input.slow_heat.numel()
+            in_channels = getattr(module, "in_channels", None)
+            groups = getattr(module, "groups", 1)
+            grouped_convolution = (
+                typed_module.weight.ndim == 4
+                and isinstance(in_channels, int)
+                and isinstance(groups, int)
+            )
+            if grouped_convolution:
+                compatible = input_expansion == 1 and in_channels == source_units
+                compatible = compatible and groups >= 1
+                compatible = compatible and in_channels % groups == 0
+                compatible = compatible and typed_module.weight.shape[0] % groups == 0
+                compatible = compatible and (
+                    typed_module.weight.shape[1] == in_channels // groups
+                )
+            else:
+                compatible = (
+                    typed_module.weight.shape[1]
+                    == source_units * input_expansion
+                )
+            if not compatible:
                 raise ValueError(
                     "a importância de entrada não corresponde à dimensão do parâmetro"
                 )
@@ -140,9 +171,34 @@ class _PlasticityMaskMixin:
             )
             if typed_input is None:
                 return output_factor
-            input_factor = module_factor(typed_input).reshape(
-                (1, -1) + (1,) * (typed_module.weight.ndim - 2)
-            )
+            source_factor = module_factor(typed_input)
+            if grouped_convolution:
+                outputs = typed_module.weight.shape[0]
+                inputs_per_group = typed_module.weight.shape[1]
+                outputs_per_group = outputs // groups
+                output_group = (
+                    torch.arange(outputs, device=source_factor.device)
+                    // outputs_per_group
+                )
+                local_input = torch.arange(
+                    inputs_per_group,
+                    device=source_factor.device,
+                )
+                global_input = (
+                    output_group[:, None] * inputs_per_group
+                    + local_input[None, :]
+                )
+                input_factor = source_factor[global_input].reshape(
+                    outputs,
+                    inputs_per_group,
+                    *([1] * (typed_module.weight.ndim - 2)),
+                )
+            else:
+                input_factor = source_factor.repeat_interleave(
+                    input_expansion
+                ).reshape(
+                    (1, -1) + (1,) * (typed_module.weight.ndim - 2)
+                )
             return torch.minimum(output_factor, input_factor)
 
         def bias_mask() -> Tensor:
@@ -156,6 +212,10 @@ class _PlasticityMaskMixin:
                 f"{prefix}_weight_factorized_from_"
                 f"{input_position[0]}_{input_position[1]}"
             )
+            if groups > 1:
+                weight_kind += f"_groups_{groups}"
+            if input_expansion > 1:
+                weight_kind += f"_repeat_{input_expansion}"
 
         typed_module.gradient_masking = False
         self.register_plasticity_mask(
@@ -184,6 +244,7 @@ class _PlasticityMaskMixin:
         layers = list(getter())
         if not layers:
             raise ValueError("model não contém camadas SlowHeat")
+        registrations: list[tuple[torch.nn.Module, torch.nn.Module | None, int]] = []
         for index, layer in enumerate(layers):
             weight = getattr(layer, "weight", None)
             bias = getattr(layer, "bias", None)
@@ -196,16 +257,36 @@ class _PlasticityMaskMixin:
                 raise ValueError(
                     "todos os parâmetros SlowHeat devem pertencer ao optimizer"
                 )
-            if index > 0 and weight.shape[1] != layers[index - 1].slow_heat.numel():
-                raise ValueError("camadas SlowHeat não formam uma cadeia compatível")
-        previous = None
-        for layer in layers:
+            previous = layers[index - 1] if index > 0 else None
+            expansion = 1
+            if previous is not None:
+                source_units = previous.slow_heat.numel()
+                if (
+                    weight.ndim == 4
+                    and isinstance(getattr(layer, "in_channels", None), int)
+                ):
+                    compatible = layer.in_channels == source_units
+                elif (
+                    weight.ndim == 2
+                    and isinstance(previous, torch.nn.Conv2d)
+                    and weight.shape[1] % source_units == 0
+                ):
+                    expansion = weight.shape[1] // source_units
+                    compatible = True
+                else:
+                    compatible = weight.shape[1] == source_units
+                if not compatible:
+                    raise ValueError(
+                        "camadas SlowHeat não formam uma cadeia compatível"
+                    )
+            registrations.append((layer, previous, expansion))
+        for layer, previous, expansion in registrations:
             self.register_slow_heat_module(
                 layer,
                 input_module=previous,
+                input_expansion=expansion,
                 hard=hard,
             )
-            previous = layer
 
     def clear_plasticity_masks(self) -> None:
         """Remove optimizer masks; module gradient hooks are not re-enabled."""

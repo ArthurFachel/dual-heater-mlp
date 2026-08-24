@@ -4,7 +4,13 @@ import pytest
 import torch
 
 import experiments.visual_generalization as visual
-from experiments.split_mnist import SUPPORTED_METHODS
+from experiments.split_mnist import (
+    SUPPORTED_METHODS,
+    MNISTTask,
+    SplitMNISTConfig,
+    build_paired_models,
+    run_split_mnist,
+)
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS
 
 
@@ -14,6 +20,7 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert set(configs) == {
         "permuted_mnist",
         "split_cifar10",
+        "split_cifar10_cnn",
         "split_cifar100",
     }
     assert configs["permuted_mnist"].scenario == "domain_incremental"
@@ -24,6 +31,9 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar100"].scenario == "class_incremental"
     assert configs["split_cifar100"].task_count == 10
     assert configs["split_cifar100"].classes_per_task == 10
+    assert configs["split_cifar10_cnn"].backbone == "cnn"
+    assert configs["split_cifar10_cnn"].image_shape == (3, 32, 32)
+    assert configs["split_cifar10_cnn"].methods == visual.CNN_VISUAL_METHODS
     assert configs["permuted_mnist"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar10"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar100"].methods == ALL_VISUAL_METHODS
@@ -31,6 +41,87 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert SUPPORTED_METHODS <= set(ALL_VISUAL_METHODS)
     for config in configs.values():
         config.validate()
+
+
+def test_split_cifar_cnn_loader_preserves_nchw_shape(tmp_path, monkeypatch):
+    class FakeCIFAR:
+        def __init__(self, *, root, train, download):
+            del root, download
+            examples_per_class = 3 if train else 1
+            self.targets = [
+                label
+                for label in range(10)
+                for _ in range(examples_per_class)
+            ]
+            self.data = torch.zeros(
+                len(self.targets), 32, 32, 3, dtype=torch.uint8
+            )
+
+    monkeypatch.setattr("torchvision.datasets.CIFAR10", FakeCIFAR)
+    config = replace(
+        visual.generalization_configs()["split_cifar10_cnn"],
+        train_per_class=1,
+        validation_per_class=1,
+        test_per_class=1,
+    )
+
+    tasks = visual.load_split_cifar10(config, data_dir=tmp_path)
+
+    assert tasks[0].train_x.shape == (2, 3, 32, 32)
+    assert tasks[0].validation_x.shape == (2, 3, 32, 32)
+    assert tasks[0].test_x.shape == (2, 3, 32, 32)
+
+
+def test_cnn_backbone_runs_paired_vanilla_and_slowheat_methods():
+    config = SplitMNISTConfig(
+        class_order=(0, 1),
+        classes_per_task=2,
+        input_dim=64,
+        hidden_dims=(1,),
+        backbone="cnn",
+        image_shape=(1, 8, 8),
+        cnn_channels=(2, 3),
+        cnn_pooled_size=(1, 1),
+        batch_size=2,
+        epochs_per_task=1,
+        methods=(
+            "vanilla",
+            "slowheat_none",
+            "slowheat_unidirectional",
+            "slowheat",
+            "hard_freeze",
+        ),
+    )
+    inputs = torch.randn(4, 1, 8, 8)
+    targets = torch.tensor([0, 1, 0, 1])
+    tasks = [
+        MNISTTask(
+            classes=(0, 1),
+            train_x=inputs,
+            train_y=targets,
+            validation_x=inputs[:2],
+            validation_y=targets[:2],
+            test_x=inputs[:2],
+            test_y=targets[:2],
+        )
+    ]
+    models = build_paired_models(config)
+    reference = dict(models["vanilla"].named_parameters())
+    protected = dict(models["slowheat"].named_parameters())
+
+    assert reference.keys() == protected.keys()
+    assert all(torch.equal(reference[name], protected[name]) for name in reference)
+
+    results = run_split_mnist(config, tasks)
+
+    assert tuple(results) == config.methods
+    assert results["slowheat_none"]["capacity_history"] == []
+    assert len(results["slowheat"]["capacity_history"]) == 1
+    assert len(results["hard_freeze"]["capacity_history"]) == 1
+    assert all(
+        result["cost"]["estimated_total_flops"] > 0
+        for result in results.values()
+    )
 
 
 @pytest.mark.parametrize(

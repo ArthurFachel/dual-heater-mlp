@@ -3,11 +3,49 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 
 PRIMARY_ENDPOINT = "final_average_accuracy"
+
+
+def normal_summary(values: Sequence[float]) -> dict[str, float]:
+    """Return mean, sample standard deviation and a normal CI half-width."""
+
+    array = np.asarray(values, dtype=np.float64)
+    if array.ndim != 1 or len(array) == 0 or not np.isfinite(array).all():
+        raise ValueError("values deve ser um vetor finito e não vazio")
+    mean = float(array.mean())
+    std = float(array.std(ddof=1)) if len(array) > 1 else 0.0
+    return {
+        "mean": mean,
+        "std": std,
+        "ci95_normal_half_width": (
+            float(1.96 * std / math.sqrt(len(array))) if len(array) > 1 else 0.0
+        ),
+    }
+
+
+def exact_two_sided_sign_test(differences: Sequence[float]) -> float | None:
+    """Return the exact two-sided sign-test p-value, ignoring exact ties."""
+
+    values = np.asarray(differences, dtype=np.float64)
+    if values.ndim != 1 or not np.isfinite(values).all():
+        raise ValueError("differences deve ser um vetor finito")
+    positives = int(np.count_nonzero(values > 0.0))
+    negatives = int(np.count_nonzero(values < 0.0))
+    nonzero = positives + negatives
+    if nonzero == 0:
+        return None
+    tail = min(positives, negatives)
+    return min(
+        1.0,
+        2.0
+        * sum(math.comb(nonzero, index) for index in range(tail + 1))
+        / 2**nonzero,
+    )
 
 
 def _beta_continued_fraction(a: float, b: float, x: float) -> float:
@@ -136,17 +174,7 @@ def paired_confirmatory_summary(
     positives = int(np.count_nonzero(values > 0.0))
     negatives = int(np.count_nonzero(values < 0.0))
     ties = count - positives - negatives
-    nonzero = positives + negatives
-    if nonzero == 0:
-        sign_p = None
-    else:
-        tail = min(positives, negatives)
-        sign_p = min(
-            1.0,
-            2.0
-            * sum(math.comb(nonzero, index) for index in range(tail + 1))
-            / 2**nonzero,
-        )
+    sign_p = exact_two_sided_sign_test(values)
 
     return {
         "n_pairs": count,

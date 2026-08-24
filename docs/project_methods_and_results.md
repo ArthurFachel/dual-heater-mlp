@@ -597,7 +597,7 @@ O CSV fornecido não contém resultados dessas extensões.
 
 ## 12. Validação de engenharia
 
-A suíte atual contém **102 testes automatizados, todos aprovados nesta revisão**. Eles cobrem, entre outros pontos:
+A suíte atual contém **mais de 100 testes automatizados**. Eles cobrem, entre outros pontos:
 
 - invariância da utilidade funcional à reescala recíproca ReLU;
 - utilidade zero para unidade ReLU morta;
@@ -690,7 +690,7 @@ experiments/
 
 docs/               contratos, protocolo e registro experimental
 notebooks/           execução interativa dos protocolos
-tests/               102 testes aprovados
+tests/               mais de 100 testes automatizados
 article/             manuscrito técnico em desenvolvimento
 ```
 

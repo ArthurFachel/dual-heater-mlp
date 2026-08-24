@@ -3,6 +3,7 @@ import pytest
 import run_all_tests
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP
 from experiments.synthetic_cl import SYNTHETIC_METHODS
+from experiments.visual_generalization import CNN_VISUAL_METHODS
 
 
 def test_default_plan_covers_every_confirmatory_notebook_section():
@@ -48,6 +49,29 @@ def test_default_plan_covers_every_confirmatory_notebook_section():
     assert plan["sections"]["split-cifar100"]["methods"] == list(
         ALL_VISUAL_METHODS
     )
+    assert "split-cifar10-cnn" not in plan["sections"]
+
+
+def test_cnn_cifar_plan_declares_real_image_backbone():
+    args = run_all_tests.parse_args(
+        ["--num-seeds", "3", "--sections", "split-cifar10-cnn", "--dry-run"]
+    )
+    plan = run_all_tests.build_run_plan(args)
+    section = plan["sections"]["split-cifar10-cnn"]
+
+    assert section["methods"] == list(CNN_VISUAL_METHODS)
+    assert section["protocol"] == {
+        "scenario": "class_incremental",
+        "task_count": 5,
+        "classes_per_task": 2,
+        "class_count": 10,
+        "inference_task_id": False,
+        "backbone": "cnn",
+        "image_shape": [3, 32, 32],
+        "channels": [32, 64],
+        "pooled_size": [2, 2],
+        "epochs_per_task": 5,
+    }
 
 
 def test_all_datasets_all_methods_plan_covers_every_compatible_cross_section():
@@ -133,6 +157,31 @@ def test_cifar_sections_use_visual_generalization_runner(tmp_path, monkeypatch):
 
     assert [name for name, _ in captured] == ["split_cifar10", "split_cifar100"]
     assert all(kwargs["download"] is True for _, kwargs in captured)
+
+
+def test_cnn_cifar_section_uses_visual_generalization_runner(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_run(name, **kwargs):
+        captured["name"] = name
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(run_all_tests, "run_visual_generalization", fake_run)
+    args = run_all_tests.parse_args(
+        ["--sections", "split-cifar10-cnn", "--num-seeds", "1"]
+    )
+
+    result = run_all_tests._run_section(
+        "split-cifar10-cnn",
+        args,
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "results",
+    )
+
+    assert result == {"ok": True}
+    assert captured["name"] == "split_cifar10_cnn"
+    assert captured["output_dir"].name == "split_cifar10_cnn"
 
 
 def test_synthetic_all_methods_section_uses_secondary_seeds(tmp_path, monkeypatch):
