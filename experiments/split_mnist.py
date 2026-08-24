@@ -1821,12 +1821,20 @@ def run_split_mnist_multi_seed(
                     {"seed": seed, "difference": difference}
                     for seed, difference in zip(seeds, differences, strict=True)
                 ]
-                aggregate[comparison_key][method][metric]["confirmatory"] = (
-                    paired_confirmatory_summary(
+                if len(differences) >= 2:
+                    confirmatory: dict[str, Any] = paired_confirmatory_summary(
                         differences,
                         bootstrap_resamples=base_config.bootstrap_resamples,
                         bootstrap_seed=base_config.bootstrap_seed,
                     )
+                else:
+                    confirmatory = {
+                        "available": False,
+                        "n_pairs": len(differences),
+                        "reason": "requires_at_least_two_paired_seeds",
+                    }
+                aggregate[comparison_key][method][metric]["confirmatory"] = (
+                    confirmatory
                 )
                 paired_rows.extend(
                     {

@@ -268,6 +268,37 @@ def test_multi_seed_runner_aggregates_means_and_paired_differences(
     assert (tmp_path / "results" / "aggregate.json").is_file()
 
 
+def test_multi_seed_runner_allows_single_seed_as_descriptive_smoke_test(
+    tmp_path, monkeypatch
+):
+    config = SplitMNISTConfig(
+        seed=2,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        methods=("vanilla", "slowheat_beta_100"),
+    )
+    monkeypatch.setattr(
+        "experiments.split_mnist.load_split_mnist",
+        lambda current, **_: _tiny_tasks(current),
+    )
+
+    aggregate = run_split_mnist_multi_seed(
+        config,
+        seeds=[2],
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "results",
+    )
+
+    paired = aggregate["paired_differences_vs_vanilla"]["slowheat_beta_100"]
+    assert paired["final_average_accuracy"]["confirmatory"] == {
+        "available": False,
+        "n_pairs": 1,
+        "reason": "requires_at_least_two_paired_seeds",
+    }
+    assert paired["final_average_accuracy"]["std"] == 0.0
+
+
 def test_multi_seed_resume_reuses_completed_matching_seeds(tmp_path, monkeypatch):
     config = SplitMNISTConfig(
         seed=2,
