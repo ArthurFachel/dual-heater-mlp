@@ -4,28 +4,18 @@ from .dual_heat import DualHeatLinear, DualHeatMLP
 from .lora import DualHeatLoRALinear
 from .metrics import CLMetrics, compute_cl_metrics
 from .optim import SlowHeatAdamW, SlowHeatSGD
-from .resnet import CIFARResNet18, SlowHeatResNet18
-from .slow_heat import (
-    SlowHeatChannelTracker,
-    SlowHeatCNN,
-    SlowHeatConv2d,
-    SlowHeatLinear,
-    SlowHeatMLP,
-)
+from .slow_heat import SlowHeatCNN, SlowHeatConv2d, SlowHeatLinear, SlowHeatMLP
 
 __all__ = [
-    "CIFARResNet18",
     "CLMetrics",
     "DualHeatLinear",
     "DualHeatLoRALinear",
     "DualHeatMLP",
     "SlowHeatAdamW",
     "SlowHeatCNN",
-    "SlowHeatChannelTracker",
     "SlowHeatConv2d",
     "SlowHeatLinear",
     "SlowHeatMLP",
-    "SlowHeatResNet18",
     "SlowHeatSGD",
     "compute_cl_metrics",
 ]

@@ -19,14 +19,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from dual_heater import (
-    CIFARResNet18,
-    SlowHeatAdamW,
-    SlowHeatCNN,
-    SlowHeatMLP,
-    SlowHeatResNet18,
-    compute_cl_metrics,
-)
+from dual_heater import SlowHeatAdamW, SlowHeatCNN, SlowHeatMLP, compute_cl_metrics
 from experiments.confirmatory_statistics import (
     PRIMARY_ENDPOINT,
     normal_summary,
@@ -263,8 +256,6 @@ class SplitMNISTConfig:
     image_shape: tuple[int, int, int] | None = None
     cnn_channels: tuple[int, int] = (32, 64)
     cnn_pooled_size: tuple[int, int] = (2, 2)
-    resnet_stage_channels: tuple[int, int, int, int] = (64, 128, 256, 512)
-    resnet_blocks_per_stage: tuple[int, int, int, int] = (2, 2, 2, 2)
     batch_size: int = 128
     epochs_per_task: int = 2
     train_per_class: int | None = 1_000
@@ -391,8 +382,8 @@ class SplitMNISTConfig:
                 raise ValueError(f"{name} deve ser >= 1 ou None")
         if not self.hidden_dims or any(width < 1 for width in self.hidden_dims):
             raise ValueError("hidden_dims deve conter dimensões positivas")
-        if self.backbone not in {"mlp", "cnn", "resnet18"}:
-            raise ValueError("backbone deve ser 'mlp', 'cnn' ou 'resnet18'")
+        if self.backbone not in {"mlp", "cnn"}:
+            raise ValueError("backbone deve ser 'mlp' ou 'cnn'")
         if self.backbone == "mlp":
             if self.image_shape is not None:
                 raise ValueError("image_shape só é válido para backbone CNN")
@@ -406,30 +397,14 @@ class SplitMNISTConfig:
                 raise ValueError(
                     "backbone CNN requer image_shape [C, H, W] compatível com input_dim"
                 )
-            if self.backbone == "cnn":
-                if len(self.cnn_channels) != 2 or any(
-                    width < 1 for width in self.cnn_channels
-                ):
-                    raise ValueError("cnn_channels deve conter dois canais positivos")
-                if len(self.cnn_pooled_size) != 2 or any(
-                    size < 1 for size in self.cnn_pooled_size
-                ):
-                    raise ValueError(
-                        "cnn_pooled_size deve conter dimensões positivas"
-                    )
-            else:
-                if len(self.resnet_stage_channels) != 4 or any(
-                    width < 1 for width in self.resnet_stage_channels
-                ):
-                    raise ValueError(
-                        "resnet_stage_channels deve conter quatro canais positivos"
-                    )
-                if len(self.resnet_blocks_per_stage) != 4 or any(
-                    count < 1 for count in self.resnet_blocks_per_stage
-                ):
-                    raise ValueError(
-                        "resnet_blocks_per_stage deve conter quatro contagens positivas"
-                    )
+            if len(self.cnn_channels) != 2 or any(
+                width < 1 for width in self.cnn_channels
+            ):
+                raise ValueError("cnn_channels deve conter dois canais positivos")
+            if len(self.cnn_pooled_size) != 2 or any(
+                size < 1 for size in self.cnn_pooled_size
+            ):
+                raise ValueError("cnn_pooled_size deve conter dimensões positivas")
         finite_values = {
             "learning_rate": self.learning_rate,
             "weight_decay": self.weight_decay,
@@ -536,11 +511,11 @@ class SplitMNISTConfig:
                 or _uses_classifier_expander(method)
                 or _uses_scroll(method)
             )
-            and self.backbone not in {"cnn", "resnet18"}
+            and self.backbone != "cnn"
         }
         if cnn_only:
             raise ValueError(
-                "LPR, Classifier Expander e SCROLL requerem backbone convolucional neste "
+                "LPR, Classifier Expander e SCROLL requerem backbone CNN neste "
                 f"runner: {sorted(cnn_only)}"
             )
         invalid_budgets = {
@@ -577,16 +552,8 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
             "image_shape",
             "cnn_channels",
             "cnn_pooled_size",
-            "resnet_stage_channels",
-            "resnet_blocks_per_stage",
         ):
             payload.pop(field)
-    elif config.backbone == "cnn":
-        payload.pop("resnet_stage_channels")
-        payload.pop("resnet_blocks_per_stage")
-    else:
-        payload.pop("cnn_channels")
-        payload.pop("cnn_pooled_size")
     if not any(
         _uses_lpr(method)
         or _uses_classifier_expander(method)
@@ -797,13 +764,6 @@ def _vanilla_model(config: SplitMNISTConfig, dims: tuple[int, ...]) -> nn.Module
     if config.backbone == "mlp":
         return _vanilla_mlp(dims)
     assert config.image_shape is not None
-    if config.backbone == "resnet18":
-        return CIFARResNet18(
-            config.image_shape[0],
-            len(config.class_order),
-            stage_channels=config.resnet_stage_channels,
-            blocks_per_stage=config.resnet_blocks_per_stage,
-        )
     return _VanillaCNN(
         config.image_shape[0],
         len(config.class_order),
@@ -851,7 +811,7 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
                         protect_output=_protects_output(method),
                         output_slow_strength=output_strength,
                     )
-                elif config.backbone == "cnn":
+                else:
                     assert config.image_shape is not None
                     model = SlowHeatCNN(
                         config.image_shape[0],
@@ -859,18 +819,6 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
                         channels=config.cnn_channels,
                         pooled_size=config.cnn_pooled_size,
                         act="relu",
-                        slow_strength=slow_strength,
-                        plasticity_budget=budget,
-                        protect_output=_protects_output(method),
-                        output_slow_strength=output_strength,
-                    )
-                else:
-                    assert config.image_shape is not None
-                    model = SlowHeatResNet18(
-                        config.image_shape[0],
-                        len(config.class_order),
-                        stage_channels=config.resnet_stage_channels,
-                        blocks_per_stage=config.resnet_blocks_per_stage,
                         slow_strength=slow_strength,
                         plasticity_budget=budget,
                         protect_output=_protects_output(method),
@@ -886,11 +834,6 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
 def _slow_layers(model: nn.Module) -> list[nn.Module]:
     getter = getattr(model, "get_slow_layers", None)
     return list(getter()) if callable(getter) else []
-
-
-def _slow_states(model: nn.Module) -> list[nn.Module]:
-    getter = getattr(model, "get_slow_states", None)
-    return list(getter()) if callable(getter) else _slow_layers(model)
 
 
 def _cnn_classifier(model: nn.Module) -> nn.Module:
@@ -1053,7 +996,6 @@ def _build_optimizer(
     if _is_unidirectional(method):
         for layer in _slow_layers(model):
             optimizer.register_slow_heat_module(layer)
-        optimizer.register_slow_heat_channel_model(model)
     else:
         optimizer.register_slow_heat_model(model, hard=method == "hard_freeze")
     return optimizer
@@ -1812,10 +1754,9 @@ def run_split_mnist(
                     cost["optimizer_step_seconds"] += time.perf_counter() - step_started
                     cost["optimizer_steps"] += 1
                     slow_layers = _slow_layers(model)
-                    slow_states = _slow_states(model)
                     if slow_layers:
                         slow_units = sum(
-                            state.slow_heat.numel() for state in slow_states
+                            layer.slow_heat.numel() for layer in slow_layers
                         )
                         cost["slowheat_hook_flops"] += 4 * slow_units * (
                             current_count + replay_count
@@ -1972,7 +1913,6 @@ def run_split_mnist(
                 cost["consolidation_flops"] += 4 * int(cost["model_parameters"])
 
             slow_layers = _slow_layers(model)
-            slow_states = _slow_states(model)
             if slow_layers and method != "slowheat_none":
                 consolidation_started = time.perf_counter()
                 if method in {
@@ -1991,12 +1931,12 @@ def run_split_mnist(
                     time.perf_counter() - consolidation_started
                 )
                 cost["consolidation_flops"] += sum(
-                    state.slow_heat.numel()
-                    * max(1, math.ceil(math.log2(state.slow_heat.numel())))
-                    for state in slow_states
+                    layer.slow_heat.numel()
+                    * max(1, math.ceil(math.log2(layer.slow_heat.numel())))
+                    for layer in slow_layers
                 )
                 capacity_history.append(
-                    [state.capacity_metrics() for state in slow_states]
+                    [layer.capacity_metrics() for layer in slow_layers]
                 )
 
             if method == "slowheat_replay_hidden_beta_30_budget_0.25_calibrated":

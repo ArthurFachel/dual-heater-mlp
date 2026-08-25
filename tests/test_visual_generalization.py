@@ -22,7 +22,6 @@ def test_generalization_configs_preserve_scenario_semantics():
         "split_cifar10",
         "split_cifar10_cnn",
         "split_cifar10_cnn_sweep",
-        "split_cifar10_resnet18",
         "split_cifar100",
     }
     assert configs["permuted_mnist"].scenario == "domain_incremental"
@@ -36,11 +35,6 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar10_cnn"].backbone == "cnn"
     assert configs["split_cifar10_cnn"].image_shape == (3, 32, 32)
     assert configs["split_cifar10_cnn"].methods == visual.CNN_VISUAL_METHODS
-    assert configs["split_cifar10_resnet18"].backbone == "resnet18"
-    assert (
-        configs["split_cifar10_resnet18"].methods
-        == visual.RESNET18_VISUAL_METHODS
-    )
     assert (
         configs["split_cifar10_cnn_sweep"].methods
         == visual.CNN_SWEEP_METHODS
@@ -214,129 +208,6 @@ def test_cnn_continual_methods_run_normal_and_slowheat_pairs():
     assert tuple(results) == methods
     for method, result in results.items():
         assert result["cost"]["replay_memory_bytes"] > 0
-        assert result["cost"]["optimizer_steps"] > 0
-        expected_history = config.task_count if method.startswith("slowheat_") else 0
-        assert len(result["capacity_history"]) == expected_history
-
-
-def test_resnet18_backbone_runs_paired_vanilla_and_slowheat_methods():
-    config = SplitMNISTConfig(
-        class_order=(0, 1),
-        classes_per_task=2,
-        input_dim=256,
-        hidden_dims=(1,),
-        backbone="resnet18",
-        image_shape=(1, 16, 16),
-        resnet_stage_channels=(2, 2, 2, 2),
-        resnet_blocks_per_stage=(1, 1, 1, 1),
-        batch_size=2,
-        epochs_per_task=1,
-        methods=("vanilla", "slowheat_none", "slowheat"),
-    )
-    inputs = torch.randn(4, 1, 16, 16)
-    targets = torch.tensor([0, 1, 0, 1])
-    tasks = [
-        MNISTTask(
-            classes=(0, 1),
-            train_x=inputs,
-            train_y=targets,
-            validation_x=inputs[:2],
-            validation_y=targets[:2],
-            test_x=inputs[:2],
-            test_y=targets[:2],
-        )
-    ]
-    models = build_paired_models(config)
-    reference = dict(models["vanilla"].named_parameters())
-    protected = dict(models["slowheat"].named_parameters())
-
-    assert reference.keys() == protected.keys()
-    assert all(torch.equal(reference[name], protected[name]) for name in reference)
-
-    results = run_split_mnist(config, tasks)
-
-    assert tuple(results) == config.methods
-    assert results["slowheat_none"]["capacity_history"] == []
-    assert len(results["slowheat"]["capacity_history"]) == 1
-
-
-def test_resnet18_runner_uses_method_specific_paired_references(
-    tmp_path, monkeypatch
-):
-    captured = {}
-
-    def fake_multi_seed(config, **kwargs):
-        captured["config"] = config
-        captured.update(kwargs)
-        return {"ok": True}
-
-    monkeypatch.setattr(visual, "run_split_mnist_multi_seed", fake_multi_seed)
-
-    result = visual.run_visual_generalization(
-        "split_cifar10_resnet18",
-        seeds=[7, 9],
-        data_dir=tmp_path / "data",
-        output_dir=tmp_path / "results",
-        download=False,
-    )
-
-    assert result == {"ok": True}
-    assert captured["config"].methods == visual.RESNET18_VISUAL_METHODS
-    assert captured["paired_references"] == (
-        "vanilla",
-        "lpr",
-        "classifier_expander",
-        "scroll",
-    )
-
-
-def test_resnet18_continual_method_pairs_complete_two_tasks():
-    methods = (
-        "lpr",
-        "slowheat_lpr",
-        "classifier_expander",
-        "slowheat_classifier_expander",
-        "scroll",
-        "slowheat_scroll",
-    )
-    config = SplitMNISTConfig(
-        seed=5,
-        class_order=(0, 1, 2, 3),
-        classes_per_task=2,
-        input_dim=256,
-        hidden_dims=(1,),
-        backbone="resnet18",
-        image_shape=(1, 16, 16),
-        resnet_stage_channels=(2, 2, 2, 2),
-        resnet_blocks_per_stage=(1, 1, 1, 1),
-        batch_size=2,
-        epochs_per_task=1,
-        replay_per_class=1,
-        replay_batch_size=2,
-        lpr_update_frequency=1,
-        methods=methods,
-    )
-    generator = torch.Generator().manual_seed(101)
-    tasks = []
-    for classes in ((0, 1), (2, 3)):
-        inputs = torch.randn(4, 1, 16, 16, generator=generator)
-        targets = torch.tensor([classes[index % 2] for index in range(4)])
-        tasks.append(
-            MNISTTask(
-                classes=classes,
-                train_x=inputs,
-                train_y=targets,
-                validation_x=inputs[:2],
-                validation_y=targets[:2],
-                test_x=inputs[:2],
-                test_y=targets[:2],
-            )
-        )
-
-    results = run_split_mnist(config, tasks)
-
-    assert tuple(results) == methods
-    for method, result in results.items():
         assert result["cost"]["optimizer_steps"] > 0
         expected_history = config.task_count if method.startswith("slowheat_") else 0
         assert len(result["capacity_history"]) == expected_history

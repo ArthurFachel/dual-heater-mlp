@@ -1,11 +1,8 @@
 # Protocolo Split-CIFAR-10 e Split-CIFAR-100
 
-Status: implementado e coberto por testes. Há uma triagem CNN local com dez
-seeds em `results/paired_differences.csv`; o arquivo contém diferenças
-pareadas, mas não as matrizes de acurácia e o manifesto de ambiente completos.
-Há também quatro seeds parciais do protocolo MLP de Split-CIFAR-10 versionadas
-como diagnóstico de uma execução interrompida. Não há resultado confirmatório
-CNN, agregado MLP completo nem resultado Split-CIFAR-100.
+Status: implementado e coberto por testes. Há quatro seeds parciais de
+Split-CIFAR-10 versionadas como diagnóstico de uma execução interrompida; não
+há agregado CIFAR completo nem resultado Split-CIFAR-100.
 
 Os adapters em `experiments/visual_generalization.py` expõem os benchmarks
 visuais com uma única cabeça compartilhada:
@@ -13,11 +10,9 @@ visuais com uma única cabeça compartilhada:
 - Split-CIFAR-10: 10 classes em 5 tarefas de 2 classes;
 - Split-CIFAR-100: 100 classes em 10 tarefas de 10 classes.
 
-Há duas seções opt-in que mantêm o mesmo stream Split-CIFAR-10 e preservam as
-imagens como tensores NCHW: `split-cifar10-cnn` usa uma CNN `3→32→64`, com
-pooling adaptativo `2×2`; `split-cifar10-resnet18` usa uma ResNet-18 com stem
-CIFAR `3×3`, blocos `2–2–2–2`, canais `64–128–256–512`, GroupNorm e pooling
-global. Ambas têm cabeça compartilhada de 10 classes.
+Há também a seção opt-in `split-cifar10-cnn`, que mantém o mesmo stream
+Split-CIFAR-10, preserva as imagens como tensores NCHW e troca a MLP por uma
+CNN real `3→32→64`, com pooling adaptativo `2×2` e cabeça de 10 classes.
 
 Ambos usam Class-IL. A avaliação principal não recebe o identificador da
 tarefa e considera todas as classes vistas até o estágio. Classes futuras são
@@ -83,79 +78,9 @@ bootstrap pareado da representação. Portanto, `scroll` neste runner é uma
 adaptação autocontida do protocolo, não uma reprodução numérica do resultado
 pré-treinado do artigo.
 
-### Benchmark ResNet-18
+## Métodos
 
-A ResNet-18 possui versões nativa e SlowHeat com os mesmos nomes e shapes de
-parâmetros treináveis. A versão SlowHeat registra explicitamente:
-
-- a branch principal de cada BasicBlock;
-- a projeção `1×1` quando dimensões ou stride mudam;
-- o fan-out do tensor de entrada para a branch principal e o downsample;
-- um rastreador de importância sem parâmetros após cada soma residual;
-- os parâmetros affine de GroupNorm associados ao canal produtor.
-
-O controle `slowheat_none` deve reproduzir o update nativo antes de qualquer
-consolidação. A seção executa os mesmos cinco controles e os pares LPR,
-Classifier Expander e SCROLL do benchmark CNN pequeno. Ainda não há resultado
-multi-seed da ResNet; implementado significa somente que o grafo, o runner e os
-smoke tests estão disponíveis. Como a inversão de covariância do LPR cresce
-cubicamente com a dimensão dos patches, sua frequência é reduzida de 30 para
-300 passos nesta arquitetura; `lpr` e `slowheat_lpr` usam exatamente o mesmo
-valor.
-
-### Triagem CNN exploratória com dez seeds
-
-O export local `results/paired_differences.csv`, analisado em 25 de agosto de
-2026, contém dez seeds pareadas. A direção abaixo é sempre
-`método+SlowHeat - método`; portanto, diferenças negativas de forgetting e
-classifier gap são favoráveis. Valores de desempenho estão em pontos
-percentuais (p.p.).
-
-| Contraste pareado | Acurácia final | Forgetting | BWT | Acurácia task-aware | Classifier gap | Sinais da acurácia |
-|---|---:|---:|---:|---:|---:|---:|
-| SlowHeat+LPR − LPR | +0,78 p.p. | −4,66 p.p. | +4,66 p.p. | −1,29 p.p. | −2,07 p.p. | 8/10 positivos |
-| SlowHeat+Classifier Expander − Classifier Expander | −0,88 p.p. | −5,13 p.p. | +10,28 p.p. | −2,05 p.p. | −1,17 p.p. | 2/10 positivos |
-| SlowHeat+SCROLL − SCROLL | +5,78 p.p. | −1,25 p.p. | −4,07 p.p. | +3,83 p.p. | −1,95 p.p. | 10/10 positivos |
-
-O padrão sugere três regimes distintos. SlowHeat+LPR foi o par mais
-equilibrado: ganhou acurácia média e reduziu forgetting nas dez seeds.
-SlowHeat+Classifier Expander reduziu forgetting, mas não melhorou a acurácia
-final média. SlowHeat+SCROLL obteve o maior ganho de acurácia e de acurácia
-task-aware; seus efeitos sobre forgetting e BWT permanecem inconclusivos.
-Comparações desses métodos contra `vanilla` não isolam o efeito do SlowHeat e
-não substituem os contrastes pareados acima.
-
-Com `n=10`, o IC 95% t pareado aproximado para a mudança de acurácia fica acima
-de zero em LPR (+0,19 a +1,38 p.p.) e SCROLL (+4,14 a +7,42 p.p.). Para
-Classifier Expander ele cruza zero por margem pequena (−1,80 a +0,03 p.p.).
-Esses intervalos não corrigem a multiplicidade da exploração e ainda não são
-uma confirmação independente. O arquivo também não basta para auditar
-trajetórias por tarefa, configuração de ambiente ou escores absolutos por seed.
-Os três IDs presentes no export anterior foram reexecutados e seus valores
-mudaram; o agregado de dez seeds deve ser tratado como uma nova execução, não
-como simples extensão do arquivo anterior.
-
-O custo adicional médio observado foi 3,72 s para LPR, 3,85 s para Classifier
-Expander e 0,71 s para SCROLL. Os pares preservaram o mesmo número de exemplos
-processados e o mesmo uso de memória de replay; o overhead estimado foi de
-138.925.280 FLOPs para LPR e Classifier Expander e 21.594.080 FLOPs para
-SCROLL.
-
-O próximo passo arquitetural é repetir a comparação com a ResNet-18 e arquivar
-os artefatos completos antes de congelar qualquer contraste confirmatório:
-
-```bash
-PYTHONPATH=src:. python3 run_all_tests.py \
-  --num-seeds 10 \
-  --sections split-cifar10-resnet18 \
-  --device cuda
-```
-
-## Métodos dos protocolos MLP gerais
-
-As seções `split-cifar10` e `split-cifar100` executam os 32 itens de
-`ALL_VISUAL_METHODS`, na ordem abaixo. A seção CNN usa apenas os cinco controles
-e os três pares listados em “Benchmark CNN”.
+Cada seção executa os 32 itens de `ALL_VISUAL_METHODS`, na ordem abaixo:
 
 1. `vanilla`
 2. `slowheat`
@@ -224,7 +149,7 @@ python run_all_tests.py \
   --device cpu
 ```
 
-Execute o benchmark CNN pequeno, preferencialmente em GPU:
+Execute o piloto CNN pequeno, preferencialmente em GPU:
 
 ```bash
 PYTHONPATH=src:. python run_all_tests.py \
@@ -242,22 +167,6 @@ PYTHONPATH=src:. python run_all_tests.py \
   --device cuda \
   --dry-run
 ```
-
-### ResNet-18 com GroupNorm
-
-Execute somente o benchmark residual com dez seeds pareadas:
-
-```bash
-PYTHONPATH=src:. python3 run_all_tests.py \
-  --num-seeds 10 \
-  --sections split-cifar10-resnet18 \
-  --device cuda
-```
-
-Acrescente `--dry-run` para verificar métodos, seeds, arquitetura e diretório
-sem carregar o CIFAR-10. A execução usa os mesmos cinco controles e os três
-pares normal/+SlowHeat da CNN pequena. Ela é opt-in e não altera o protocolo
-histórico nem o agregado anterior.
 
 ### Sweep CNN de estabilidade/plasticidade
 
@@ -284,12 +193,9 @@ original.
 O argumento obrigatório `--num-seeds` gera essa quantidade de seeds
 pseudoaleatórias distintas e reproduzíveis. Para definir valores específicos,
 use `--baseline-seeds` e passe exatamente a quantidade declarada em
-`--num-seeds`. Resultados são gravados em
-`results/split_mnist_protocol/split_cifar10/`,
-`results/split_mnist_protocol/split_cifar10_cnn/`,
-`results/split_mnist_protocol/split_cifar10_resnet18/`,
-ou `results/split_mnist_protocol/split_cifar100/`, conforme a seção, salvo uso de
-`--output-dir`.
+`--num-seeds`. Resultados são gravados
+em `results/split_mnist_protocol/split_cifar10/` e
+`results/split_mnist_protocol/split_cifar100/`, salvo uso de `--output-dir`.
 Execuções retomam seeds concluídas cuja configuração coincide. `--fresh`
 desativa a retomada e exige diretórios de saída novos.
 

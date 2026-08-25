@@ -9,10 +9,10 @@ convolucionais. O objetivo é preservar a semântica do método existente:
 - proteção fatorada das conexões de entrada e saída;
 - mascaramento do delta final do otimizador e, opcionalmente, de seus estados.
 
-O repositório contém `SlowHeatConv2d`, a CNN sequencial mínima e uma ResNet-18
-adaptada para CIFAR. O registrador do otimizador aceita tanto cadeias quanto um
-grafo explícito de conexões residuais. Concatenações arbitrárias e uma política
-completa para estatísticas correntes de BatchNorm continuam futuras.
+O repositório já contém `SlowHeatConv2d`, mas a implementação atual cobre
+principalmente convoluções densas simples. Residual, normalização, convoluções
+agrupadas e topologias com ramificações ainda exigem um registrador de
+conectividade mais geral.
 
 ## 1. Definição da unidade funcional
 
@@ -303,7 +303,7 @@ em blocos para evitar materializar um tensor FP32 completo do feature map.
 
 ## 8. Estado da implementação no repositório
 
-Implementado em `SlowHeatConv2d`, `SlowHeatCNN` e `SlowHeatResNet18`:
+Implementado em `SlowHeatConv2d` e `SlowHeatCNN`:
 
 - API completa da `nn.Conv2d`, incluindo tuplas, dilatação, grupos e modos de
   padding;
@@ -315,13 +315,9 @@ Implementado em `SlowHeatConv2d`, `SlowHeatCNN` e `SlowHeatResNet18`:
 - repetição dos fatores por posição no flatten NCHW;
 - mascaramento do delta final e dos estados por `SlowHeatAdamW` e
   `SlowHeatSGD`.
-- blocos residuais BasicBlock, projeções `1x1` e fan-out das branches;
-- rastreadores sem parâmetros após cada soma residual;
-- proteção dos parâmetros affine de GroupNorm pela importância do produtor;
-- stem CIFAR `3x3`, sem max-pooling inicial, e pooling global na ResNet-18.
 
-BatchNorm e suas estatísticas correntes, concatenações e grafos definidos fora
-do contrato explícito do modelo continuam como extensões futuras.
+Normalização affine, estatísticas correntes de BatchNorm e um registrador em
+grafo para residual/fan-out continuam como extensões futuras.
 
 ### Plano incremental
 
@@ -333,34 +329,25 @@ do contrato explícito do modelo continuam como extensões futuras.
 - criar `SlowHeatCNN` com duas convoluções e uma cabeça linear;
 - registrar conexões Conv→Conv e Conv→Linear explicitamente.
 
-### Etapa B — normalização (GroupNorm concluído)
+### Etapa B — normalização
 
-- implementar máscara para GroupNorm affine (concluído);
-- implementar máscara para BatchNorm affine;
+- implementar máscara para GroupNorm e BatchNorm affine;
 - escolher política explícita para estatísticas correntes do BatchNorm;
 - testar checkpoint com buffers de normalização e de SlowHeat.
 
-### Etapa C — topologias modernas (ResNet BasicBlock concluído)
+### Etapa C — topologias modernas
 
-- residual com projeção `1x1` (concluído);
+- residual com projeção `1x1`;
 - convoluções grouped e depthwise (concluído para cadeias sequenciais);
 - concatenação de canais;
-- fan-out para múltiplos consumidores (concluído no grafo ResNet);
+- fan-out para múltiplos consumidores.
 
-### Etapa D — benchmark CNN mínimo (triagem concluída)
+### Etapa D — benchmark
 
 - manter o protocolo Class-IL do Split-CIFAR;
 - substituir a MLP sobre pixels achatados por uma CNN verdadeira;
 - comparar vanilla, SlowHeat sem consolidação, row-only e fatorado;
-- comparar LPR, Classifier Expander e SCROLL com suas versões +SlowHeat;
 - medir acurácia, forgetting, BWT, tempo e pico de memória.
-
-A seção `split-cifar10-cnn` satisfaz esse escopo com uma CNN `3→32→64` e
-cinco tarefas Class-IL. A triagem atual tem dez seeds pareadas. A seção
-`split-cifar10-resnet18` repete os mesmos controles e pares com ResNet-18 e
-GroupNorm; sua execução ainda não possui agregado. Valores, direção dos
-contrastes e limitações de auditoria estão registrados em
-[split_cifar.md](split_cifar.md).
 
 ## 9. Testes mínimos de aceitação
 
@@ -383,19 +370,8 @@ contrastes e limitações de auditoria estão registrados em
 - A proteção por canal perde informação espacial.
 - O budget de canais não equivale a um budget de parâmetros ou FLOPs.
 - BatchNorm pode alterar canais protegidos por meio de estatísticas correntes.
-- Já existe uma triagem com CNN real de dez seeds, mas ela usa uma rede pequena
-  de duas convoluções e um export de diferenças pareadas sem as
-  matrizes de acurácia e o manifesto de ambiente completos. Ela não estabelece
-  eficácia geral em CNNs.
-- O SCROLL do runner usa task 0 como bootstrap autocontido e não reproduz a
-  premissa original de representação externa pré-treinada.
-- LPR, Classifier Expander, SCROLL e suas combinações com SlowHeat ainda não
-  receberam ajuste específico por método nem replicação independente.
-- Os protocolos gerais Split-CIFAR-10/100 continuam usando a MLP sobre imagens
-  achatadas; as seções opt-in `split-cifar10-cnn` e
-  `split-cifar10-resnet18` medem backbones convolucionais reais.
-- A ResNet-18 está implementada e coberta por smoke tests, mas ainda não há
-  execução multi-seed que demonstre transferência dos resultados para ela.
+- A eficácia em CNNs só estará estabelecida depois de uma avaliação com CNN
+  real; os protocolos CIFAR atuais usam imagens achatadas em uma MLP.
 
 ## Referências
 

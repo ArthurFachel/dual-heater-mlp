@@ -419,56 +419,6 @@ class SlowHeatConv2d(_SlowHeatImportanceMixin, nn.Conv2d):
         )
 
 
-class SlowHeatChannelTracker(_SlowHeatImportanceMixin, nn.Module):
-    """Parameter-free functional-importance tracker for a channel tensor.
-
-    Residual additions produce semantic channel states without introducing a
-    trainable layer.  This module records ``|z * dL/dz|`` for that merged state
-    so downstream parameter masks can use it as their source-channel factor.
-    """
-
-    def __init__(
-        self,
-        channels: int,
-        *,
-        slow_strength: float = 3.0,
-        plasticity_budget: float = 0.25,
-        importance_decay: float = 0.99,
-        importance_eps: float = 1e-8,
-    ) -> None:
-        super().__init__()
-        if not isinstance(channels, int) or isinstance(channels, bool) or channels < 1:
-            raise ValueError("channels deve ser um inteiro positivo")
-        self.channels = channels
-        self._initialize_importance_state(
-            unit_count=channels,
-            slow_strength=slow_strength,
-            plasticity_budget=plasticity_budget,
-            importance_decay=importance_decay,
-            importance_eps=importance_eps,
-            gradient_masking=False,
-        )
-
-    def forward(self, inputs: Tensor) -> Tensor:
-        if inputs.ndim < 2 or inputs.shape[1] != self.channels:
-            raise ValueError(
-                "tracker requer tensor [B, C, ...] com C igual a channels"
-            )
-        if self.training and inputs.requires_grad:
-            inputs.register_hook(self._functional_importance_hook(inputs.detach()))
-        return inputs
-
-    def _reduce_contribution(self, contribution: Tensor) -> Tensor:
-        dimensions = tuple(index for index in range(contribution.ndim) if index != 1)
-        return contribution.sum(dim=dimensions)
-
-    def extra_repr(self) -> str:
-        return (
-            f"channels={self.channels}, \u03b2={self.slow_strength}, "
-            f"plasticity={self.plasticity_budget:.3f}"
-        )
-
-
 # ─── SlowHeatCNN ─────────────────────────────────
 
 class SlowHeatCNN(nn.Module):

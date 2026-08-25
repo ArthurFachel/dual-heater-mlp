@@ -58,19 +58,6 @@ CNN_SWEEP_METHODS = (
     "slowheat_hidden_beta_10_budget_0.50",
     "slowheat_hidden_beta_10_budget_0.75",
 )
-RESNET18_VISUAL_METHODS = (
-    "vanilla",
-    "slowheat_none",
-    "slowheat_unidirectional",
-    "slowheat",
-    "hard_freeze",
-    "lpr",
-    "slowheat_lpr",
-    "classifier_expander",
-    "slowheat_classifier_expander",
-    "scroll",
-    "slowheat_scroll",
-)
 
 
 def load_permuted_mnist(
@@ -351,29 +338,6 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             methods=CNN_VISUAL_METHODS,
             device=device,
         ),
-        "split_cifar10_resnet18": SplitMNISTConfig(
-            class_order=tuple(range(10)),
-            classes_per_task=2,
-            scenario="class_incremental",
-            input_dim=math.prod(CIFAR_IMAGE_SHAPE),
-            hidden_dims=(1,),
-            backbone="resnet18",
-            image_shape=CIFAR_IMAGE_SHAPE,
-            resnet_stage_channels=(64, 128, 256, 512),
-            resnet_blocks_per_stage=(2, 2, 2, 2),
-            batch_size=128,
-            epochs_per_task=5,
-            train_per_class=4_000,
-            validation_per_class=500,
-            test_per_class=1_000,
-            learning_rate=1e-3,
-            weight_decay=1e-4,
-            slow_strength=30.0,
-            plasticity_budget=0.25,
-            lpr_update_frequency=300,
-            methods=RESNET18_VISUAL_METHODS,
-            device=device,
-        ),
     }
     configs["split_cifar10_cnn_sweep"] = replace(
         configs["split_cifar10_cnn"],
@@ -400,11 +364,10 @@ def run_visual_generalization(
         "split_cifar100": load_split_cifar100,
         "split_cifar10_cnn": load_split_cifar10,
         "split_cifar10_cnn_sweep": load_split_cifar10,
-        "split_cifar10_resnet18": load_split_cifar10,
     }
     if name not in configs:
         raise ValueError(f"benchmark desconhecido: {name}")
-    if name in {"split_cifar10_cnn", "split_cifar10_resnet18"}:
+    if name == "split_cifar10_cnn":
         paired_references = ("vanilla", "lpr", "classifier_expander", "scroll")
     elif configs[name].backbone == "cnn":
         paired_references = ("vanilla",)
