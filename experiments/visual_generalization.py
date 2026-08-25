@@ -39,6 +39,12 @@ CNN_VISUAL_METHODS = (
     "slowheat_unidirectional",
     "slowheat",
     "hard_freeze",
+    "lpr",
+    "slowheat_lpr",
+    "classifier_expander",
+    "slowheat_classifier_expander",
+    "scroll",
+    "slowheat_scroll",
 )
 CNN_SWEEP_METHODS = (
     "vanilla",
@@ -361,6 +367,12 @@ def run_visual_generalization(
     }
     if name not in configs:
         raise ValueError(f"benchmark desconhecido: {name}")
+    if name == "split_cifar10_cnn":
+        paired_references = ("vanilla", "lpr", "classifier_expander", "scroll")
+    elif configs[name].backbone == "cnn":
+        paired_references = ("vanilla",)
+    else:
+        paired_references = ("replay", "derpp")
     return run_split_mnist_multi_seed(
         replace(configs[name], device=device),
         seeds=seeds,
@@ -368,11 +380,7 @@ def run_visual_generalization(
         output_dir=output_dir,
         download=download,
         verbose=verbose,
-        paired_references=(
-            ("vanilla",)
-            if configs[name].backbone == "cnn"
-            else ("replay", "derpp")
-        ),
+        paired_references=paired_references,
         task_loader=loaders[name],
         resume=resume,
     )

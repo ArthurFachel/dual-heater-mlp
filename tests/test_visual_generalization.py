@@ -43,7 +43,9 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar10"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar100"].methods == ALL_VISUAL_METHODS
     assert len(ALL_VISUAL_METHODS) == len(set(ALL_VISUAL_METHODS)) == 32
-    assert SUPPORTED_METHODS <= set(ALL_VISUAL_METHODS)
+    assert SUPPORTED_METHODS <= set(ALL_VISUAL_METHODS) | set(
+        visual.CNN_VISUAL_METHODS
+    )
     for config in configs.values():
         config.validate()
 
@@ -141,6 +143,103 @@ def test_cnn_backbone_runs_paired_vanilla_and_slowheat_methods():
     assert all(
         result["cost"]["estimated_total_flops"] > 0
         for result in results.values()
+    )
+
+
+def test_cnn_continual_methods_run_normal_and_slowheat_pairs():
+    methods = (
+        "lpr",
+        "slowheat_lpr",
+        "classifier_expander",
+        "slowheat_classifier_expander",
+        "scroll",
+        "slowheat_scroll",
+    )
+    config = SplitMNISTConfig(
+        seed=3,
+        class_order=(0, 1, 2, 3),
+        classes_per_task=2,
+        input_dim=64,
+        hidden_dims=(1,),
+        backbone="cnn",
+        image_shape=(1, 8, 8),
+        cnn_channels=(2, 3),
+        cnn_pooled_size=(1, 1),
+        batch_size=2,
+        epochs_per_task=1,
+        replay_per_class=1,
+        replay_batch_size=2,
+        lpr_update_frequency=1,
+        methods=methods,
+    )
+    tasks = []
+    generator = torch.Generator().manual_seed(99)
+    for classes in ((0, 1), (2, 3)):
+        inputs = torch.randn(8, 1, 8, 8, generator=generator)
+        targets = torch.tensor([classes[index % 2] for index in range(8)])
+        tasks.append(
+            MNISTTask(
+                classes=classes,
+                train_x=inputs,
+                train_y=targets,
+                validation_x=inputs[:4],
+                validation_y=targets[:4],
+                test_x=inputs[:4],
+                test_y=targets[:4],
+            )
+        )
+
+    models = build_paired_models(config)
+    for normal, protected in (
+        ("lpr", "slowheat_lpr"),
+        ("classifier_expander", "slowheat_classifier_expander"),
+        ("scroll", "slowheat_scroll"),
+    ):
+        normal_parameters = dict(models[normal].named_parameters())
+        protected_parameters = dict(models[protected].named_parameters())
+        assert normal_parameters.keys() == protected_parameters.keys()
+        assert all(
+            torch.equal(normal_parameters[name], protected_parameters[name])
+            for name in normal_parameters
+        )
+
+    results = run_split_mnist(config, tasks)
+
+    assert tuple(results) == methods
+    for method, result in results.items():
+        assert result["cost"]["replay_memory_bytes"] > 0
+        assert result["cost"]["optimizer_steps"] > 0
+        expected_history = config.task_count if method.startswith("slowheat_") else 0
+        assert len(result["capacity_history"]) == expected_history
+
+
+def test_cnn_runner_registers_each_normal_method_as_paired_reference(
+    tmp_path, monkeypatch
+):
+    captured = {}
+
+    def fake_multi_seed(config, **kwargs):
+        captured["config"] = config
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(visual, "run_split_mnist_multi_seed", fake_multi_seed)
+
+    result = visual.run_visual_generalization(
+        "split_cifar10_cnn",
+        seeds=[7, 9],
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "results",
+        download=False,
+    )
+
+    assert result == {"ok": True}
+    assert captured["config"].methods == visual.CNN_VISUAL_METHODS
+    assert captured["paired_references"] == (
+        "vanilla",
+        "lpr",
+        "classifier_expander",
+        "scroll",
     )
 
 

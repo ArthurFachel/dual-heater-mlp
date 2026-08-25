@@ -25,6 +25,7 @@ from experiments.confirmatory_statistics import (
     normal_summary,
     paired_confirmatory_summary,
 )
+from experiments.lpr import LPRPreconditioner
 from experiments.provenance import write_environment_manifest
 from experiments.synthetic_cl import make_batch_schedule
 
@@ -52,6 +53,9 @@ class MethodSpec:
     distillation: bool = False
     derpp: bool = False
     er_ace: bool = False
+    lpr: bool = False
+    classifier_expander: bool = False
+    scroll: bool = False
     strength: float | None = None
     budget: float | None = None
     protect_output: bool = True
@@ -84,6 +88,36 @@ _METHOD_SPECS = {
         slowheat=True,
         replay=True,
         er_ace=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "lpr": MethodSpec(replay=True, lpr=True),
+    "slowheat_lpr": MethodSpec(
+        slowheat=True,
+        replay=True,
+        lpr=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "classifier_expander": MethodSpec(
+        replay=True,
+        classifier_expander=True,
+    ),
+    "slowheat_classifier_expander": MethodSpec(
+        slowheat=True,
+        replay=True,
+        classifier_expander=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "scroll": MethodSpec(replay=True, scroll=True),
+    "slowheat_scroll": MethodSpec(
+        slowheat=True,
+        replay=True,
+        scroll=True,
         strength=30.0,
         budget=0.25,
         protect_output=False,
@@ -166,6 +200,21 @@ def _uses_er_ace(method: str) -> bool:
     return spec is not None and spec.er_ace
 
 
+def _uses_lpr(method: str) -> bool:
+    spec = _method_spec(method)
+    return spec is not None and spec.lpr
+
+
+def _uses_classifier_expander(method: str) -> bool:
+    spec = _method_spec(method)
+    return spec is not None and spec.classifier_expander
+
+
+def _uses_scroll(method: str) -> bool:
+    spec = _method_spec(method)
+    return spec is not None and spec.scroll
+
+
 def _uses_distillation(method: str) -> bool:
     spec = _method_spec(method)
     return spec is not None and spec.distillation
@@ -227,6 +276,16 @@ class SplitMNISTConfig:
     distillation_temperature: float = 2.0
     derpp_alpha: float = 0.5
     derpp_beta: float = 0.5
+    lpr_omega: float = 4.0
+    lpr_spatial_beta: float = 2.0
+    lpr_update_frequency: int = 30
+    classifier_expander_replay_weight: float = 2.5
+    classifier_expander_distillation_weight: float = 0.4
+    classifier_expander_classifier_weight: float = 0.1
+    classifier_expander_classifier_epochs: int = 1
+    classifier_expander_classifier_lr: float = 1e-3
+    scroll_ridge: float = 0.1
+    scroll_replay_epochs: int = 1
     ewc_lambda: float = 100.0
     ewc_decay: float = 1.0
     si_lambda: float = 1.0
@@ -306,6 +365,11 @@ class SplitMNISTConfig:
             "early_stopping_max_epochs": self.early_stopping_max_epochs,
             "early_stopping_patience": self.early_stopping_patience,
             "bootstrap_resamples": self.bootstrap_resamples,
+            "lpr_update_frequency": self.lpr_update_frequency,
+            "classifier_expander_classifier_epochs": (
+                self.classifier_expander_classifier_epochs
+            ),
+            "scroll_replay_epochs": self.scroll_replay_epochs,
         }
         for name, value in integers.items():
             if value < 1:
@@ -354,6 +418,21 @@ class SplitMNISTConfig:
             "distillation_temperature": self.distillation_temperature,
             "derpp_alpha": self.derpp_alpha,
             "derpp_beta": self.derpp_beta,
+            "lpr_omega": self.lpr_omega,
+            "lpr_spatial_beta": self.lpr_spatial_beta,
+            "classifier_expander_replay_weight": (
+                self.classifier_expander_replay_weight
+            ),
+            "classifier_expander_distillation_weight": (
+                self.classifier_expander_distillation_weight
+            ),
+            "classifier_expander_classifier_weight": (
+                self.classifier_expander_classifier_weight
+            ),
+            "classifier_expander_classifier_lr": (
+                self.classifier_expander_classifier_lr
+            ),
+            "scroll_ridge": self.scroll_ridge,
             "ewc_lambda": self.ewc_lambda,
             "ewc_decay": self.ewc_decay,
             "si_lambda": self.si_lambda,
@@ -392,9 +471,23 @@ class SplitMNISTConfig:
             "lwf_old_class_weight": self.lwf_old_class_weight,
             "early_stopping_min_delta": self.early_stopping_min_delta,
             "partial_output_slow_strength": self.partial_output_slow_strength,
+            "lpr_omega": self.lpr_omega,
+            "lpr_spatial_beta": self.lpr_spatial_beta,
+            "classifier_expander_replay_weight": (
+                self.classifier_expander_replay_weight
+            ),
+            "classifier_expander_distillation_weight": (
+                self.classifier_expander_distillation_weight
+            ),
+            "classifier_expander_classifier_weight": (
+                self.classifier_expander_classifier_weight
+            ),
+            "scroll_ridge": self.scroll_ridge,
         }
         if any(value < 0.0 for value in nonnegative.values()):
             raise ValueError(f"parâmetros devem ser >= 0: {nonnegative}")
+        if self.classifier_expander_classifier_lr <= 0.0:
+            raise ValueError("classifier_expander_classifier_lr deve ser > 0")
         if not 0.0 <= self.ewc_decay <= 1.0:
             raise ValueError("ewc_decay deve estar em [0, 1]")
         if self.si_epsilon <= 0.0 or not 0.0 < self.global_lr_reduction <= 1.0:
@@ -410,6 +503,21 @@ class SplitMNISTConfig:
         }
         if unknown:
             raise ValueError(f"métodos desconhecidos: {sorted(unknown)}")
+        cnn_only = {
+            method
+            for method in self.methods
+            if (
+                _uses_lpr(method)
+                or _uses_classifier_expander(method)
+                or _uses_scroll(method)
+            )
+            and self.backbone != "cnn"
+        }
+        if cnn_only:
+            raise ValueError(
+                "LPR, Classifier Expander e SCROLL requerem backbone CNN neste "
+                f"runner: {sorted(cnn_only)}"
+            )
         invalid_budgets = {
             method
             for method in self.methods
@@ -444,6 +552,25 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
             "image_shape",
             "cnn_channels",
             "cnn_pooled_size",
+        ):
+            payload.pop(field)
+    if not any(
+        _uses_lpr(method)
+        or _uses_classifier_expander(method)
+        or _uses_scroll(method)
+        for method in config.methods
+    ):
+        for field in (
+            "lpr_omega",
+            "lpr_spatial_beta",
+            "lpr_update_frequency",
+            "classifier_expander_replay_weight",
+            "classifier_expander_distillation_weight",
+            "classifier_expander_classifier_weight",
+            "classifier_expander_classifier_epochs",
+            "classifier_expander_classifier_lr",
+            "scroll_ridge",
+            "scroll_replay_epochs",
         ):
             payload.pop(field)
     return payload
@@ -622,10 +749,15 @@ class _VanillaCNN(nn.Module):
             num_classes,
         )
 
-    def forward(self, inputs: Tensor) -> Tensor:
+    def forward_features(self, inputs: Tensor) -> Tensor:
+        """Return penultimate features for ridge/classifier-only methods."""
+
         inputs = self.pool(self.activation1(self.conv1(inputs)))
         inputs = self.pool(self.activation2(self.conv2(inputs)))
-        return self.classifier(self.flatten(self.adaptive_pool(inputs)))
+        return self.flatten(self.adaptive_pool(inputs))
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        return self.classifier(self.forward_features(inputs))
 
 
 def _vanilla_model(config: SplitMNISTConfig, dims: tuple[int, ...]) -> nn.Module:
@@ -702,6 +834,138 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
 def _slow_layers(model: nn.Module) -> list[nn.Module]:
     getter = getattr(model, "get_slow_layers", None)
     return list(getter()) if callable(getter) else []
+
+
+def _cnn_classifier(model: nn.Module) -> nn.Module:
+    classifier = getattr(model, "classifier", None)
+    if not isinstance(classifier, nn.Module):
+        raise TypeError("método requer CNN com classificador separado")
+    return classifier
+
+
+def _cnn_features(model: nn.Module, inputs: Tensor) -> Tensor:
+    extractor = getattr(model, "forward_features", None)
+    if not callable(extractor):
+        raise TypeError("método requer CNN com forward_features")
+    return extractor(inputs)
+
+
+@torch.no_grad()
+def _fit_scroll_ridge(
+    model: nn.Module,
+    reference: nn.Module,
+    task: MNISTTask,
+    *,
+    covariance: Tensor | None,
+    class_sums: Tensor | None,
+    ridge: float,
+    class_count: int,
+    device: str,
+) -> tuple[Tensor, Tensor, int]:
+    """Accumulate SCROLL sufficient statistics and solve ridge regression."""
+
+    reference.eval()
+    feature_parts: list[Tensor] = []
+    for start in range(0, len(task.train_x), EVALUATION_BATCH_SIZE):
+        inputs = task.train_x[start : start + EVALUATION_BATCH_SIZE].to(device)
+        feature_parts.append(_cnn_features(reference, inputs))
+    features = torch.cat(feature_parts)
+    features = torch.cat((features, torch.ones_like(features[:, :1])), dim=1)
+    targets = F.one_hot(task.train_y.to(device), num_classes=class_count).to(
+        features.dtype
+    )
+    stage_covariance = features.T @ features
+    stage_class_sums = features.T @ targets
+    covariance = stage_covariance if covariance is None else covariance + stage_covariance
+    class_sums = stage_class_sums if class_sums is None else class_sums + stage_class_sums
+    identity = torch.eye(
+        covariance.shape[0], device=covariance.device, dtype=covariance.dtype
+    )
+    solution = torch.linalg.solve(covariance + ridge * identity, class_sums)
+    classifier = _cnn_classifier(model)
+    classifier.weight.copy_(solution[:-1].T)
+    if classifier.bias is not None:
+        classifier.bias.copy_(solution[-1])
+    dimension = covariance.shape[0]
+    operations = 2 * len(features) * dimension**2 + dimension**3
+    return covariance, class_sums, operations
+
+
+def _train_classifier_expander_head(
+    model: nn.Module,
+    memory: tuple[Tensor, Tensor],
+    *,
+    seen_classes: tuple[int, ...],
+    config: SplitMNISTConfig,
+    seed: int,
+) -> tuple[list[float], int]:
+    """Classifier Expander stage two: classifier-only cross-task training."""
+
+    classifier = _cnn_classifier(model)
+    optimizer = torch.optim.AdamW(
+        classifier.parameters(),
+        lr=config.classifier_expander_classifier_lr,
+        weight_decay=config.weight_decay,
+    )
+    steps_per_epoch = math.ceil(len(memory[0]) / config.replay_batch_size)
+    schedule = make_batch_schedule(
+        sample_count=len(memory[0]),
+        batch_size=config.replay_batch_size,
+        steps=steps_per_epoch * config.classifier_expander_classifier_epochs,
+        seed=seed,
+    )
+    losses: list[float] = []
+    model.train()
+    examples = 0
+    for indices in schedule:
+        inputs = memory[0][indices].to(config.device)
+        targets = memory[1][indices].to(config.device)
+        with torch.no_grad():
+            features = _cnn_features(model, inputs)
+        optimizer.zero_grad(set_to_none=True)
+        logits = classifier(features)
+        loss = config.classifier_expander_classifier_weight * F.cross_entropy(
+            _mask_unseen_logits(logits, seen_classes), targets
+        )
+        loss.backward()
+        optimizer.step()
+        losses.append(float(loss.detach().item()))
+        examples += len(inputs)
+    return losses, examples
+
+
+def _train_scroll_replay(
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    memory: tuple[Tensor, Tensor],
+    *,
+    seen_classes: tuple[int, ...],
+    config: SplitMNISTConfig,
+    seed: int,
+) -> tuple[list[float], int]:
+    """SCROLL representation adaptation using updated replay memory only."""
+
+    steps_per_epoch = math.ceil(len(memory[0]) / config.replay_batch_size)
+    schedule = make_batch_schedule(
+        sample_count=len(memory[0]),
+        batch_size=config.replay_batch_size,
+        steps=steps_per_epoch * config.scroll_replay_epochs,
+        seed=seed,
+    )
+    losses: list[float] = []
+    examples = 0
+    model.train()
+    for indices in schedule:
+        inputs = memory[0][indices].to(config.device)
+        targets = memory[1][indices].to(config.device)
+        optimizer.zero_grad(set_to_none=True)
+        logits = model(inputs)
+        loss = F.cross_entropy(_mask_unseen_logits(logits, seen_classes), targets)
+        loss.backward()
+        optimizer.step()
+        losses.append(float(loss.detach().item()))
+        examples += len(inputs)
+    return losses, examples
 
 
 def _build_optimizer(
@@ -1147,6 +1411,14 @@ def run_split_mnist(
         )
         for stage in range(config.task_count)
     ]
+    updated_replay_memories = [
+        _replay_memory(
+            tasks,
+            before_stage=stage + 1,
+            samples_per_class=config.replay_per_class,
+        )
+        for stage in range(config.task_count)
+    ]
     replay_schedules = [
         (
             make_batch_schedule(
@@ -1195,6 +1467,19 @@ def run_split_mnist(
             for name, parameter in model.named_parameters()
         }
         logit_bias = torch.zeros(len(config.class_order), device=config.device)
+        lpr = (
+            LPRPreconditioner(
+                omega=config.lpr_omega,
+                spatial_beta=config.lpr_spatial_beta,
+                update_frequency=config.lpr_update_frequency,
+                batch_size=config.replay_batch_size,
+            )
+            if _uses_lpr(method)
+            else None
+        )
+        scroll_reference: nn.Module | None = None
+        scroll_covariance: Tensor | None = None
+        scroll_class_sums: Tensor | None = None
         cost = _new_cost_record(model, tasks[0].train_x[:1])
         remembered_samples = config.replay_per_class * len(config.class_order)
         if _uses_replay(method):
@@ -1236,7 +1521,11 @@ def run_split_mnist(
             }
             fisher_steps = 0
 
-            if method == "replay_more_epochs":
+            if _uses_scroll(method) and stage > 0:
+                # SCROLL assimilates later tasks analytically, then adapts only
+                # from its updated replay memory.
+                epoch_budget = 0
+            elif method == "replay_more_epochs":
                 epoch_budget = config.replay_more_epochs
             elif method == "replay_early_stopping":
                 epoch_budget = config.early_stopping_max_epochs
@@ -1298,7 +1587,13 @@ def run_split_mnist(
                     optimizer.zero_grad(set_to_none=True)
                     current_logits = model(current_x)
                     current_loss = F.cross_entropy(
-                        _mask_unseen_logits(current_logits, seen_classes), current_y
+                        _mask_unseen_logits(
+                            current_logits,
+                            tuple(task.classes)
+                            if _uses_classifier_expander(method)
+                            else seen_classes,
+                        ),
+                        current_y,
                     )
                     replay_logits: Tensor | None = None
                     replay_loss: Tensor | None = None
@@ -1310,7 +1605,29 @@ def run_split_mnist(
 
                     loss = current_loss
                     if replay_loss is not None:
-                        if method == "replay_balanced":
+                        if _uses_classifier_expander(method):
+                            loss = (
+                                current_loss
+                                + config.classifier_expander_replay_weight
+                                * replay_loss
+                            )
+                            if teacher is not None and old_classes:
+                                with torch.no_grad():
+                                    teacher_logits = teacher(replay_x)
+                                seen_index = torch.tensor(
+                                    seen_classes,
+                                    device=config.device,
+                                    dtype=torch.long,
+                                )
+                                loss = loss + (
+                                    config.classifier_expander_distillation_weight
+                                    * F.mse_loss(
+                                        replay_logits.index_select(1, seen_index),
+                                        teacher_logits.index_select(1, seen_index),
+                                    )
+                                )
+                                cost["teacher_forward_examples"] += replay_count
+                        elif method == "replay_balanced":
                             loss = 0.5 * current_loss + 0.5 * replay_loss
                         elif _uses_er_ace(method):
                             ace_logits = _mask_unseen_logits(
@@ -1410,6 +1727,16 @@ def run_split_mnist(
                         loss.backward()
                     cost["learner_backward_examples"] += current_count + replay_count
 
+                    if lpr is not None and replay_memory is not None:
+                        if lpr.should_update():
+                            cost["regularizer_flops"] += lpr.update(
+                                model,
+                                replay_memory[0],
+                                device=config.device,
+                            )
+                            cost["learner_forward_examples"] += len(replay_memory[0])
+                        cost["regularizer_flops"] += lpr.precondition(model)
+
                     gradients_before_step = None
                     if method == "si":
                         gradients_before_step = {
@@ -1422,6 +1749,8 @@ def run_split_mnist(
                         }
                     step_started = time.perf_counter()
                     optimizer.step()
+                    if lpr is not None:
+                        lpr.advance()
                     cost["optimizer_step_seconds"] += time.perf_counter() - step_started
                     cost["optimizer_steps"] += 1
                     slow_layers = _slow_layers(model)
@@ -1474,6 +1803,81 @@ def run_split_mnist(
                 model.load_state_dict(best_model_state)
                 assert best_optimizer_state is not None
                 optimizer.load_state_dict(best_optimizer_state)
+            if _uses_scroll(method):
+                if scroll_reference is None:
+                    # In the no-checkpoint benchmark, task 0 is the documented
+                    # representation bootstrap shared by both SCROLL variants.
+                    scroll_reference = deepcopy(model).eval()
+                    for parameter in scroll_reference.parameters():
+                        parameter.requires_grad_(False)
+                (
+                    scroll_covariance,
+                    scroll_class_sums,
+                    ridge_operations,
+                ) = _fit_scroll_ridge(
+                    model,
+                    scroll_reference,
+                    task,
+                    covariance=scroll_covariance,
+                    class_sums=scroll_class_sums,
+                    ridge=config.scroll_ridge,
+                    class_count=len(config.class_order),
+                    device=config.device,
+                )
+                cost["regularizer_flops"] += ridge_operations
+                cost["teacher_forward_examples"] += len(task.train_x)
+                updated_memory = updated_replay_memories[stage]
+                assert updated_memory is not None
+                replay_stage_losses, replay_stage_examples = _train_scroll_replay(
+                    model,
+                    optimizer,
+                    updated_memory,
+                    seen_classes=seen_classes,
+                    config=config,
+                    seed=config.seed + REPLAY_SCHEDULE_SEED_OFFSET * 2 + stage,
+                )
+                stage_losses.extend(replay_stage_losses)
+                cost["replay_examples"] += replay_stage_examples
+                cost["learner_forward_examples"] += replay_stage_examples
+                cost["learner_backward_examples"] += replay_stage_examples
+                cost["optimizer_steps"] += len(replay_stage_losses)
+                stage_validation.append(
+                    _validation_average(
+                        model,
+                        tasks,
+                        through_stage=stage,
+                        seen_classes=seen_classes,
+                        device=config.device,
+                        logit_bias=logit_bias,
+                    )
+                )
+
+            if _uses_classifier_expander(method) and stage > 0:
+                updated_memory = updated_replay_memories[stage]
+                assert updated_memory is not None
+                head_losses, head_examples = _train_classifier_expander_head(
+                    model,
+                    updated_memory,
+                    seen_classes=seen_classes,
+                    config=config,
+                    seed=config.seed + REPLAY_SCHEDULE_SEED_OFFSET * 3 + stage,
+                )
+                stage_losses.extend(head_losses)
+                cost["replay_examples"] += head_examples
+                cost["learner_forward_examples"] += head_examples
+                cost["learner_backward_examples"] += head_examples
+                cost["optimizer_steps"] += len(head_losses)
+                stage_validation.append(
+                    _validation_average(
+                        model,
+                        tasks,
+                        through_stage=stage,
+                        seen_classes=seen_classes,
+                        device=config.device,
+                        logit_bias=logit_bias,
+                    )
+                )
+
             completed_epochs.append(len(stage_validation))
             validation_history.append(stage_validation)
             training_losses.append(stage_losses)
@@ -1570,7 +1974,7 @@ def run_split_mnist(
                 remembered_x = torch.cat(memory_inputs).to(config.device)
                 with torch.no_grad():
                     der_logits_parts.append(model(remembered_x).detach().cpu())
-            if _uses_distillation(method):
+            if _uses_distillation(method) or _uses_classifier_expander(method):
                 teacher = deepcopy(model).eval()
                 for parameter in teacher.parameters():
                     parameter.requires_grad_(False)

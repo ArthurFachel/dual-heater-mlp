@@ -514,11 +514,16 @@ class SlowHeatCNN(nn.Module):
             self.classifier = nn.Linear(classifier_features, num_classes)
         self.pooled_size = pooled_shape
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward_features(self, x: Tensor) -> Tensor:
+        """Return penultimate features for ridge/classifier-only methods."""
+
         x = self.pool(self.activation1(self.conv1(x)))
         x = self.pool(self.activation2(self.conv2(x)))
         x = self.adaptive_pool(x)
-        return self.classifier(self.flatten(x))
+        return self.flatten(x)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.classifier(self.forward_features(x))
 
     def get_slow_layers(
         self,
