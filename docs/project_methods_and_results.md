@@ -608,24 +608,23 @@ extensões. A triagem CNN abaixo vem de outro arquivo e deve permanecer separada
 
 ### 11.4 Triagem CNN Split-CIFAR-10 de 25 de agosto de 2026
 
-O arquivo local `results/paired_differences.csv` contém três seeds e permite
+O arquivo local `results/paired_differences.csv` contém dez seeds e permite
 comparar diretamente cada método CNN com sua versão +SlowHeat. A diferença é
 sempre `método+SlowHeat - método`; valores negativos de forgetting e classifier
 gap são favoráveis.
 
 | Contraste pareado | Acurácia final | Forgetting | BWT | Acurácia task-aware | Classifier gap |
 |---|---:|---:|---:|---:|---:|
-| SlowHeat+LPR − LPR | +0,96 p.p. | −5,19 p.p. | +5,19 p.p. | −1,44 p.p. | −2,40 p.p. |
-| SlowHeat+Classifier Expander − Classifier Expander | −0,38 p.p. | −7,10 p.p. | +11,70 p.p. | −1,81 p.p. | −1,43 p.p. |
-| SlowHeat+SCROLL − SCROLL | +5,92 p.p. | +3,79 p.p. | −10,55 p.p. | +4,31 p.p. | −1,61 p.p. |
+| SlowHeat+LPR − LPR | +0,78 p.p. | −4,66 p.p. | +4,66 p.p. | −1,29 p.p. | −2,07 p.p. |
+| SlowHeat+Classifier Expander − Classifier Expander | −0,88 p.p. | −5,13 p.p. | +10,28 p.p. | −2,05 p.p. | −1,17 p.p. |
+| SlowHeat+SCROLL − SCROLL | +5,78 p.p. | −1,25 p.p. | −4,07 p.p. | +3,83 p.p. | −1,95 p.p. |
 
-SlowHeat+LPR aumentou a acurácia e reduziu forgetting nas três seeds.
+SlowHeat+LPR aumentou a acurácia média e reduziu forgetting nas dez seeds.
 SlowHeat+Classifier Expander melhorou retenção, mas não a acurácia média.
-SlowHeat+SCROLL aumentou a acurácia nas três seeds, com forgetting médio maior
-e BWT menor. Isso caracteriza uma troca de retenção por aquisição, não uma
-dominância uniforme. Com apenas três pares, os intervalos são largos; o IC 95%
-t aproximado do ganho de acurácia é −0,36 a +2,28 p.p. para LPR, −5,58 a
-+4,82 p.p. para Classifier Expander e +2,18 a +9,66 p.p. para SCROLL.
+SlowHeat+SCROLL aumentou a acurácia final e task-aware nas dez seeds; seus
+efeitos sobre forgetting e BWT permanecem inconclusivos. O IC 95% t aproximado
+do ganho de acurácia é +0,19 a +1,38 p.p. para LPR, −1,80 a +0,03 p.p. para
+Classifier Expander e +4,14 a +7,42 p.p. para SCROLL.
 
 O export não contém os escores absolutos, as matrizes de acurácia por tarefa ou
 o manifesto de ambiente. Portanto, ele serve para triagem e seleção de
@@ -662,8 +661,8 @@ Os testes validam contratos de implementação. Eles não demonstram eficácia c
 3. **Mistura de seções.** SlowHeat + DER++ é exploratório e não pertence ao contraste confirmatório congelado.
 4. **Fairness por épocas, não por exemplos.** Métodos com replay processam 40% mais exemplos que Vanilla.
 5. **Um benchmark principal simples.** Split-MNIST não demonstra escalabilidade
-   para visão complexa ou linguagem; a triagem CNN adicional usa só três seeds
-   e uma arquitetura pequena.
+   para visão complexa ou linguagem; a triagem CNN adicional usa uma
+   arquitetura pequena. A ResNet-18 está implementada, ainda sem agregado.
 6. **Fronteiras de tarefa conhecidas.** SlowHeat é boundary-aware, o que limita comparações com métodos task-free.
 7. **Cabeça compartilhada sensível a viés.** Vários métodos preservam desempenho task-aware, mas falham globalmente.
 8. **Overhead de tempo elevado.** A implementação atual do otimizador não é fundida e pode não escalar.
@@ -687,8 +686,8 @@ Os dados permitem afirmar que, nesta execução exploratória:
 - dobrar as épocas do replay não melhorou o resultado;
 - early stopping reduziu custo sem perda média aparente;
 - o SlowHeat atual tem overhead de tempo muito maior que seu overhead aritmético estimado.
-- na triagem CNN de três seeds, SlowHeat+SCROLL elevou a acurácia final nos três
-  pares, enquanto SlowHeat+LPR reduziu forgetting nos três pares.
+- na triagem CNN de dez seeds, SlowHeat+SCROLL elevou a acurácia final nos dez
+  pares, enquanto SlowHeat+LPR reduziu forgetting nos dez pares.
 
 Os dados **não** permitem afirmar ainda que:
 
@@ -711,7 +710,7 @@ Os dados **não** permitem afirmar ainda que:
 6. **Arquivar artefatos completos:** configuração, seed, matriz de acurácia, curvas, custo, ambiente, hash do commit e CSV agregado.
 7. **Investigar o classifier gap** com matrizes de confusão, distribuição de logits antigos/novos e calibração por estágio.
 8. **Executar as ablações causais:** hidden-only versus saída protegida, budget fixo/adaptativo, proteção fatorada/row-only e `follow_update`/`native`.
-9. **Ampliar a triagem CNN para dez seeds**, arquivar matrizes completas e
+9. **Executar a seção ResNet-18 com dez seeds**, arquivar matrizes completas e
    ambiente, e só então pré-registrar uma confirmação separada do par escolhido.
 10. **Validar generalização** em ordens alternativas, memórias diferentes,
     Permuted-MNIST e Split-CIFAR-100 antes de qualquer alegação ampla.
@@ -725,6 +724,7 @@ Os dados **não** permitem afirmar ainda que:
 src/dual_heater/
   dual_heat.py       DualHeat legado
   slow_heat.py       Functional SlowHeat linear, convolucional e MLP
+  resnet.py          ResNet-18 CIFAR e variante SlowHeat residual
   optim.py           SlowHeatAdamW e SlowHeatSGD
   lora.py            adaptação DualHeat-LoRA experimental
   metrics.py         métricas de aprendizagem contínua

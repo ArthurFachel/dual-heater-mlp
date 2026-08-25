@@ -370,6 +370,7 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
             weight_decay=1e-4,
             slow_strength=30.0,
             plasticity_budget=0.25,
+            lpr_update_frequency=300,
             methods=RESNET18_VISUAL_METHODS,
             device=device,
         ),

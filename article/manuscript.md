@@ -7,7 +7,7 @@ and integration tests. Exploratory Split-MNIST comparisons against Replay,
 DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented and their raw
 per-seed artifacts are versioned, but the frozen independent confirmation has
 no versioned execution artifacts. Split-CIFAR-10/100 support is implemented.
-A local three-seed real-CNN screening export contains paired differences but
+A local ten-seed real-CNN screening export contains paired differences but
 not complete accuracy matrices or an environment manifest; the historical
 flattened-MLP Split-CIFAR-10 run remains partial and non-aggregate. The
 three-seed pilot in Section 5 predates the
@@ -27,8 +27,9 @@ factorized mask to both incoming rows and downstream columns. Optimizer-aware
 AdamW and SGD wrappers apply the mask to the final parameter delta and, under
 the default policy, to tensor-valued optimizer-state deltas. The method is
 implemented and covered by falsification tests. Exploratory Split-MNIST
-comparisons and a three-seed Split-CIFAR-10 CNN screening exist, but independent
-confirmation, larger CNNs and Split-CIFAR-100 CNN evaluation remain
+comparisons and a ten-seed Split-CIFAR-10 CNN screening exist. A graph-aware
+CIFAR ResNet-18 with GroupNorm is implemented but has no multi-seed result.
+Independent confirmation and Split-CIFAR-100 CNN evaluation remain
 outstanding. No general efficacy or state-of-the-art claim is made.
 
 ## 1. Motivation
@@ -144,7 +145,9 @@ with methods that do not receive boundary information. Permuted-MNIST is
 domain-incremental. The general Split-CIFAR-10/100 adapters are Class-IL and
 flatten normalized images for the same paired MLP engine. A separate opt-in
 Split-CIFAR-10 section preserves NCHW tensors and uses a real two-convolution
-`3→32→64` network with a shared ten-class head.
+`3→32→64` network with a shared ten-class head. A second opt-in section uses a
+CIFAR-style ResNet-18 with a `3x3` stem, GroupNorm, graph-registered residual
+branches and parameter-free post-add importance trackers.
 
 ### 4.2 Paired controls
 
@@ -187,27 +190,27 @@ Backward transfer compares final performance with performance immediately after 
 ### 4.4 Exploratory Split-CIFAR-10 CNN screening
 
 The local `results/paired_differences.csv` export was analyzed on August 25,
-2026. It contains three paired seeds for LPR, Classifier Expander and SCROLL,
+2026. It contains ten paired seeds for LPR, Classifier Expander and SCROLL,
 each with and without SlowHeat. Differences below are
 `method+SlowHeat - method`; negative forgetting and classifier gap are
 favorable.
 
 | Paired contrast | Final accuracy | Forgetting | BWT | Task-aware accuracy | Classifier gap |
 |---|---:|---:|---:|---:|---:|
-| SlowHeat+LPR − LPR | +0.96 pp | −5.19 pp | +5.19 pp | −1.44 pp | −2.40 pp |
-| SlowHeat+Classifier Expander − Classifier Expander | −0.38 pp | −7.10 pp | +11.70 pp | −1.81 pp | −1.43 pp |
-| SlowHeat+SCROLL − SCROLL | +5.92 pp | +3.79 pp | −10.55 pp | +4.31 pp | −1.61 pp |
+| SlowHeat+LPR − LPR | +0.78 pp | −4.66 pp | +4.66 pp | −1.29 pp | −2.07 pp |
+| SlowHeat+Classifier Expander − Classifier Expander | −0.88 pp | −5.13 pp | +10.28 pp | −2.05 pp | −1.17 pp |
+| SlowHeat+SCROLL − SCROLL | +5.78 pp | −1.25 pp | −4.07 pp | +3.83 pp | −1.95 pp |
 
-SlowHeat+LPR improved final accuracy and reduced forgetting in all three seeds.
+SlowHeat+LPR improved mean final accuracy and reduced forgetting in all ten seeds.
 SlowHeat+Classifier Expander reduced forgetting but did not improve mean final
-accuracy. SlowHeat+SCROLL improved final accuracy in all three seeds while
-worsening mean forgetting and BWT, consistent with a retention-acquisition
-trade-off. Approximate paired Student-t 95% intervals for final-accuracy change
-are −0.36 to +2.28 pp for LPR, −5.58 to +4.82 pp for Classifier Expander and
-+2.18 to +9.66 pp for SCROLL.
+accuracy. SlowHeat+SCROLL improved final and task-aware accuracy in all ten
+seeds; its forgetting and BWT effects remain inconclusive. Approximate paired
+Student-t 95% intervals for final-accuracy change are +0.19 to +1.38 pp for
+LPR, −1.80 to +0.03 pp for Classifier Expander and +4.14 to +7.42 pp for
+SCROLL.
 
-These observations are screening evidence only. Three seeds provide weak
-uncertainty estimates, and the export omits absolute per-seed scores,
+These observations are screening evidence only. The intervals do not correct
+for exploratory multiplicity, and the export omits absolute per-seed scores,
 task-accuracy matrices and environment provenance. SCROLL also uses task 0 as
 a shared representation bootstrap because the runner does not distribute an
 external pretrained checkpoint; this is not an exact reproduction of the
@@ -256,9 +259,9 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 
 1. Tune learning rate and protection strength separately for every optimizer family using a declared validation protocol.
 2. Use at least five seeds for screening and preferably ten for final tables.
-3. Extend the real-CNN Split-CIFAR-10 screening to ten paired seeds, archive
-   complete trajectories and environment provenance, then execute a real-CNN
-   Split-CIFAR-100 protocol.
+3. Execute the implemented CIFAR ResNet-18 section with ten paired seeds,
+   archive complete trajectories and environment provenance, then execute a
+   real-CNN Split-CIFAR-100 protocol.
 4. Independently repeat the implemented Replay, DER++, ER-ACE, A-GEM, EWC, SI
    and LwF comparisons with declared tuning, and add MAS, activation-based
    importance, UCB, HAT, SLNID and joint training.
@@ -287,9 +290,9 @@ Currently supported:
 - The benchmark now uses paired initialization, fixed batches and a complete accuracy matrix.
 - In a historical pilot of the superseded method, stronger protection reduced
   measured forgetting while reducing final accuracy.
-- In one three-seed Split-CIFAR-10 CNN screening, SlowHeat+SCROLL increased
-  final accuracy in all three pairs and SlowHeat+LPR reduced forgetting in all
-  three pairs.
+- In one ten-seed Split-CIFAR-10 CNN screening, SlowHeat+SCROLL increased
+  final accuracy in all ten pairs and SlowHeat+LPR reduced forgetting in all
+  ten pairs.
 
 Not currently supported:
 
@@ -297,7 +300,7 @@ Not currently supported:
 - MAX consolidation is novel by itself.
 - The method reduces forgetting by 34 percent in general.
 - The method is equivalent to EWC.
-- The three-seed CNN observations generalize to larger convolutional networks,
+- The ten-seed small-CNN observations generalize to residual networks,
   transformers or real-world tasks.
 
 ## 9. Reproducibility Artifacts
@@ -310,6 +313,7 @@ Not currently supported:
 - Frozen confirmation protocol: `docs/confirmatory_protocol.md`
 - Split-CIFAR protocol: `docs/split_cifar.md`
 - Local CNN paired-difference export: `results/paired_differences.csv`
+- Residual implementation: `src/dual_heater/resnet.py`
 - Split-MNIST experiment record: `docs/split_mnist_experiment_log.md`
 - Smoke config: `configs/synthetic_smoke.json`
 - Ablation pilot config: `configs/synthetic_ablation_pilot.json`

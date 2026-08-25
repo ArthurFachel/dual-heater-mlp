@@ -3,7 +3,6 @@ import torch
 from dual_heater import CIFARResNet18, SlowHeatResNet18
 from dual_heater.optim import SlowHeatAdamW, SlowHeatSGD
 
-
 TINY_RESNET = {
     "stage_channels": (2, 4, 8, 16),
     "blocks_per_stage": (1, 1, 1, 1),
@@ -40,6 +39,19 @@ def test_resnet_graph_registers_virtual_sources_and_groupnorm_affine_parameters(
     assert len(optimizer._plasticity_masks) == len(list(model.parameters()))
     kinds = [kind for _, _, kind in optimizer._plasticity_masks.values()]
     assert any("virtual_stem_output" in kind for kind in kinds)
+    assert any("channel_affine_from_stem" in kind for kind in kinds)
+
+
+def test_resnet_unidirectional_registration_still_protects_groupnorm_affine():
+    model = SlowHeatResNet18(3, 5, **TINY_RESNET)
+    optimizer = SlowHeatSGD(model.parameters(), lr=1.0)
+    for layer in model.get_slow_layers():
+        optimizer.register_slow_heat_module(layer)
+    optimizer.register_slow_heat_channel_model(model)
+
+    assert len(optimizer._plasticity_masks) == len(list(model.parameters()))
+    kinds = [kind for _, _, kind in optimizer._plasticity_masks.values()]
+    assert not any("factorized_from" in kind for kind in kinds)
     assert any("channel_affine_from_stem" in kind for kind in kinds)
 
 
