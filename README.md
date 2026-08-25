@@ -222,19 +222,16 @@ See `docs/synthetic_ablation_pilot.md`.
 
 ## Known limitations
 
-- A local ten-seed Split-CIFAR-10 CNN screening export now exists in
-  `results/paired_differences.csv`. It contains paired differences, not the
-  complete per-seed accuracy matrices and environment manifest, and is therefore
-  exploratory rather than a completed or independently replicated benchmark.
-  The historical flattened-MLP Split-CIFAR-10 run remains partial, and there is
-  no completed Split-CIFAR-100 result.
+- No completed result on a harder visual or language continual-learning
+  benchmark is versioned. Partial Split-CIFAR-10 per-seed artifacts are kept as
+  execution diagnostics; there is no completed CIFAR aggregate or Split-CIFAR-100
+  result.
 - Replay, DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are implemented in
   the shared Split-MNIST/visual runner, but they have not all received
   method-specific tuning or independent replication. MAS, UCB, HAT, NAI,
   SLNID and joint-training controls are not implemented.
-- Classifier expansion has received a ten-seed Split-CIFAR-10 CNN screening,
-  but neither it nor classifier alignment has received a tuned, independently
-  replicated evaluation.
+- The output classifier is protected by default, but classifier expansion and
+  alignment have not yet been evaluated on a standard benchmark.
 - The pilot uses only three seeds and a simple Gaussian dataset.
 - The superseded synthetic pilot is archived under
   `artifacts/synthetic_ablation_pilot/`. Existing exploratory outputs under
@@ -281,7 +278,6 @@ Not supported:
 src/dual_heater/
   dual_heat.py       legacy DualHeat mechanism
   slow_heat.py       SlowHeat linear/conv layers and consolidation
-  resnet.py          CIFAR ResNet-18 and graph-aware SlowHeat variant
   lora.py            experimental LoRA adaptation
   optim.py           optimizer-aware update masking
   metrics.py         continual-learning metrics
@@ -366,12 +362,12 @@ paired MLP engine, so these runs test harder visual streams but are not CNN
 benchmarks. See [`docs/split_cifar.md`](docs/split_cifar.md) for the exact
 protocol.
 
-The small real-CNN benchmark is a separate, opt-in section so it cannot alter
-the historical flattened-MLP runs:
+The small real-CNN pilot is a separate, opt-in section so it cannot alter the
+historical flattened-MLP runs:
 
 ```bash
 PYTHONPATH=src:. python run_all_tests.py \
-  --num-seeds 10 \
+  --num-seeds 3 \
   --sections split-cifar10-cnn \
   --device cuda
 ```
@@ -388,30 +384,7 @@ explicit representation bootstrap, followed by accumulated ridge-regression
 statistics and replay-only representation adaptation. This is a documented
 benchmark adaptation, not a claim of exact reproduction of pretrained SCROLL.
 
-The local ten-seed paired-difference export is summarized in
-[`docs/split_cifar.md`](docs/split_cifar.md). In that screening,
-SlowHeat+SCROLL improved final average accuracy in all ten seeds, while
-SlowHeat+LPR reduced forgetting in all ten seeds and improved mean final
-accuracy. These are method-paired exploratory observations, not evidence of
-general superiority.
-
-Run the CIFAR-style ResNet-18 transfer experiment separately:
-
-```bash
-PYTHONPATH=src:. python3 run_all_tests.py \
-  --num-seeds 10 \
-  --sections split-cifar10-resnet18 \
-  --device cuda
-```
-
-This backbone uses a `3x3` stride-1 stem, `2-2-2-2` BasicBlocks,
-`64-128-256-512` channels, GroupNorm and global pooling. SlowHeat tracks each
-post-add residual state, registers both main and projection branches, and also
-masks GroupNorm affine parameters. The section is opt-in and currently has no
-multi-seed result. To bound the cubic covariance-inversion cost on this deeper
-backbone, both LPR variants use `lpr_update_frequency=300`.
-
-After the screening, run the preselected CNN stability/plasticity sweep with ten
+After the pilot, run the preselected CNN stability/plasticity sweep with ten
 paired seeds:
 
 ```bash

@@ -3,11 +3,7 @@ import pytest
 import run_all_tests
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP
 from experiments.synthetic_cl import SYNTHETIC_METHODS
-from experiments.visual_generalization import (
-    CNN_SWEEP_METHODS,
-    CNN_VISUAL_METHODS,
-    RESNET18_VISUAL_METHODS,
-)
+from experiments.visual_generalization import CNN_SWEEP_METHODS, CNN_VISUAL_METHODS
 
 
 def test_default_plan_covers_every_confirmatory_notebook_section():
@@ -96,37 +92,6 @@ def test_cnn_sweep_plan_declares_preselected_grid():
     assert len(section["seeds"]) == 10
     assert section["protocol"]["backbone"] == "cnn"
     assert section["output_dir"].endswith("split_cifar10_cnn_sweep")
-
-
-def test_resnet18_plan_declares_cifar_stem_and_groupnorm():
-    args = run_all_tests.parse_args(
-        [
-            "--num-seeds",
-            "10",
-            "--sections",
-            "split-cifar10-resnet18",
-            "--dry-run",
-        ]
-    )
-    plan = run_all_tests.build_run_plan(args)
-    section = plan["sections"]["split-cifar10-resnet18"]
-
-    assert section["methods"] == list(RESNET18_VISUAL_METHODS)
-    assert section["protocol"] == {
-        "scenario": "class_incremental",
-        "task_count": 5,
-        "classes_per_task": 2,
-        "class_count": 10,
-        "inference_task_id": False,
-        "backbone": "resnet18",
-        "image_shape": [3, 32, 32],
-        "stage_channels": [64, 128, 256, 512],
-        "blocks_per_stage": [2, 2, 2, 2],
-        "normalization": "groupnorm",
-        "lpr_update_frequency": 300,
-        "epochs_per_task": 5,
-    }
-    assert section["output_dir"].endswith("split_cifar10_resnet18")
 
 
 def test_all_datasets_all_methods_plan_covers_every_compatible_cross_section():
