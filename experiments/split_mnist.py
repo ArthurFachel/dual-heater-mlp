@@ -1053,6 +1053,7 @@ def _build_optimizer(
     if _is_unidirectional(method):
         for layer in _slow_layers(model):
             optimizer.register_slow_heat_module(layer)
+        optimizer.register_slow_heat_channel_model(model)
     else:
         optimizer.register_slow_heat_model(model, hard=method == "hard_freeze")
     return optimizer

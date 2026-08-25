@@ -291,6 +291,25 @@ class _PlasticityMaskMixin:
                 kind=f"{prefix}_channel_affine_from_{source_key}",
             )
 
+    def register_slow_heat_channel_model(
+        self,
+        model: torch.nn.Module,
+        *,
+        hard: bool = False,
+    ) -> None:
+        """Register every declared affine per-channel module on ``model``."""
+
+        channel_getter = getattr(model, "get_slow_channel_modules", None)
+        if not callable(channel_getter):
+            return
+        for module, source, source_key in channel_getter():
+            self.register_slow_heat_channel_module(
+                module,
+                source_module=source,
+                source_key=source_key,
+                hard=hard,
+            )
+
     def register_slow_heat_model(
         self,
         model: torch.nn.Module,
@@ -363,15 +382,7 @@ class _PlasticityMaskMixin:
                 input_key=input_key,
                 hard=hard,
             )
-        channel_getter = getattr(model, "get_slow_channel_modules", None)
-        if callable(channel_getter):
-            for module, source, source_key in channel_getter():
-                self.register_slow_heat_channel_module(
-                    module,
-                    source_module=source,
-                    source_key=source_key,
-                    hard=hard,
-                )
+        self.register_slow_heat_channel_model(model, hard=hard)
 
     def clear_plasticity_masks(self) -> None:
         """Remove optimizer masks; module gradient hooks are not re-enabled."""

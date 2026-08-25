@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import torch
 from torch import Tensor, nn
 
 from .slow_heat import (

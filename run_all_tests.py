@@ -334,6 +334,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                         "stage_channels": list(config.resnet_stage_channels),
                         "blocks_per_stage": list(config.resnet_blocks_per_stage),
                         "normalization": "groupnorm",
+                        "lpr_update_frequency": config.lpr_update_frequency,
                         "epochs_per_task": config.epochs_per_task,
                     }
                 )

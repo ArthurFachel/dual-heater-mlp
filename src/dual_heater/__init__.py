@@ -6,20 +6,20 @@ from .metrics import CLMetrics, compute_cl_metrics
 from .optim import SlowHeatAdamW, SlowHeatSGD
 from .resnet import CIFARResNet18, SlowHeatResNet18
 from .slow_heat import (
-    SlowHeatCNN,
     SlowHeatChannelTracker,
+    SlowHeatCNN,
     SlowHeatConv2d,
     SlowHeatLinear,
     SlowHeatMLP,
 )
 
 __all__ = [
+    "CIFARResNet18",
     "CLMetrics",
     "DualHeatLinear",
     "DualHeatLoRALinear",
     "DualHeatMLP",
     "SlowHeatAdamW",
-    "CIFARResNet18",
     "SlowHeatCNN",
     "SlowHeatChannelTracker",
     "SlowHeatConv2d",

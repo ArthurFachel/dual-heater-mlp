@@ -123,6 +123,7 @@ def test_resnet18_plan_declares_cifar_stem_and_groupnorm():
         "stage_channels": [64, 128, 256, 512],
         "blocks_per_stage": [2, 2, 2, 2],
         "normalization": "groupnorm",
+        "lpr_update_frequency": 300,
         "epochs_per_task": 5,
     }
     assert section["output_dir"].endswith("split_cifar10_resnet18")
