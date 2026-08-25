@@ -6,8 +6,10 @@ Technical manuscript draft. The current implementation is validated by unit
 and integration tests. Exploratory Split-MNIST comparisons against Replay,
 DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented and their raw
 per-seed artifacts are versioned, but the frozen independent confirmation has
-no versioned execution artifacts. Split-CIFAR-10/100 support is implemented;
-only partial, non-aggregate Split-CIFAR-10 diagnostics are versioned. The
+no versioned execution artifacts. Split-CIFAR-10/100 support is implemented.
+A local three-seed real-CNN screening export contains paired differences but
+not complete accuracy matrices or an environment manifest; the historical
+flattened-MLP Split-CIFAR-10 run remains partial and non-aggregate. The
 three-seed pilot in Section 5 predates the
 functional-importance, factorized-protection, capacity-budget and
 optimizer-state changes; it is retained only as historical motivation and
@@ -25,8 +27,9 @@ factorized mask to both incoming rows and downstream columns. Optimizer-aware
 AdamW and SGD wrappers apply the mask to the final parameter delta and, under
 the default policy, to tensor-valued optimizer-state deltas. The method is
 implemented and covered by falsification tests. Exploratory Split-MNIST
-comparisons exist, but independent confirmation and harder visual evaluation
-remain outstanding. No general efficacy or state-of-the-art claim is made.
+comparisons and a three-seed Split-CIFAR-10 CNN screening exist, but independent
+confirmation, larger CNNs and Split-CIFAR-100 CNN evaluation remain
+outstanding. No general efficacy or state-of-the-art claim is made.
 
 ## 1. Motivation
 
@@ -138,8 +141,10 @@ one output head and evaluation does not provide a task identifier. SlowHeat
 nevertheless receives oracle task-boundary events to call `consolidate()`. It
 is therefore boundary-aware rather than task-free, which limits comparison
 with methods that do not receive boundary information. Permuted-MNIST is
-domain-incremental; the implemented Split-CIFAR-10/100 adapters are Class-IL
-and flatten normalized images for the same paired MLP engine.
+domain-incremental. The general Split-CIFAR-10/100 adapters are Class-IL and
+flatten normalized images for the same paired MLP engine. A separate opt-in
+Split-CIFAR-10 section preserves NCHW tensors and uses a real two-convolution
+`3→32→64` network with a shared ten-class head.
 
 ### 4.2 Paired controls
 
@@ -179,6 +184,35 @@ Average forgetting excludes the final task because it has no subsequent task ove
 
 Backward transfer compares final performance with performance immediately after learning each old task. Forward transfer uses performance immediately before training a future task minus a separately measured random-initialization baseline. Accuracy after training the new task is not forward transfer.
 
+### 4.4 Exploratory Split-CIFAR-10 CNN screening
+
+The local `results/paired_differences.csv` export was analyzed on August 25,
+2026. It contains three paired seeds for LPR, Classifier Expander and SCROLL,
+each with and without SlowHeat. Differences below are
+`method+SlowHeat - method`; negative forgetting and classifier gap are
+favorable.
+
+| Paired contrast | Final accuracy | Forgetting | BWT | Task-aware accuracy | Classifier gap |
+|---|---:|---:|---:|---:|---:|
+| SlowHeat+LPR − LPR | +0.96 pp | −5.19 pp | +5.19 pp | −1.44 pp | −2.40 pp |
+| SlowHeat+Classifier Expander − Classifier Expander | −0.38 pp | −7.10 pp | +11.70 pp | −1.81 pp | −1.43 pp |
+| SlowHeat+SCROLL − SCROLL | +5.92 pp | +3.79 pp | −10.55 pp | +4.31 pp | −1.61 pp |
+
+SlowHeat+LPR improved final accuracy and reduced forgetting in all three seeds.
+SlowHeat+Classifier Expander reduced forgetting but did not improve mean final
+accuracy. SlowHeat+SCROLL improved final accuracy in all three seeds while
+worsening mean forgetting and BWT, consistent with a retention-acquisition
+trade-off. Approximate paired Student-t 95% intervals for final-accuracy change
+are −0.36 to +2.28 pp for LPR, −5.58 to +4.82 pp for Classifier Expander and
++2.18 to +9.66 pp for SCROLL.
+
+These observations are screening evidence only. Three seeds provide weak
+uncertainty estimates, and the export omits absolute per-seed scores,
+task-accuracy matrices and environment provenance. SCROLL also uses task 0 as
+a shared representation bootstrap because the runner does not distribute an
+external pretrained checkpoint; this is not an exact reproduction of the
+original pretrained-representation protocol.
+
 ## 5. Historical Diagnostic Pilot (Superseded Method)
 
 The CPU-only pilot used three seeds, three tasks, two classes per task and 20 optimizer steps per task. It was designed to verify the protocol and expose confounds, not to estimate benchmark performance.
@@ -212,6 +246,9 @@ The closest conceptual precedents include:
 - HAT: cumulative task masks using elementwise maximum ([Serrà et al., 2018](https://arxiv.org/abs/1801.01423)).
 - Uncertainty-guided continual learning: importance-dependent learning-rate modulation ([Ebrahimi et al., 2020](https://arxiv.org/abs/1906.02425)).
 - Neuron Activation Importance: activation-based neuron importance ([Jung et al., 2022](https://doi.org/10.1007/978-3-031-06427-2_26)).
+- LPR: replay-conditioned layerwise proximal optimization ([Yoo et al., 2024](https://proceedings.mlr.press/v235/yoo24a.html)).
+- Classifier Expander: two-stage inner-task and cross-task classifier training ([Liu et al., 2024](https://proceedings.mlr.press/v222/liu24b.html)).
+- SCROLL: schedule-robust ridge classification over a pretrained representation followed by replay-only adaptation ([Wang et al., 2025](https://doi.org/10.1109/TPAMI.2025.3614868)).
 
 No claim of being the first method to use neuron importance, MAX masks, lateral inhibition or importance-dependent plasticity is justified. Novelty, if established, must be argued at the level of the exact combination and its optimizer-aware formulation.
 
@@ -219,8 +256,9 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 
 1. Tune learning rate and protection strength separately for every optimizer family using a declared validation protocol.
 2. Use at least five seeds for screening and preferably ten for final tables.
-3. Use Split MNIST as a debugging benchmark, then execute the implemented
-   Split-CIFAR-10 and Split-CIFAR-100 continual-learning streams.
+3. Extend the real-CNN Split-CIFAR-10 screening to ten paired seeds, archive
+   complete trajectories and environment provenance, then execute a real-CNN
+   Split-CIFAR-100 protocol.
 4. Independently repeat the implemented Replay, DER++, ER-ACE, A-GEM, EWC, SI
    and LwF comparisons with declared tuning, and add MAS, activation-based
    importance, UCB, HAT, SLNID and joint training.
@@ -249,6 +287,9 @@ Currently supported:
 - The benchmark now uses paired initialization, fixed batches and a complete accuracy matrix.
 - In a historical pilot of the superseded method, stronger protection reduced
   measured forgetting while reducing final accuracy.
+- In one three-seed Split-CIFAR-10 CNN screening, SlowHeat+SCROLL increased
+  final accuracy in all three pairs and SlowHeat+LPR reduced forgetting in all
+  three pairs.
 
 Not currently supported:
 
@@ -256,7 +297,8 @@ Not currently supported:
 - MAX consolidation is novel by itself.
 - The method reduces forgetting by 34 percent in general.
 - The method is equivalent to EWC.
-- Results transfer to convolutional networks, transformers or real-world tasks.
+- The three-seed CNN observations generalize to larger convolutional networks,
+  transformers or real-world tasks.
 
 ## 9. Reproducibility Artifacts
 
@@ -267,6 +309,7 @@ Not currently supported:
 - Diagnostic pilot: `docs/synthetic_ablation_pilot.md`
 - Frozen confirmation protocol: `docs/confirmatory_protocol.md`
 - Split-CIFAR protocol: `docs/split_cifar.md`
+- Local CNN paired-difference export: `results/paired_differences.csv`
 - Split-MNIST experiment record: `docs/split_mnist_experiment_log.md`
 - Smoke config: `configs/synthetic_smoke.json`
 - Ablation pilot config: `configs/synthetic_ablation_pilot.json`

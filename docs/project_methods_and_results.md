@@ -2,7 +2,7 @@
 
 ## Visão do projeto, catálogo de métodos e análise dos resultados
 
-**Data da revisão documental:** 18 de agosto de 2026
+**Data da revisão documental:** 25 de agosto de 2026
 **Projeto:** `dual-heater` v0.2.0  
 **Benchmark dos resultados fornecidos:** Split-MNIST class-incremental  
 **Estado científico:** protótipo de pesquisa; os resultados sustentam conclusões exploratórias, não uma alegação de estado da arte.
@@ -13,7 +13,13 @@
 
 O projeto investiga mecanismos de plasticidade em nível de neurônio para aprendizagem contínua. A ideia central do método atual, **Functional SlowHeat**, é identificar unidades importantes para tarefas anteriores e reduzir seletivamente suas atualizações, mantendo uma fração explícita da rede disponível para aprender tarefas novas.
 
-O arquivo analisado contém 14 linhas não vazias, correspondentes a **13 métodos únicos**. A configuração `slowheat_replay_hidden_beta_30_budget_0.25` aparece duas vezes com métricas preditivas idênticas e apenas uma pequena diferença de tempo; ela foi tratada como duplicata de exportação, e não como uma seed adicional.
+O arquivo Split-MNIST originalmente analisado contém 14 linhas não vazias,
+correspondentes a **13 métodos únicos**. A configuração
+`slowheat_replay_hidden_beta_30_budget_0.25` aparece duas vezes com métricas
+preditivas idênticas e apenas uma pequena diferença de tempo; ela foi tratada
+como duplicata de exportação, e não como uma seed adicional. Esta revisão
+também incorpora, em uma seção separada, o export exploratório de diferenças
+pareadas do benchmark CNN Split-CIFAR-10.
 
 Principais resultados:
 
@@ -28,7 +34,13 @@ Principais resultados:
 - O patamar de aproximadamente 20% não é o acaso uniforme de dez classes, que seria 10%. Ele é compatível com um modelo que termina dominado pela tarefa mais recente e acerta essencialmente um dos cinco pares.
 - As larguras de IC95% do CSV usam aproximação normal e são compatíveis com **cinco seeds**. Com `n=5`, esses intervalos são otimistas; a inferência principal deve usar diferenças pareadas por seed e intervalo de Student ou bootstrap pareado.
 
-Conclusão central: **o resultado mais promissor é SlowHeat + DER++, mas ele ainda é exploratório**. O candidato confirmatório congelado no repositório é SlowHeat + Replay contra Replay, contraste no qual o efeito observado neste CSV é pequeno e incerto.
+Conclusão central: **SlowHeat + DER++ continua sendo o candidato exploratório
+mais promissor no relatório Split-MNIST**. Na triagem CNN, SlowHeat+SCROLL é o
+candidato de acurácia e SlowHeat+LPR é o candidato de retenção mais equilibrado.
+Esses resultados vêm de protocolos e arquivos diferentes e nenhum deles está
+confirmado. O candidato confirmatório Split-MNIST congelado no repositório é
+SlowHeat + Replay contra Replay, contraste no qual o efeito observado é pequeno
+e incerto.
 
 ---
 
@@ -591,7 +603,34 @@ O protocolo completo inclui:
 - Split-CIFAR-10 Class-IL em cinco tarefas de duas classes;
 - Split-CIFAR-100 Class-IL em dez tarefas de dez classes.
 
-O CSV fornecido não contém resultados dessas extensões.
+O CSV Split-MNIST analisado nas seções anteriores não contém resultados dessas
+extensões. A triagem CNN abaixo vem de outro arquivo e deve permanecer separada.
+
+### 11.4 Triagem CNN Split-CIFAR-10 de 25 de agosto de 2026
+
+O arquivo local `results/paired_differences.csv` contém três seeds e permite
+comparar diretamente cada método CNN com sua versão +SlowHeat. A diferença é
+sempre `método+SlowHeat - método`; valores negativos de forgetting e classifier
+gap são favoráveis.
+
+| Contraste pareado | Acurácia final | Forgetting | BWT | Acurácia task-aware | Classifier gap |
+|---|---:|---:|---:|---:|---:|
+| SlowHeat+LPR − LPR | +0,96 p.p. | −5,19 p.p. | +5,19 p.p. | −1,44 p.p. | −2,40 p.p. |
+| SlowHeat+Classifier Expander − Classifier Expander | −0,38 p.p. | −7,10 p.p. | +11,70 p.p. | −1,81 p.p. | −1,43 p.p. |
+| SlowHeat+SCROLL − SCROLL | +5,92 p.p. | +3,79 p.p. | −10,55 p.p. | +4,31 p.p. | −1,61 p.p. |
+
+SlowHeat+LPR aumentou a acurácia e reduziu forgetting nas três seeds.
+SlowHeat+Classifier Expander melhorou retenção, mas não a acurácia média.
+SlowHeat+SCROLL aumentou a acurácia nas três seeds, com forgetting médio maior
+e BWT menor. Isso caracteriza uma troca de retenção por aquisição, não uma
+dominância uniforme. Com apenas três pares, os intervalos são largos; o IC 95%
+t aproximado do ganho de acurácia é −0,36 a +2,28 p.p. para LPR, −5,58 a
++4,82 p.p. para Classifier Expander e +2,18 a +9,66 p.p. para SCROLL.
+
+O export não contém os escores absolutos, as matrizes de acurácia por tarefa ou
+o manifesto de ambiente. Portanto, ele serve para triagem e seleção de
+hipóteses, não como agregado confirmatório auditável. O protocolo e os custos
+estão detalhados em [split_cifar.md](split_cifar.md).
 
 ---
 
@@ -622,12 +661,16 @@ Os testes validam contratos de implementação. Eles não demonstram eficácia c
 2. **Sem dados pareados no arquivo.** Não é possível calcular o teste correto da diferença.
 3. **Mistura de seções.** SlowHeat + DER++ é exploratório e não pertence ao contraste confirmatório congelado.
 4. **Fairness por épocas, não por exemplos.** Métodos com replay processam 40% mais exemplos que Vanilla.
-5. **Um benchmark simples.** Split-MNIST não demonstra escalabilidade para visão complexa ou linguagem.
+5. **Um benchmark principal simples.** Split-MNIST não demonstra escalabilidade
+   para visão complexa ou linguagem; a triagem CNN adicional usa só três seeds
+   e uma arquitetura pequena.
 6. **Fronteiras de tarefa conhecidas.** SlowHeat é boundary-aware, o que limita comparações com métodos task-free.
 7. **Cabeça compartilhada sensível a viés.** Vários métodos preservam desempenho task-aware, mas falham globalmente.
 8. **Overhead de tempo elevado.** A implementação atual do otimizador não é fundida e pode não escalar.
 9. **IC normal com amostra pequena.** Os intervalos apresentados são estreitos demais em relação a um IC t.
-10. **Artefatos brutos ausentes do repositório.** Sem resultados por seed, ambiente e hash, a auditoria fica incompleta.
+10. **Artefatos brutos incompletos.** O relatório Split-MNIST não traz dados
+    pareados por seed, e o export CNN traz diferenças pareadas sem matrizes de
+    acurácia, ambiente e hash. A auditoria continua incompleta.
 
 ---
 
@@ -644,13 +687,16 @@ Os dados permitem afirmar que, nesta execução exploratória:
 - dobrar as épocas do replay não melhorou o resultado;
 - early stopping reduziu custo sem perda média aparente;
 - o SlowHeat atual tem overhead de tempo muito maior que seu overhead aritmético estimado.
+- na triagem CNN de três seeds, SlowHeat+SCROLL elevou a acurácia final nos três
+  pares, enquanto SlowHeat+LPR reduziu forgetting nos três pares.
 
 Os dados **não** permitem afirmar ainda que:
 
 - SlowHeat é superior de forma geral a DER++, Replay ou outros métodos;
 - o ganho de SlowHeat + DER++ é estatisticamente confirmado;
 - SlowHeat + Replay supera Replay no endpoint confirmatório;
-- o método escala para redes convolucionais ou transformers;
+- o método escala para redes convolucionais maiores, transformers ou tarefas
+  reais;
 - a redução de forgetting, sozinha, representa melhor aprendizagem contínua.
 
 ---
@@ -665,8 +711,11 @@ Os dados **não** permitem afirmar ainda que:
 6. **Arquivar artefatos completos:** configuração, seed, matriz de acurácia, curvas, custo, ambiente, hash do commit e CSV agregado.
 7. **Investigar o classifier gap** com matrizes de confusão, distribuição de logits antigos/novos e calibração por estágio.
 8. **Executar as ablações causais:** hidden-only versus saída protegida, budget fixo/adaptativo, proteção fatorada/row-only e `follow_update`/`native`.
-9. **Validar generalização** em ordens alternativas, memórias diferentes, Permuted-MNIST e nos dois protocolos Split-CIFAR antes de qualquer alegação ampla.
-10. **Deduplicar e validar exportações**, rejeitando nomes repetidos ou incluindo explicitamente a origem de cada seção.
+9. **Ampliar a triagem CNN para dez seeds**, arquivar matrizes completas e
+   ambiente, e só então pré-registrar uma confirmação separada do par escolhido.
+10. **Validar generalização** em ordens alternativas, memórias diferentes,
+    Permuted-MNIST e Split-CIFAR-100 antes de qualquer alegação ampla.
+11. **Deduplicar e validar exportações**, rejeitando nomes repetidos ou incluindo explicitamente a origem de cada seção.
 
 ---
 
@@ -681,6 +730,7 @@ src/dual_heater/
   metrics.py         métricas de aprendizagem contínua
 
 experiments/
+  lpr.py                         precondicionador proximal do LPR
   split_mnist.py                 runner principal e baselines
   split_mnist_suite.py           fairness, ablações e generalização
   confirmatory_split_mnist.py    confirmação pré-registrada
@@ -698,9 +748,18 @@ article/             manuscrito técnico em desenvolvimento
 
 ## 17. Recomendação final
 
-O projeto possui uma base de engenharia cuidadosa e um mecanismo bem definido, especialmente na semântica do update final, proteção fatorada e orçamento de capacidade. O resultado **SlowHeat + DER++** justifica uma nova confirmação dedicada. Entretanto, o contraste confirmatório atualmente pré-registrado — SlowHeat + Replay versus Replay — apresenta neste arquivo um efeito pequeno, enquanto o custo de tempo é grande.
+O projeto possui uma base de engenharia cuidadosa e um mecanismo bem definido,
+especialmente na semântica do update final, proteção fatorada e orçamento de
+capacidade. **SlowHeat + DER++** justifica uma confirmação dedicada em
+Split-MNIST. Na CNN pequena, **SlowHeat+SCROLL** merece confirmação do ganho de
+acurácia e **SlowHeat+LPR** merece confirmação do perfil de retenção. Entretanto,
+o contraste confirmatório atualmente pré-registrado — SlowHeat + Replay versus
+Replay — apresenta no arquivo Split-MNIST um efeito pequeno, enquanto o custo
+de tempo é grande.
 
-A interpretação mais responsável é: **Functional SlowHeat é um complemento promissor para DER++, ainda não uma melhoria confirmada e geral em aprendizagem contínua**.
+A interpretação mais responsável é: **Functional SlowHeat apresenta sinais
+promissores em combinações específicas, ainda não uma melhoria confirmada e
+geral em aprendizagem contínua**.
 
 ---
 
@@ -723,6 +782,9 @@ Esta seção evita dois erros comuns: deixar uma variante sem referência e atri
 | `si` | implementação de método publicado | [Continual Learning Through Synaptic Intelligence](https://proceedings.mlr.press/v70/zenke17a.html) |
 | `distillation` | aplicação local de técnica publicada | [Distilling the Knowledge in a Neural Network](https://arxiv.org/abs/1503.02531) |
 | `lwf_calibrated` | LwF com ponderação local | [Learning without Forgetting](https://doi.org/10.1007/978-3-319-46493-0_37) + [distillation](https://arxiv.org/abs/1503.02531); calibração local |
+| `lpr` | adaptação local de método publicado | [Layerwise Proximal Replay](https://proceedings.mlr.press/v235/yoo24a.html); aplicada à CNN e à memória do runner |
+| `classifier_expander` | adaptação local de método publicado | [Overcoming catastrophic forgetting with classifier expander](https://proceedings.mlr.press/v222/liu24b.html); duas fases no runner |
+| `scroll` | adaptação autocontida de método publicado | [Schedule-Robust Continual Learning](https://doi.org/10.1109/TPAMI.2025.3614868); task 0 substitui a representação externa pré-treinada |
 | `slowheat` | método próprio | [manuscrito técnico local](../article/manuscript.md); relação conceitual com [Taylor de primeira ordem](https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference) |
 | `slowheat_adaptive` | ablação própria | [manuscrito local](../article/manuscript.md); controlador de budget específico do projeto |
 | `slowheat_native_state` | ablação própria | [manuscrito local](../article/manuscript.md) + base [AdamW](https://arxiv.org/abs/1711.05101) |
@@ -734,6 +796,9 @@ Esta seção evita dois erros comuns: deixar uma variante sem referência e atri
 | `slowheat_distillation` | combinação própria | [SlowHeat local](../article/manuscript.md) + [distillation](https://arxiv.org/abs/1503.02531) |
 | `slowheat_derpp_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../article/manuscript.md) + [DER++](https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html) |
 | `slowheat_er_ace_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../article/manuscript.md) + [ER-ACE](https://openreview.net/forum?id=N8MaByOzUfb) |
+| `slowheat_lpr` | combinação própria exploratória | [SlowHeat local](../article/manuscript.md) + [LPR](https://proceedings.mlr.press/v235/yoo24a.html) |
+| `slowheat_classifier_expander` | combinação própria exploratória | [SlowHeat local](../article/manuscript.md) + [Classifier Expander](https://proceedings.mlr.press/v222/liu24b.html) |
+| `slowheat_scroll` | combinação própria exploratória | [SlowHeat local](../article/manuscript.md) + [SCROLL](https://doi.org/10.1109/TPAMI.2025.3614868); mesma adaptação autocontida do controle pareado |
 | `slowheat_hidden_beta_30_budget_0.25` | configuração própria estruturada | [manuscrito local](../article/manuscript.md) |
 | `slowheat_replay_hidden_beta_30_budget_0.25` | configuração própria estruturada | [SlowHeat local](../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |
 | `slowheat_replay_hidden_adaptive_beta_30_budget_0.25` | ablação própria | [SlowHeat local](../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |

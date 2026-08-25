@@ -342,12 +342,19 @@ grafo para residual/fan-out continuam como extensões futuras.
 - concatenação de canais;
 - fan-out para múltiplos consumidores.
 
-### Etapa D — benchmark
+### Etapa D — benchmark CNN mínimo (triagem concluída)
 
 - manter o protocolo Class-IL do Split-CIFAR;
 - substituir a MLP sobre pixels achatados por uma CNN verdadeira;
 - comparar vanilla, SlowHeat sem consolidação, row-only e fatorado;
+- comparar LPR, Classifier Expander e SCROLL com suas versões +SlowHeat;
 - medir acurácia, forgetting, BWT, tempo e pico de memória.
+
+A seção `split-cifar10-cnn` satisfaz esse escopo com uma CNN `3→32→64` e
+cinco tarefas Class-IL. A primeira triagem tem três seeds pareadas. Ela sugere
+ganho de acurácia para SlowHeat+SCROLL e redução consistente de forgetting para
+SlowHeat+LPR, mas não constitui confirmação. Valores, direção dos contrastes e
+limitações de auditoria estão registrados em [split_cifar.md](split_cifar.md).
 
 ## 9. Testes mínimos de aceitação
 
@@ -370,8 +377,16 @@ grafo para residual/fan-out continuam como extensões futuras.
 - A proteção por canal perde informação espacial.
 - O budget de canais não equivale a um budget de parâmetros ou FLOPs.
 - BatchNorm pode alterar canais protegidos por meio de estatísticas correntes.
-- A eficácia em CNNs só estará estabelecida depois de uma avaliação com CNN
-  real; os protocolos CIFAR atuais usam imagens achatadas em uma MLP.
+- Já existe uma triagem com CNN real, mas ela usa apenas três seeds, uma rede
+  pequena de duas convoluções e um export de diferenças pareadas sem as
+  matrizes de acurácia e o manifesto de ambiente completos. Ela não estabelece
+  eficácia geral em CNNs.
+- O SCROLL do runner usa task 0 como bootstrap autocontido e não reproduz a
+  premissa original de representação externa pré-treinada.
+- LPR, Classifier Expander, SCROLL e suas combinações com SlowHeat ainda não
+  receberam ajuste específico por método nem replicação independente.
+- Os protocolos gerais Split-CIFAR-10/100 continuam usando a MLP sobre imagens
+  achatadas; somente a seção opt-in `split-cifar10-cnn` mede a CNN real.
 
 ## Referências
 
