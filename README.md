@@ -284,6 +284,7 @@ src/dual_heater/
   _layers.py         shared activation and MLP validation helpers
 
 experiments/
+  lpr.py                         LPR covariance preconditioner
   split_mnist.py                 shared benchmark and baseline engine
   split_mnist_suite.py           fairness, ablations and orchestration
   confirmatory_split_mnist.py    frozen confirmation entry point
@@ -371,9 +372,17 @@ PYTHONPATH=src:. python run_all_tests.py \
   --device cuda
 ```
 
-It runs five paired methods (`vanilla`, no-consolidation, destination-only,
-factorized SlowHeat and hard freeze) for five epochs per task. Use `--dry-run`
-to inspect the exact protocol without downloading or training.
+It runs the five original CNN controls plus three normal/SlowHeat pairs:
+`lpr`/`slowheat_lpr`,
+`classifier_expander`/`slowheat_classifier_expander`, and
+`scroll`/`slowheat_scroll`. Use `--dry-run` to inspect the exact protocol
+without downloading or training.
+
+The SCROLL paper assumes a suitably pre-trained representation. To keep this
+small runner self-contained, both paired SCROLL variants use task 0 as an
+explicit representation bootstrap, followed by accumulated ridge-regression
+statistics and replay-only representation adaptation. This is a documented
+benchmark adaptation, not a claim of exact reproduction of pretrained SCROLL.
 
 After the pilot, run the preselected CNN stability/plasticity sweep with ten
 paired seeds:

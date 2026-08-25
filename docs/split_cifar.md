@@ -51,12 +51,32 @@ As imagens achatadas permitem reutilizar o engine MLP pareado. Esses
 experimentos testam streams visuais mais difíceis, mas não medem desempenho de
 SlowHeat em CNNs e não devem ser apresentados como tal.
 
-### Piloto CNN
+### Benchmark CNN
 
-O piloto CNN usa 5 épocas por tarefa e os métodos `vanilla`, `slowheat_none`,
-`slowheat_unidirectional`, `slowheat` e `hard_freeze`. A inicialização dos
-parâmetros treináveis é idêntica entre controles dentro de cada seed. Os
-contrastes multi-seed são pareados contra `vanilla`.
+O benchmark CNN usa 5 épocas por tarefa e os controles `vanilla`,
+`slowheat_none`, `slowheat_unidirectional`, `slowheat` e `hard_freeze`. Ele
+também executa os pares:
+
+- `lpr` e `slowheat_lpr`;
+- `classifier_expander` e `slowheat_classifier_expander`;
+- `scroll` e `slowheat_scroll`.
+
+A inicialização dos parâmetros treináveis é idêntica dentro de cada par e de
+cada seed. Os contrastes multi-seed são calculados contra `vanilla` e contra
+cada método normal, permitindo ler diretamente `método+SlowHeat - método`.
+
+LPR calcula covariâncias não centradas das ativações da memória e aplica o
+precondicionador proximal camada a camada antes do passo do otimizador. O
+Classifier Expander usa classificação inner-task no fluxo atual, replay com
+distilação do modelo anterior e uma segunda fase que treina somente a cabeça
+na memória balanceada. SCROLL acumula estatísticas suficientes, resolve a
+cabeça por ridge regression e adapta a representação apenas com replay.
+
+O SCROLL original pressupõe uma representação pré-treinada. Como este projeto
+não distribui um checkpoint externo, task 0 é usado explicitamente como
+bootstrap pareado da representação. Portanto, `scroll` neste runner é uma
+adaptação autocontida do protocolo, não uma reprodução numérica do resultado
+pré-treinado do artigo.
 
 ## Métodos
 
