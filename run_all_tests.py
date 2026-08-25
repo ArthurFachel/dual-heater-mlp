@@ -67,6 +67,7 @@ SECTION_NAMES = (
     "split-cifar10",
     "split-cifar10-cnn",
     "split-cifar10-cnn-sweep",
+    "split-cifar10-resnet18",
     "split-cifar100",
 )
 DEFAULT_SECTION_NAMES = tuple(
@@ -78,6 +79,7 @@ DEFAULT_SECTION_NAMES = tuple(
         "split-mnist-all-methods",
         "split-cifar10-cnn",
         "split-cifar10-cnn-sweep",
+        "split-cifar10-resnet18",
     }
 )
 ALL_DATASET_METHOD_SECTIONS = (
@@ -100,6 +102,7 @@ SECTION_OUTPUT_DIRS = {
     "split-cifar10": "split_cifar10",
     "split-cifar10-cnn": "split_cifar10_cnn",
     "split-cifar10-cnn-sweep": "split_cifar10_cnn_sweep",
+    "split-cifar10-resnet18": "split_cifar10_resnet18",
     "split-cifar100": "split_cifar100",
 }
 
@@ -258,6 +261,9 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         "split-cifar10-cnn-sweep": list(
             visual_configs["split_cifar10_cnn_sweep"].methods
         ),
+        "split-cifar10-resnet18": list(
+            visual_configs["split_cifar10_resnet18"].methods
+        ),
         "split-cifar100": list(visual_configs["split_cifar100"].methods),
     }
 
@@ -299,6 +305,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
             "split-cifar10",
             "split-cifar10-cnn",
             "split-cifar10-cnn-sweep",
+            "split-cifar10-resnet18",
             "split-cifar100",
         }:
             config = generalization_configs(args.device)[name.replace("-", "_")]
@@ -316,6 +323,17 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                         "image_shape": list(config.image_shape or ()),
                         "channels": list(config.cnn_channels),
                         "pooled_size": list(config.cnn_pooled_size),
+                        "epochs_per_task": config.epochs_per_task,
+                    }
+                )
+            elif config.backbone == "resnet18":
+                details["protocol"].update(
+                    {
+                        "backbone": "resnet18",
+                        "image_shape": list(config.image_shape or ()),
+                        "stage_channels": list(config.resnet_stage_channels),
+                        "blocks_per_stage": list(config.resnet_blocks_per_stage),
+                        "normalization": "groupnorm",
                         "epochs_per_task": config.epochs_per_task,
                     }
                 )
@@ -403,6 +421,8 @@ def _run_section(
         return run_visual_generalization("split_cifar10_cnn", **common)
     if name == "split-cifar10-cnn-sweep":
         return run_visual_generalization("split_cifar10_cnn_sweep", **common)
+    if name == "split-cifar10-resnet18":
+        return run_visual_generalization("split_cifar10_resnet18", **common)
     if name == "split-cifar100":
         return run_visual_generalization("split_cifar100", **common)
     raise ValueError(f"seção desconhecida: {name}")

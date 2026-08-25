@@ -1,8 +1,11 @@
 # Protocolo Split-CIFAR-10 e Split-CIFAR-100
 
-Status: implementado e coberto por testes. Há quatro seeds parciais de
-Split-CIFAR-10 versionadas como diagnóstico de uma execução interrompida; não
-há agregado CIFAR completo nem resultado Split-CIFAR-100.
+Status: implementado e coberto por testes. Há uma triagem CNN local com três
+seeds em `results/paired_differences.csv`; o arquivo contém diferenças
+pareadas, mas não as matrizes de acurácia e o manifesto de ambiente completos.
+Há também quatro seeds parciais do protocolo MLP de Split-CIFAR-10 versionadas
+como diagnóstico de uma execução interrompida. Não há resultado confirmatório
+CNN, agregado MLP completo nem resultado Split-CIFAR-100.
 
 Os adapters em `experiments/visual_generalization.py` expõem os benchmarks
 visuais com uma única cabeça compartilhada:
@@ -78,9 +81,56 @@ bootstrap pareado da representação. Portanto, `scroll` neste runner é uma
 adaptação autocontida do protocolo, não uma reprodução numérica do resultado
 pré-treinado do artigo.
 
-## Métodos
+### Triagem CNN exploratória com três seeds
 
-Cada seção executa os 32 itens de `ALL_VISUAL_METHODS`, na ordem abaixo:
+O export local `results/paired_differences.csv`, analisado em 25 de agosto de
+2026, contém três seeds pareadas. A direção abaixo é sempre
+`método+SlowHeat - método`; portanto, diferenças negativas de forgetting e
+classifier gap são favoráveis. Valores de desempenho estão em pontos
+percentuais (p.p.).
+
+| Contraste pareado | Acurácia final | Forgetting | BWT | Acurácia task-aware | Classifier gap | Sinais da acurácia |
+|---|---:|---:|---:|---:|---:|---:|
+| SlowHeat+LPR − LPR | +0,96 p.p. | −5,19 p.p. | +5,19 p.p. | −1,44 p.p. | −2,40 p.p. | 3/3 positivos |
+| SlowHeat+Classifier Expander − Classifier Expander | −0,38 p.p. | −7,10 p.p. | +11,70 p.p. | −1,81 p.p. | −1,43 p.p. | 2/3 positivos |
+| SlowHeat+SCROLL − SCROLL | +5,92 p.p. | +3,79 p.p. | −10,55 p.p. | +4,31 p.p. | −1,61 p.p. | 3/3 positivos |
+
+O padrão sugere três regimes distintos. SlowHeat+LPR foi o par mais
+equilibrado: ganhou acurácia média e reduziu forgetting em todas as seeds.
+SlowHeat+Classifier Expander reduziu forgetting, mas não melhorou a acurácia
+final média. SlowHeat+SCROLL obteve o maior ganho de acurácia, ao custo de
+forgetting médio maior e BWT menor, indicando uma troca de retenção por
+aquisição. Comparações desses métodos contra `vanilla` não isolam o efeito do
+SlowHeat e não substituem os contrastes pareados acima.
+
+Com `n=3`, a incerteza ainda é grande. Um IC 95% t pareado aproximado para o
+ganho de acurácia cruza zero em LPR (−0,36 a +2,28 p.p.) e Classifier Expander
+(−5,58 a +4,82 p.p.); apenas SCROLL fica acima de zero nesta amostra (+2,18 a
++9,66 p.p.). Isso é uma triagem para selecionar hipóteses, não confirmação
+estatística. O arquivo também não basta para auditar trajetórias por tarefa,
+configuração de ambiente ou escores absolutos por seed.
+
+O custo adicional médio observado foi 3,61 s para LPR, 3,69 s para Classifier
+Expander e 0,81 s para SCROLL. Os pares preservaram o mesmo número de exemplos
+processados e o mesmo uso de memória de replay; o overhead estimado foi de
+138.925.280 FLOPs para LPR e Classifier Expander e 21.594.080 FLOPs para
+SCROLL.
+
+O próximo passo é repetir a seção completa com dez seeds e arquivar os
+artefatos completos antes de congelar qualquer contraste confirmatório:
+
+```bash
+PYTHONPATH=src:. python3 run_all_tests.py \
+  --num-seeds 10 \
+  --sections split-cifar10-cnn \
+  --device cuda
+```
+
+## Métodos dos protocolos MLP gerais
+
+As seções `split-cifar10` e `split-cifar100` executam os 32 itens de
+`ALL_VISUAL_METHODS`, na ordem abaixo. A seção CNN usa apenas os cinco controles
+e os três pares listados em “Benchmark CNN”.
 
 1. `vanilla`
 2. `slowheat`
@@ -149,7 +199,7 @@ python run_all_tests.py \
   --device cpu
 ```
 
-Execute o piloto CNN pequeno, preferencialmente em GPU:
+Execute o benchmark CNN pequeno, preferencialmente em GPU:
 
 ```bash
 PYTHONPATH=src:. python run_all_tests.py \
@@ -193,9 +243,11 @@ original.
 O argumento obrigatório `--num-seeds` gera essa quantidade de seeds
 pseudoaleatórias distintas e reproduzíveis. Para definir valores específicos,
 use `--baseline-seeds` e passe exatamente a quantidade declarada em
-`--num-seeds`. Resultados são gravados
-em `results/split_mnist_protocol/split_cifar10/` e
-`results/split_mnist_protocol/split_cifar100/`, salvo uso de `--output-dir`.
+`--num-seeds`. Resultados são gravados em
+`results/split_mnist_protocol/split_cifar10/`,
+`results/split_mnist_protocol/split_cifar10_cnn/` e
+`results/split_mnist_protocol/split_cifar100/`, conforme a seção, salvo uso de
+`--output-dir`.
 Execuções retomam seeds concluídas cuja configuração coincide. `--fresh`
 desativa a retomada e exige diretórios de saída novos.
 

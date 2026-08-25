@@ -222,16 +222,19 @@ See `docs/synthetic_ablation_pilot.md`.
 
 ## Known limitations
 
-- No completed result on a harder visual or language continual-learning
-  benchmark is versioned. Partial Split-CIFAR-10 per-seed artifacts are kept as
-  execution diagnostics; there is no completed CIFAR aggregate or Split-CIFAR-100
-  result.
+- A local three-seed Split-CIFAR-10 CNN screening export now exists in
+  `results/paired_differences.csv`. It contains paired differences, not the
+  complete per-seed accuracy matrices and environment manifest, and is therefore
+  exploratory rather than a completed or independently replicated benchmark.
+  The historical flattened-MLP Split-CIFAR-10 run remains partial, and there is
+  no completed Split-CIFAR-100 result.
 - Replay, DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are implemented in
   the shared Split-MNIST/visual runner, but they have not all received
   method-specific tuning or independent replication. MAS, UCB, HAT, NAI,
   SLNID and joint-training controls are not implemented.
-- The output classifier is protected by default, but classifier expansion and
-  alignment have not yet been evaluated on a standard benchmark.
+- Classifier expansion has received a three-seed Split-CIFAR-10 CNN screening,
+  but neither it nor classifier alignment has received a tuned, independently
+  replicated evaluation.
 - The pilot uses only three seeds and a simple Gaussian dataset.
 - The superseded synthetic pilot is archived under
   `artifacts/synthetic_ablation_pilot/`. Existing exploratory outputs under
@@ -362,8 +365,8 @@ paired MLP engine, so these runs test harder visual streams but are not CNN
 benchmarks. See [`docs/split_cifar.md`](docs/split_cifar.md) for the exact
 protocol.
 
-The small real-CNN pilot is a separate, opt-in section so it cannot alter the
-historical flattened-MLP runs:
+The small real-CNN benchmark is a separate, opt-in section so it cannot alter
+the historical flattened-MLP runs:
 
 ```bash
 PYTHONPATH=src:. python run_all_tests.py \
@@ -384,7 +387,13 @@ explicit representation bootstrap, followed by accumulated ridge-regression
 statistics and replay-only representation adaptation. This is a documented
 benchmark adaptation, not a claim of exact reproduction of pretrained SCROLL.
 
-After the pilot, run the preselected CNN stability/plasticity sweep with ten
+The local three-seed paired-difference export is summarized in
+[`docs/split_cifar.md`](docs/split_cifar.md). In that screening,
+SlowHeat+SCROLL improved final average accuracy in all three seeds, while
+SlowHeat+LPR produced the most consistent reduction in forgetting. These are
+method-paired exploratory observations, not evidence of general superiority.
+
+After the screening, run the preselected CNN stability/plasticity sweep with ten
 paired seeds:
 
 ```bash
