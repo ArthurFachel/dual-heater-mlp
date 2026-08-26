@@ -1,5 +1,7 @@
 import json
+import shutil
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -111,6 +113,8 @@ def test_dualheat_pair_suite_trains_and_reports_only_matched_contrasts(dualheat_
     _, output, report = dualheat_pair_run
     assert len(report["pairs"]) == 4
     assert report["status"] == "exploratory_paired_suite"
+    assert report["source_dir"] == "."
+    assert report["source_dir_base"] == "report_directory"
     for pair, comparison in zip(METHOD_PAIRS, report["pairs"], strict=True):
         assert (comparison["reference"], comparison["candidate"]) == (
             pair.reference, pair.candidate,
@@ -131,6 +135,26 @@ def test_dualheat_pair_suite_trains_and_reports_only_matched_contrasts(dualheat_
         assert accuracy["holm_adjusted_p"] >= accuracy["student_t"]["two_sided_p"]
     for name in ("pair_report.md", "pair_report.json", "pair_summary.csv", "pair_differences.csv"):
         assert (output / name).is_file()
+
+
+def test_dualheat_report_still_locates_raw_results_after_moving_tree(dualheat_pair_run):
+    _, source, original = dualheat_pair_run
+    tree = source.parent / "portable tree"
+    shutil.copytree(source, tree / "raw")
+    report_dir = tree / "reports"
+    report = summarize_pair_results(tree / "raw", output_dir=report_dir)
+    assert report["source_dir"] == "../raw"
+    assert report["pairs"] == original["pairs"]
+    for name in ("pair_report.json", "pair_report.md"):
+        assert str(source.parent) not in (report_dir / name).read_text()
+
+    moved = source.parent / "another machine"
+    shutil.move(str(tree), moved)
+    saved = json.loads((moved / "reports/pair_report.json").read_text())
+    relocated_source = moved / "reports" / Path(saved["source_dir"])
+    assert (relocated_source / "seed_2/results.json").read_bytes() == (
+        source / "seed_2/results.json"
+    ).read_bytes()
 
 
 def test_dualheat_pair_resume_reuses_seeds_and_rejects_changed_protocol(

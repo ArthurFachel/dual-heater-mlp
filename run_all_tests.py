@@ -39,6 +39,7 @@ from experiments.dualheat_pairs import (
     run_dualheat_pairs,
 )
 from experiments.multi_seed import run_multi_seed
+from experiments.provenance import relative_path
 from experiments.split_mnist_suite import (
     ABLATION_METHODS,
     ALL_BASELINES,
@@ -120,13 +121,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=PROJECT_ROOT / "data",
+        default=Path("data"),
         help="diretório de datasets (padrão: data/)",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=PROJECT_ROOT / "results" / "split_mnist_protocol",
+        default=Path("results/split_mnist_protocol"),
         help="raiz dos resultados do protocolo",
     )
     parser.add_argument(
@@ -225,14 +226,8 @@ def _project_path(path: Path) -> Path:
 
 
 def _portable_project_path(path: Path) -> str:
-    """Keep run metadata relocatable when a path lives inside the repository."""
-
-    resolved = _project_path(path)
-    try:
-        relative = resolved.relative_to(PROJECT_ROOT)
-    except ValueError:
-        return str(resolved)
-    return "." if not relative.parts else relative.as_posix()
+    """Keep metadata relative to the project, including external directories."""
+    return relative_path(_project_path(path), base=PROJECT_ROOT)
 
 
 def _now() -> str:
@@ -352,7 +347,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
         "unit_tests": {
             "status": "pending" if args.run_unit_tests else "skipped",
             "command": [
-                sys.executable,
+                Path(sys.executable).name,
                 "-m",
                 "pytest",
                 "tests",
@@ -372,7 +367,8 @@ def _run_unit_tests(command: list[str]) -> int:
     if existing_pythonpath := env.get("PYTHONPATH"):
         project_paths.append(existing_pythonpath)
     env["PYTHONPATH"] = os.pathsep.join(project_paths)
-    return subprocess.call(command, cwd=PROJECT_ROOT, env=env)
+    # Metadata records a portable executable name; execution keeps this interpreter.
+    return subprocess.call([sys.executable, *command[1:]], cwd=PROJECT_ROOT, env=env)
 
 
 def _run_section(
@@ -505,11 +501,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if "confirmation" in args.sections:
         primary_path = _save_primary_result(output_dir)
-        plan["primary_result"] = str(primary_path)
+        plan["primary_result"] = _portable_project_path(primary_path)
     plan["status"] = "completed"
     plan["finished_at"] = _now()
     _write_json(index_path, plan)
-    print(f"Protocolo concluído. Índice: {index_path}", flush=True)
+    print(
+        f"Protocolo concluído. Índice: {_portable_project_path(index_path)}",
+        flush=True,
+    )
     if "primary_result" in plan:
         print(f"Endpoint primário: {plan['primary_result']}", flush=True)
     return 0

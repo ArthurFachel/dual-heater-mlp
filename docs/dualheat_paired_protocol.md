@@ -56,6 +56,24 @@ Métodos diferentes podem consumir quantidades diferentes de exemplos.
 
 ## Executar
 
+Execute os comandos na raiz do projeto, na máquina onde ele foi copiado.
+Nenhum caminho completo precisa ser editado no código. Instale as dependências
+nessa máquina, se necessário:
+
+```bash
+python -m pip install -e ".[research]"
+```
+
+Entrada direta, sem configurar `PYTHONPATH` (uma linha, também utilizável no
+PowerShell):
+
+```bash
+python run_dualheat_pairs.py --datasets split_mnist --num-seeds 10 --device cpu
+```
+
+Use `--dry-run` para conferir o plano sem treinar. Adicione `--no-download`
+somente se os datasets já estiverem disponíveis em `data/`.
+
 Split-MNIST pelo ponto de entrada principal:
 
 ```bash
@@ -68,7 +86,7 @@ Saída: `results/split_mnist_protocol/dualheat_pairs/`.
 Para escolher os datasets, use a entrada dedicada:
 
 ```bash
-PYTHONPATH=src:. python -m experiments.dualheat_pairs \
+python run_dualheat_pairs.py \
   --datasets split_mnist permuted_mnist split_cifar10 split_cifar100 \
   --num-seeds 10 --device cuda --dry-run
 ```
@@ -92,7 +110,7 @@ são recusadas em novas execuções desta suíte.
 ## Reanalisar resultados existentes sem treinar
 
 ```bash
-PYTHONPATH=src:. python -m experiments.dualheat_pairs \
+python run_dualheat_pairs.py \
   --summarize-from results/split_mnist_protocol/split_mnist_all_methods \
   --output-dir results/dualheat_pairs_existing/split_mnist
 ```
@@ -103,6 +121,25 @@ diferenças, não descarta seeds ausentes e não altera arquivos brutos. Um
 diretório histórico pode conter outros métodos além dos oito necessários.
 A análise registra hashes SHA-256 das entradas; isso identifica os arquivos,
 mas não recupera proveniência ausente nem comprova que nunca foram observados.
+
+## Portabilidade dos caminhos
+
+Na entrada dedicada, `--data-dir`, `--output-dir` e `--summarize-from` são
+relativos à pasta de execução; por isso, execute na raiz do projeto. O runner
+geral interpreta seus caminhos relativos à raiz do projeto.
+
+No relatório, `source_dir` é relativo à **pasta do próprio relatório** e
+`source_dir_base` registra essa convenção. Se relatório e resultados brutos
+estão juntos, a origem é `.`. Ao copiar a árvore de resultados para outra
+máquina mantendo a organização das pastas, essa referência continua válida.
+Diretórios externos usam `..`; no Windows, as pastas precisam estar no mesmo
+volume para que a referência possa ser relativa.
+
+Metadados do runner geral e caminhos absolutos passados na linha de comando
+são serializados relativamente à raiz do projeto. Os caminhos internos
+resolvidos em tempo de execução não ficam fixados a uma máquina.
+Relatórios históricos não são alterados automaticamente: execute novamente
+`--summarize-from` para gerar uma versão portátil, sem retreinar.
 
 ## Saídas e análise
 
