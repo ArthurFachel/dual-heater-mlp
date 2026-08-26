@@ -31,6 +31,13 @@ from experiments.confirmatory_split_mnist import (
     run_confirmation,
     validate_preregistration,
 )
+from experiments.dualheat_pairs import (
+    METHOD_PAIRS,
+    PAIRED_METHODS,
+    pair_protocol,
+    paired_config,
+    run_dualheat_pairs,
+)
 from experiments.multi_seed import run_multi_seed
 from experiments.split_mnist_suite import (
     ABLATION_METHODS,
@@ -55,6 +62,7 @@ from experiments.visual_generalization import (
 SEED_GENERATOR_SEED = 20_260_819
 MAX_GENERATED_SEED = 2**31 - 1
 SECTION_NAMES = (
+    "dualheat-pairs",
     "synthetic-all-methods",
     "split-mnist-all-methods",
     "confirmation",
@@ -74,6 +82,7 @@ DEFAULT_SECTION_NAMES = tuple(
     for name in SECTION_NAMES
     if name
     not in {
+        "dualheat-pairs",
         "synthetic-all-methods",
         "split-mnist-all-methods",
         "split-cifar10-cnn",
@@ -88,6 +97,7 @@ ALL_DATASET_METHOD_SECTIONS = (
     "split-cifar100",
 )
 SECTION_OUTPUT_DIRS = {
+    "dualheat-pairs": "dualheat_pairs",
     "synthetic-all-methods": "synthetic_all_methods",
     "split-mnist-all-methods": "split_mnist_all_methods",
     "confirmation": "confirmation",
@@ -240,6 +250,7 @@ def _write_json(path: Path, payload: Any) -> None:
 def _methods_by_section(device: str) -> dict[str, list[str]]:
     visual_configs = generalization_configs(device)
     return {
+        "dualheat-pairs": list(PAIRED_METHODS),
         "synthetic-all-methods": list(SYNTHETIC_METHODS),
         "split-mnist-all-methods": list(ALL_VISUAL_METHODS),
         "confirmation": list(FROZEN_CONFIG.methods),
@@ -279,7 +290,16 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 output_dir / SECTION_OUTPUT_DIRS[name]
             ),
         }
-        if name == "ablations":
+        if name == "dualheat-pairs":
+            details["protocol"] = pair_protocol(
+                paired_config(device=args.device), list(args.baseline_seeds)
+            )
+            details["pairs"] = [
+                {"reference": pair.reference, "candidate": pair.candidate}
+                for pair in METHOD_PAIRS
+            ]
+            details["analysis_status"] = "exploratory_not_independent_confirmation"
+        elif name == "ablations":
             details["replay_memory_per_class"] = list(REPLAY_MEMORY_SIZES)
         elif name == "split-mnist-generalization":
             details["architectures"] = [
@@ -383,6 +403,8 @@ def _run_section(
         confirmation_common = dict(common)
         confirmation_common.pop("seeds")
         return run_confirmation(**confirmation_common)
+    if name == "dualheat-pairs":
+        return run_dualheat_pairs(**common)
     if name == "split-mnist-all-methods":
         return run_all_visual_methods(**common)
     if name == "all-baselines":

@@ -1,9 +1,62 @@
 import pytest
 
 import run_all_tests
+from experiments.dualheat_pairs import METHOD_PAIRS, PAIRED_METHODS
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP
 from experiments.synthetic_cl import SYNTHETIC_METHODS
 from experiments.visual_generalization import CNN_SWEEP_METHODS, CNN_VISUAL_METHODS
+
+
+def test_dualheat_pairs_section_is_opt_in_and_routes_to_dedicated_runner(tmp_path, monkeypatch):
+    assert "dualheat-pairs" not in run_all_tests.DEFAULT_SECTION_NAMES
+    args = run_all_tests.parse_args(
+        ["--num-seeds", "2", "--sections", "dualheat-pairs", "--no-download"]
+    )
+    section = run_all_tests.build_run_plan(args)["sections"]["dualheat-pairs"]
+    assert section["methods"] == list(PAIRED_METHODS)
+    assert section["pairs"] == [
+        {"reference": pair.reference, "candidate": pair.candidate}
+        for pair in METHOD_PAIRS
+    ]
+    captured = {}
+
+    def fake_run(**kwargs):
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(run_all_tests, "run_dualheat_pairs", fake_run)
+    assert run_all_tests._run_section(
+        "dualheat-pairs", args, data_dir=tmp_path, output_dir=tmp_path,
+    ) == {"ok": True}
+    assert captured["seeds"] == args.baseline_seeds
+    assert captured["download"] is False
+    assert captured["output_dir"].name == "dualheat_pairs"
+
+
+def test_dualheat_dedicated_cli_previews_all_mlp_datasets_without_writes(tmp_path, capsys):
+    import json
+
+    from experiments.dualheat_pairs import DATASETS, main
+
+    output = tmp_path / "not_created"
+    assert main([
+        "--datasets", *DATASETS, "--num-seeds", "2", "--dry-run",
+        "--output-dir", str(output),
+    ]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert set(plan) == set(DATASETS)
+    assert plan["split_cifar100"]["config"]["input_dim"] == 3072
+    assert plan["permuted_mnist"]["config"]["scenario"] == "domain_incremental"
+    assert not output.exists()
+
+
+def test_dualheat_plan_rejects_reserved_seeds_before_execution():
+    args = run_all_tests.parse_args([
+        "--num-seeds", "1", "--sections", "dualheat-pairs",
+        "--baseline-seeds", str(run_all_tests.CONFIRMATORY_SEEDS[0]),
+    ])
+    with pytest.raises(ValueError, match="reservadas"):
+        run_all_tests.build_run_plan(args)
 
 
 def test_default_plan_covers_every_confirmatory_notebook_section():
