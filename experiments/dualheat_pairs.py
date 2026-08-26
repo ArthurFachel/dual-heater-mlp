@@ -20,6 +20,7 @@ from experiments.confirmatory_statistics import (
     PRIMARY_ENDPOINT,
     paired_confirmatory_summary,
 )
+from experiments.provenance import relative_path
 from experiments.split_mnist import (
     AGGREGATE_METRICS,
     SplitMNISTConfig,
@@ -263,7 +264,8 @@ def summarize_pair_results(
         if not (source / "pair_protocol.json").exists()
         else "exploratory_paired_suite",
         "component": "DualHeat (Functional SlowHeat; not legacy DualHeatMLP)",
-        "source_dir": str(source.resolve()),
+        "source_dir": relative_path(source, base=output_dir),
+        "source_dir_base": "report_directory",
         "source_sha256": fingerprints,
         "source_environment_available": (source / "environment.json").is_file(),
         "config": base,
@@ -288,7 +290,10 @@ def _write_pair_report(
     lines = [
         "# Método versus método + DualHeat\n",
         "Implementação: **Functional SlowHeat**, não a classe legada DualHeatMLP.\n",
-        f"Execução de origem: `{report['source_dir']}`.\n",
+        (
+            f"Execução de origem: `{report['source_dir']}` "
+            "(caminho relativo à pasta deste relatório).\n"
+        ),
         (
             f"MLP {report['config']['hidden_dims']}; "
             f"cenário `{report['config']['scenario']}`; "
@@ -454,7 +459,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             parser.error("--dry-run não pode ser combinado com --summarize-from")
         summarize_pair_results(args.summarize_from, output_dir=args.output_dir)
-        print(f"Relatório exploratório: {args.output_dir / 'pair_report.md'}")
+        report_path = relative_path(args.output_dir / "pair_report.md", base=Path.cwd())
+        print(f"Relatório exploratório: {report_path}")
         return 0
     if not 1 <= args.num_seeds <= 2**31:
         parser.error("--num-seeds deve estar entre 1 e 2**31")
@@ -479,7 +485,8 @@ def main(argv: list[str] | None = None) -> int:
             device=args.device,
             download=not args.no_download,
         )
-        print(f"Relatório exploratório: {output / 'pair_report.md'}")
+        report_path = relative_path(output / "pair_report.md", base=Path.cwd())
+        print(f"Relatório exploratório: {report_path}")
     return 0
 
 

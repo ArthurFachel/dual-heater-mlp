@@ -19,6 +19,18 @@ Each learner is compared only with its own augmented counterpart, using the
 same initialization, data, training/replay schedules and epoch budget.
 
 ```bash
+python run_dualheat_pairs.py --datasets split_mnist --num-seeds 10 --device cpu
+```
+
+Run from the project root; no machine-specific paths or `PYTHONPATH` setup
+are needed. This direct entry writes to `results/dualheat_pairs/split_mnist/`.
+Add `--dry-run` to preview without training, or `--no-download` if the data is
+already available. Reports store their source paths relative to the report
+directory so the result tree can be moved to another machine.
+
+Alternatively, use the general protocol runner:
+
+```bash
 python run_all_tests.py --num-seeds 10 --sections dualheat-pairs --dry-run
 python run_all_tests.py --num-seeds 10 --sections dualheat-pairs --device cpu --no-download
 ```

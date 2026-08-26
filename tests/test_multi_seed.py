@@ -1,7 +1,28 @@
 import json
+import sys
+from pathlib import Path
 
 from experiments.multi_seed import exact_two_sided_sign_test, run_multi_seed
+from experiments.provenance import environment_manifest
 from experiments.synthetic_cl import SyntheticConfig
+
+
+def test_environment_command_records_relative_script_and_path_arguments(tmp_path, monkeypatch):
+    root = tmp_path / "project"
+    root.mkdir()
+    monkeypatch.setattr(sys, "argv", [
+        str(root / "run_dualheat_pairs.py"),
+        f"--data-dir={tmp_path / 'data'}",
+        "--output-dir", str(root / "results/paired"),
+        "--device", "cpu",
+    ])
+    manifest = environment_manifest(root)
+    assert manifest["command"] == [
+        Path(sys.executable).name, "run_dualheat_pairs.py", "--data-dir=../data",
+        "--output-dir", "results/paired", "--device", "cpu",
+    ]
+    assert manifest["command_path_base"] == "project_root"
+    assert str(tmp_path) not in json.dumps(manifest)
 
 
 def test_exact_sign_test_handles_ties_and_one_sided_outcomes():

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -18,6 +19,30 @@ TRACKED_PACKAGES = (
     "scipy",
     "pandas",
 )
+
+
+def relative_path(path: str | Path, *, base: str | Path) -> str:
+    """Serialize a path relative to its declared base, including siblings."""
+    try:
+        relative = os.path.relpath(Path(path).resolve(), Path(base).resolve())
+    except ValueError as error:
+        raise ValueError(
+            "caminhos relativos requerem diretórios no mesmo volume"
+        ) from error
+    return Path(relative).as_posix()
+
+
+def _portable_command(project_root: Path) -> list[str]:
+    """Avoid saving machine-specific script or CLI argument locations."""
+    arguments = []
+    for argument in sys.argv:
+        option, separator, value = argument.partition("=")
+        if separator and option.startswith("--") and Path(value).is_absolute():
+            argument = f"{option}={relative_path(value, base=project_root)}"
+        elif Path(argument).is_absolute():
+            argument = relative_path(argument, base=project_root)
+        arguments.append(argument)
+    return [Path(sys.executable).name, *arguments]
 
 
 def _git_output(project_root: Path, *args: str) -> str | None:
@@ -49,7 +74,8 @@ def environment_manifest(project_root: str | Path) -> dict[str, Any]:
             "branch": _git_output(root, "branch", "--show-current"),
             "dirty": bool(status),
         },
-        "command": [Path(sys.executable).name, *sys.argv],
+        "command": _portable_command(root),
+        "command_path_base": "project_root",
     }
 
 

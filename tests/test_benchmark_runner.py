@@ -1,3 +1,10 @@
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 import run_all_tests
@@ -57,6 +64,48 @@ def test_dualheat_plan_rejects_reserved_seeds_before_execution():
     ])
     with pytest.raises(ValueError, match="reservadas"):
         run_all_tests.build_run_plan(args)
+
+
+def test_direct_pair_launcher_works_in_copied_project_without_pythonpath(tmp_path):
+    root = run_all_tests.PROJECT_ROOT
+    copied = tmp_path / "project on another machine"
+    copied.mkdir()
+    shutil.copy2(root / "run_dualheat_pairs.py", copied)
+    for directory in ("experiments", "src"):
+        shutil.copytree(
+            root / directory, copied / directory,
+            ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"),
+        )
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    completed = subprocess.run(
+        [sys.executable, "run_dualheat_pairs.py", "--num-seeds", "2", "--dry-run"],
+        cwd=copied, env=env, text=True, capture_output=True, check=True, timeout=60,
+    )
+    plan = json.loads(completed.stdout)
+    assert len(plan["split_mnist"]["pairs"]) == 4
+    assert str(root) not in completed.stdout
+    assert not (copied / "results").exists()
+
+
+def test_general_runner_saves_and_prints_relative_external_paths(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "project"
+    root.mkdir()
+    monkeypatch.setattr(run_all_tests, "PROJECT_ROOT", root)
+    monkeypatch.setattr(run_all_tests, "_run_section", lambda *args, **kwargs: {})
+    output = tmp_path / "results"
+    assert run_all_tests.main([
+        "--num-seeds", "2", "--sections", "dualheat-pairs",
+        "--data-dir", str(tmp_path / "data"), "--output-dir", str(output),
+    ]) == 0
+    saved = (output / "benchmark_index.json").read_text()
+    plan = json.loads(saved)
+    assert plan["data_dir"] == "../data"
+    assert plan["output_dir"] == "../results"
+    assert plan["sections"]["dualheat-pairs"]["output_dir"] == "../results/dualheat_pairs"
+    assert not Path(plan["unit_tests"]["command"][0]).is_absolute()
+    assert str(tmp_path) not in saved
+    assert str(tmp_path) not in capsys.readouterr().out
 
 
 def test_default_plan_covers_every_confirmatory_notebook_section():
