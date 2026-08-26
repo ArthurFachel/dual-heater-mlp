@@ -1,9 +1,18 @@
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
 import torch
 
+from experiments.dualheat_pairs import (
+    METHOD_PAIRS,
+    _holm_adjust,
+    pair_protocol,
+    paired_config,
+    run_dualheat_pairs,
+    summarize_pair_results,
+)
 from experiments.split_mnist import (
     MNISTTask,
     SplitMNISTConfig,
@@ -60,6 +69,141 @@ def _tiny_tasks(config: SplitMNISTConfig) -> list[MNISTTask]:
             )
         )
     return tasks
+
+
+@pytest.fixture
+def dualheat_pair_run(tmp_path, monkeypatch):
+    config = replace(
+        paired_config(), hidden_dims=(8,), batch_size=4, epochs_per_task=1,
+        replay_per_class=1, replay_batch_size=2, bootstrap_resamples=50,
+    )
+    monkeypatch.setattr(
+        "experiments.split_mnist.load_split_mnist",
+        lambda current, **_: _tiny_tasks(current),
+    )
+    output = tmp_path / "pairs"
+    report = run_dualheat_pairs(
+        config=config, seeds=[2, 3], data_dir=tmp_path, output_dir=output,
+        download=False, verbose=False,
+    )
+    return config, output, report
+
+
+def test_dualheat_pairs_preserve_base_capabilities_and_initialization():
+    from experiments.split_mnist import _method_spec
+
+    config = replace(paired_config(), hidden_dims=(8,))
+    models = build_paired_models(config)
+    for pair in METHOD_PAIRS:
+        base_spec = _method_spec(pair.reference)
+        candidate_spec = _method_spec(pair.candidate)
+        assert candidate_spec == replace(
+            base_spec, slowheat=True, strength=30.0, budget=0.25, protect_output=False,
+        )
+        reference = dict(models[pair.reference].named_parameters())
+        candidate = dict(models[pair.candidate].named_parameters())
+        assert reference.keys() == candidate.keys()
+        assert all(torch.equal(reference[key], candidate[key]) for key in reference)
+        assert isinstance(models[pair.candidate][-1], torch.nn.Linear)
+
+
+def test_dualheat_pair_suite_trains_and_reports_only_matched_contrasts(dualheat_pair_run):
+    _, output, report = dualheat_pair_run
+    assert len(report["pairs"]) == 4
+    assert report["status"] == "exploratory_paired_suite"
+    for pair, comparison in zip(METHOD_PAIRS, report["pairs"], strict=True):
+        assert (comparison["reference"], comparison["candidate"]) == (
+            pair.reference, pair.candidate,
+        )
+        differences = []
+        for seed in report["seeds"]:
+            raw = json.loads((output / f"seed_{seed}/results.json").read_text())
+            differences.append(
+                raw[pair.candidate]["metrics"]["final_average_accuracy"]
+                - raw[pair.reference]["metrics"]["final_average_accuracy"]
+            )
+            assert raw[pair.candidate]["training_losses"][0] == pytest.approx(
+                raw[pair.reference]["training_losses"][0]
+            )
+        accuracy = comparison["metrics"]["final_average_accuracy"]
+        assert accuracy["mean_difference"] == pytest.approx(np.mean(differences))
+        assert accuracy["n_pairs"] == 2
+        assert accuracy["holm_adjusted_p"] >= accuracy["student_t"]["two_sided_p"]
+    for name in ("pair_report.md", "pair_report.json", "pair_summary.csv", "pair_differences.csv"):
+        assert (output / name).is_file()
+
+
+def test_dualheat_pair_resume_reuses_seeds_and_rejects_changed_protocol(
+    dualheat_pair_run, monkeypatch,
+):
+    config, output, first = dualheat_pair_run
+
+    def unexpected_loader(*args, **kwargs):
+        raise AssertionError("não deve retreinar seeds completas")
+
+    monkeypatch.setattr("experiments.split_mnist.load_split_mnist", unexpected_loader)
+    resumed = run_dualheat_pairs(
+        config=config, seeds=[2, 3], data_dir=output, output_dir=output,
+    )
+    assert resumed["pairs"] == first["pairs"]
+    with pytest.raises(ValueError, match="protocolo diferente"):
+        run_dualheat_pairs(
+            config=replace(config, epochs_per_task=2), seeds=[2, 3],
+            data_dir=output, output_dir=output,
+        )
+
+
+@pytest.mark.parametrize("problem", ["missing_seed", "missing_pair", "config", "resources"])
+def test_dualheat_reanalysis_rejects_incomplete_or_unfair_pairs(dualheat_pair_run, problem):
+    _, output, _ = dualheat_pair_run
+    result_path = output / "seed_2/results.json"
+    if problem == "missing_seed":
+        result_path.rename(output / "removed_result.json")
+    elif problem == "config":
+        path = output / "seed_2/config.json"
+        config = json.loads(path.read_text())
+        config["learning_rate"] *= 2
+        path.write_text(json.dumps(config))
+    else:
+        raw = json.loads(result_path.read_text())
+        if problem == "missing_pair":
+            raw.pop(METHOD_PAIRS[0].candidate)
+        else:
+            raw[METHOD_PAIRS[0].candidate]["cost"]["learner_examples_processed"] += 1
+        result_path.write_text(json.dumps(raw))
+    destination = output / "invalid_report"
+    with pytest.raises((ValueError, FileNotFoundError)):
+        summarize_pair_results(output, output_dir=destination)
+    assert not destination.exists()
+
+
+def test_dualheat_single_seed_reanalysis_is_descriptive_and_read_only(dualheat_pair_run):
+    _, output, _ = dualheat_pair_run
+    manifest_path = output / "multi_seed_config.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["seeds"] = [2]
+    manifest_path.write_text(json.dumps(manifest))
+    source_before = (output / "seed_2/results.json").read_bytes()
+    report = summarize_pair_results(output, output_dir=output / "one_seed")
+    for comparison in report["pairs"]:
+        accuracy = comparison["metrics"]["final_average_accuracy"]
+        assert accuracy["inference_unavailable"] == "requires_at_least_two_paired_seeds"
+        assert "student_t" not in accuracy
+        assert "holm_adjusted_p" not in accuracy
+    assert (output / "seed_2/results.json").read_bytes() == source_before
+
+
+def test_dualheat_protocol_rejects_duplicate_and_reserved_seeds():
+    from experiments.confirmatory_split_mnist import CONFIRMATORY_SEEDS
+
+    with pytest.raises(ValueError, match="duplicatas"):
+        pair_protocol(paired_config(), [2, 2])
+    with pytest.raises(ValueError, match="reservadas"):
+        pair_protocol(paired_config(), [CONFIRMATORY_SEEDS[0]])
+
+
+def test_dualheat_holm_adjustment_preserves_order_and_monotonicity():
+    assert _holm_adjust([0.04, 0.001, 0.03, 0.2]) == pytest.approx([0.09, 0.004, 0.09, 0.2])
 
 
 def test_split_mnist_models_have_paired_trainable_initialization():

@@ -10,6 +10,27 @@ The current research direction is **Functional SlowHeat**: scale-invariant
 neuron utility, factorized path protection, capacity budgeting and explicit
 optimizer-state semantics.
 
+### Method versus method + DualHeat
+
+The dedicated MLP comparison treats DualHeat as an add-on to four learners:
+conventional AdamW, Replay, DER++ and ER-ACE. Here **DualHeat refers to the
+current Functional SlowHeat component**, not the legacy `DualHeatMLP` class.
+Each learner is compared only with its own augmented counterpart, using the
+same initialization, data, training/replay schedules and epoch budget.
+
+```bash
+python run_all_tests.py --num-seeds 10 --sections dualheat-pairs --dry-run
+python run_all_tests.py --num-seeds 10 --sections dualheat-pairs --device cpu --no-download
+```
+
+This opt-in section does not change the default suite or frozen confirmation.
+It writes `pair_report.md`, `pair_report.json`, `pair_summary.csv` and
+`pair_differences.csv` under `results/split_mnist_protocol/dualheat_pairs/`.
+The report includes paired confidence intervals, accuracy p-values adjusted
+for the four comparisons, negative results and observed runtime overhead.
+See [the paired protocol](docs/dualheat_paired_protocol.md) for other MLP
+datasets, reanalysis of saved results and interpretation limits.
+
 SlowHeat maintains one importance value per output unit:
 
 1. During backward it tracks normalized first-order utility
