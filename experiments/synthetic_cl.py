@@ -25,6 +25,7 @@ from dual_heater import (
 )
 from dual_heater._layers import activation
 from experiments.provenance import write_environment_manifest
+from experiments.validation import require_finite_values, require_positive_integers
 
 SYNTHETIC_METHODS = (
     "vanilla",
@@ -77,9 +78,7 @@ class SyntheticConfig:
             "batch_size": self.batch_size,
             "steps_per_task": self.steps_per_task,
         }
-        for name, value in positive_integers.items():
-            if value < 1:
-                raise ValueError(f"{name} deve ser >= 1")
+        require_positive_integers(positive_integers)
         if not self.hidden_dims or any(width < 1 for width in self.hidden_dims):
             raise ValueError("hidden_dims deve conter dimensões positivas")
         float_values = {
@@ -91,9 +90,7 @@ class SyntheticConfig:
             "plasticity_budget": self.plasticity_budget,
             "reduced_lr_factor": self.reduced_lr_factor,
         }
-        for name, value in float_values.items():
-            if not math.isfinite(value):
-                raise ValueError(f"{name} deve ser finito")
+        require_finite_values(float_values)
         if self.learning_rate <= 0.0:
             raise ValueError("learning_rate deve ser > 0")
         if self.center_scale <= 0.0 or self.noise_scale <= 0.0:

@@ -364,11 +364,15 @@ class _PlasticityMaskMixin:
                 raise ValueError("a máscara de plasticidade deve ser finita")
             if torch.any(expanded < 0.0) or torch.any(expanded > 1.0):
                 raise ValueError("a máscara de plasticidade deve estar em [0, 1]")
-            state_before = {
-                key: value.detach().clone()
-                for key, value in self.state.get(parameter, {}).items()
-                if isinstance(value, Tensor) and value.shape == parameter.shape
-            }
+            state_before = (
+                {}
+                if self.state_policy == "native"
+                else {
+                    key: value.detach().clone()
+                    for key, value in self.state.get(parameter, {}).items()
+                    if isinstance(value, Tensor) and value.shape == parameter.shape
+                }
+            )
             resolved.append(
                 _ResolvedMask(
                     parameter=parameter,
@@ -413,6 +417,19 @@ class _PlasticityMaskMixin:
         with torch.enable_grad():
             return closure()
 
+    def _step_with_masks(
+        self,
+        native_step: Callable[[], Any],
+        closure: Callable[[], float] | None,
+    ) -> float | None:
+        loss = self._run_closure(closure)
+        self._ensure_checkpoint_masks_registered()
+        snapshots = self._resolved_masks()
+        native_step()
+        self._apply_resolved_masks(snapshots)
+        self._apply_state_policy(snapshots)
+        return loss
+
 
 class SlowHeatAdamW(_PlasticityMaskMixin, torch.optim.AdamW):
     """AdamW with masks applied to the complete parameter update."""
@@ -429,13 +446,10 @@ class SlowHeatAdamW(_PlasticityMaskMixin, torch.optim.AdamW):
 
     @torch.no_grad()
     def step(self, closure: Callable[[], float] | None = None):
-        loss = self._run_closure(closure)
-        self._ensure_checkpoint_masks_registered()
-        snapshots = self._resolved_masks()
-        torch.optim.AdamW.step(self)
-        self._apply_resolved_masks(snapshots)
-        self._apply_state_policy(snapshots)
-        return loss
+        return self._step_with_masks(
+            lambda: torch.optim.AdamW.step(self),
+            closure,
+        )
 
     def state_dict(self) -> dict[str, Any]:
         return self._state_dict_with_mask_metadata(torch.optim.AdamW.state_dict(self))
@@ -459,13 +473,10 @@ class SlowHeatSGD(_PlasticityMaskMixin, torch.optim.SGD):
 
     @torch.no_grad()
     def step(self, closure: Callable[[], float] | None = None):
-        loss = self._run_closure(closure)
-        self._ensure_checkpoint_masks_registered()
-        snapshots = self._resolved_masks()
-        torch.optim.SGD.step(self)
-        self._apply_resolved_masks(snapshots)
-        self._apply_state_policy(snapshots)
-        return loss
+        return self._step_with_masks(
+            lambda: torch.optim.SGD.step(self),
+            closure,
+        )
 
     def state_dict(self) -> dict[str, Any]:
         return self._state_dict_with_mask_metadata(torch.optim.SGD.state_dict(self))

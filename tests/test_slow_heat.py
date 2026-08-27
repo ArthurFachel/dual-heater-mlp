@@ -6,6 +6,13 @@ import torch
 from dual_heater import SlowHeatConv2d, SlowHeatLinear, SlowHeatMLP
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize("field", ["slow_strength", "importance_eps"])
+def test_slow_heat_rejects_non_finite_importance_parameters(field, value):
+    with pytest.raises(ValueError, match="finitos"):
+        SlowHeatLinear(4, 2, **{field: value})
+
+
 def test_slow_heat_rejects_negative_strength():
     with pytest.raises(ValueError):
         SlowHeatLinear(8, 4, slow_strength=-1.0)

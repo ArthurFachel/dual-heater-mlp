@@ -1,0 +1,64 @@
+"""Single registry for sections exposed by the benchmark CLI."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class SectionSpec:
+    name: str
+    output_dir: str
+    default: bool = True
+    all_dataset_method: bool = False
+
+
+SECTION_SPECS = (
+    SectionSpec("dualheat-pairs", "dualheat_pairs", default=False),
+    SectionSpec(
+        "synthetic-all-methods",
+        "synthetic_all_methods",
+        default=False,
+        all_dataset_method=True,
+    ),
+    SectionSpec(
+        "split-mnist-all-methods",
+        "split_mnist_all_methods",
+        default=False,
+        all_dataset_method=True,
+    ),
+    SectionSpec("confirmation", "confirmation"),
+    SectionSpec("all-baselines", "all_baselines_equal_epochs"),
+    SectionSpec("equal-examples", "all_baselines_equal_examples"),
+    SectionSpec("ablations", "ablations"),
+    SectionSpec("slowheat-derpp", "slowheat_derpp_exploratory"),
+    SectionSpec("split-mnist-generalization", "split_mnist_generalization"),
+    SectionSpec(
+        "permuted-mnist",
+        "permuted_mnist",
+        all_dataset_method=True,
+    ),
+    SectionSpec(
+        "split-cifar10",
+        "split_cifar10",
+        all_dataset_method=True,
+    ),
+    SectionSpec("split-cifar10-cnn", "split_cifar10_cnn", default=False),
+    SectionSpec(
+        "split-cifar10-cnn-sweep",
+        "split_cifar10_cnn_sweep",
+        default=False,
+    ),
+    SectionSpec(
+        "split-cifar100",
+        "split_cifar100",
+        all_dataset_method=True,
+    ),
+)
+
+SECTION_NAMES = tuple(spec.name for spec in SECTION_SPECS)
+DEFAULT_SECTION_NAMES = tuple(spec.name for spec in SECTION_SPECS if spec.default)
+ALL_DATASET_METHOD_SECTIONS = tuple(
+    spec.name for spec in SECTION_SPECS if spec.all_dataset_method
+)
+SECTION_OUTPUT_DIRS = {spec.name: spec.output_dir for spec in SECTION_SPECS}

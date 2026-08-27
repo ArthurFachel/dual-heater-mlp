@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import platform
 import subprocess
@@ -10,6 +9,8 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
+
+from experiments.artifacts import write_json_atomic
 
 TRACKED_PACKAGES = (
     "dual-heater",
@@ -85,13 +86,5 @@ def write_environment_manifest(
     project_root: str | Path,
 ) -> Path:
     destination = Path(output_dir) / "environment.json"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with destination.open("w", encoding="utf-8") as handle:
-        json.dump(
-            environment_manifest(project_root),
-            handle,
-            indent=2,
-            sort_keys=True,
-            allow_nan=False,
-        )
+    write_json_atomic(destination, environment_manifest(project_root))
     return destination

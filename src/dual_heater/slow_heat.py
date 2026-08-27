@@ -28,12 +28,13 @@ Arquitetura:
 
 
 import math
+from collections.abc import Iterable
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from ._layers import activation, validate_mlp_dims
+from ._layers import activation, validate_finite_hyperparameters, validate_mlp_dims
 
 
 def _adapt_budget(
@@ -83,6 +84,12 @@ class _SlowHeatImportanceMixin:
         gradient_masking: bool,
         state_device=None,
     ) -> None:
+        validate_finite_hyperparameters(
+            slow_strength=slow_strength,
+            plasticity_budget=plasticity_budget,
+            importance_decay=importance_decay,
+            importance_eps=importance_eps,
+        )
         if slow_strength < 0.0:
             raise ValueError("slow_strength deve ser >= 0")
         if not 0.0 <= plasticity_budget <= 1.0:
@@ -226,7 +233,7 @@ class _SlowHeatImportanceMixin:
 
     @plasticity_budget.setter
     def plasticity_budget(self, value: float) -> None:
-        if not 0.0 <= value <= 1.0:
+        if not math.isfinite(value) or not 0.0 <= value <= 1.0:
             raise ValueError("plasticity_budget deve estar em [0, 1]")
         self.plasticity_budget_state.fill_(value)
 
@@ -250,6 +257,27 @@ class _SlowHeatImportanceMixin:
         with torch.no_grad():
             self._apply_capacity_budget()
         return self.plasticity_budget
+
+
+def _adapt_capacity_for_layers(
+    layers: Iterable[_SlowHeatImportanceMixin],
+    *,
+    acquisition_score: float,
+    target_score: float,
+    adaptation_rate: float,
+    minimum: float,
+    maximum: float,
+) -> list[float]:
+    return [
+        layer.adapt_capacity(
+            acquisition_score=acquisition_score,
+            target_score=target_score,
+            adaptation_rate=adaptation_rate,
+            minimum=minimum,
+            maximum=maximum,
+        )
+        for layer in layers
+    ]
 
 
 # ─── SlowHeatLinear ─────────────────────────────
@@ -550,16 +578,14 @@ class SlowHeatCNN(nn.Module):
         minimum: float = 0.05,
         maximum: float = 0.95,
     ) -> list[float]:
-        return [
-            layer.adapt_capacity(
-                acquisition_score=acquisition_score,
-                target_score=target_score,
-                adaptation_rate=adaptation_rate,
-                minimum=minimum,
-                maximum=maximum,
-            )
-            for layer in self.get_slow_layers()
-        ]
+        return _adapt_capacity_for_layers(
+            self.get_slow_layers(),
+            acquisition_score=acquisition_score,
+            target_score=target_score,
+            adaptation_rate=adaptation_rate,
+            minimum=minimum,
+            maximum=maximum,
+        )
 
 
 # ─── SlowHeatMLP ────────────────────────────────
@@ -614,7 +640,7 @@ class SlowHeatMLP(nn.Sequential):
     def get_slow_layers(self) -> list[SlowHeatLinear]:
         return [m for m in self.modules() if isinstance(m, SlowHeatLinear)]
 
-    def consolidate(self, strategy: str = "max"):
+    def consolidate(self, strategy: str = "max") -> None:
         """Consolida todos os SlowHeatLinear com a mesma estratégia."""
         for layer in self.get_slow_layers():
             layer.consolidate(strategy=strategy)
@@ -633,13 +659,11 @@ class SlowHeatMLP(nn.Sequential):
     ) -> list[float]:
         """Apply the same validation-driven capacity controller to every layer."""
 
-        return [
-            layer.adapt_capacity(
-                acquisition_score=acquisition_score,
-                target_score=target_score,
-                adaptation_rate=adaptation_rate,
-                minimum=minimum,
-                maximum=maximum,
-            )
-            for layer in self.get_slow_layers()
-        ]
+        return _adapt_capacity_for_layers(
+            self.get_slow_layers(),
+            acquisition_score=acquisition_score,
+            target_score=target_score,
+            adaptation_rate=adaptation_rate,
+            minimum=minimum,
+            maximum=maximum,
+        )

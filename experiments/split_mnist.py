@@ -5,12 +5,11 @@ from __future__ import annotations
 import csv
 import json
 import math
-import re
 import time
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
-from itertools import pairwise
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -19,15 +18,35 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from dual_heater import SlowHeatAdamW, SlowHeatCNN, SlowHeatMLP, compute_cl_metrics
+from dual_heater import SlowHeatAdamW, compute_cl_metrics
+from experiments.artifacts import (
+    atomic_text_writer,
+    build_run_identity,
+    ensure_run_identity,
+    read_json_object,
+    task_data_fingerprint,
+    write_json_atomic,
+)
+from experiments.contracts import ContinualTask
 from experiments.confirmatory_statistics import (
     PRIMARY_ENDPOINT,
     normal_summary,
     paired_confirmatory_summary,
 )
 from experiments.lpr import LPRPreconditioner
+from experiments.method_specs import (
+    MethodSpec,
+    method_epoch_budget,
+    structured_method_match,
+)
+from experiments.model_factory import build_paired_models as _build_paired_models
 from experiments.provenance import write_environment_manifest
 from experiments.synthetic_cl import make_batch_schedule
+from experiments.validation import (
+    require_finite_values,
+    require_nonnegative_values,
+    require_positive_integers,
+)
 
 EVALUATION_BATCH_SIZE = 1_024
 TRAIN_SPLIT_SEED_MULTIPLIER = 1_003
@@ -35,39 +54,16 @@ TEST_SPLIT_SEED_MULTIPLIER = 2_003
 REPLAY_SCHEDULE_SEED_OFFSET = 10_000
 CALIBRATION_OFFSETS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 
-_STRUCTURED_METHOD = re.compile(
-    r"slowheat"
-    r"(?:_(?P<auxiliary>replay|distillation|unidirectional))?"
-    r"(?:_(?P<scope>hidden))?"
-    r"_beta_(?P<beta>\d+(?:\.\d+)?)"
-    r"(?:_budget_(?P<budget>\d+(?:\.\d+)?))?$"
-)
-
-
-@dataclass(frozen=True)
-class MethodSpec:
-    """Declarative capabilities for one benchmark method."""
-
-    slowheat: bool = False
-    replay: bool = False
-    distillation: bool = False
-    derpp: bool = False
-    er_ace: bool = False
-    lpr: bool = False
-    classifier_expander: bool = False
-    scroll: bool = False
-    strength: float | None = None
-    budget: float | None = None
-    protect_output: bool = True
-
-
 _METHOD_SPECS = {
     "vanilla": MethodSpec(),
     "slowheat": MethodSpec(slowheat=True),
     "slowheat_adaptive": MethodSpec(slowheat=True),
     "slowheat_native_state": MethodSpec(slowheat=True),
     "slowheat_unidirectional": MethodSpec(slowheat=True),
-    "slowheat_unbudgeted": MethodSpec(slowheat=True),
+    "slowheat_unbudgeted": MethodSpec(
+        slowheat=True,
+        disable_capacity_budget=True,
+    ),
     "slowheat_none": MethodSpec(slowheat=True),
     "hard_freeze": MethodSpec(slowheat=True),
     "replay": MethodSpec(replay=True),
@@ -113,7 +109,11 @@ _METHOD_SPECS = {
         budget=0.25,
         protect_output=False,
     ),
-    "scroll": MethodSpec(replay=True, scroll=True),
+    "scroll": MethodSpec(
+        replay=True,
+        scroll=True,
+        epoch_budget_policy="scroll",
+    ),
     "slowheat_scroll": MethodSpec(
         slowheat=True,
         replay=True,
@@ -121,14 +121,21 @@ _METHOD_SPECS = {
         strength=30.0,
         budget=0.25,
         protect_output=False,
+        epoch_budget_policy="scroll",
     ),
     "agem": MethodSpec(replay=True),
     "ewc": MethodSpec(),
     "si": MethodSpec(),
     "lwf_calibrated": MethodSpec(distillation=True),
     "replay_balanced": MethodSpec(replay=True),
-    "replay_more_epochs": MethodSpec(replay=True),
-    "replay_early_stopping": MethodSpec(replay=True),
+    "replay_more_epochs": MethodSpec(
+        replay=True,
+        epoch_budget_policy="replay_more",
+    ),
+    "replay_early_stopping": MethodSpec(
+        replay=True,
+        epoch_budget_policy="early_stopping",
+    ),
     "replay_global_lr_reduction": MethodSpec(replay=True),
     "slowheat_replay_hidden_adaptive_beta_30_budget_0.25": MethodSpec(
         slowheat=True,
@@ -142,6 +149,7 @@ _METHOD_SPECS = {
         replay=True,
         strength=30.0,
         budget=0.25,
+        partial_output_protection=True,
     ),
     "slowheat_replay_hidden_beta_30_budget_0.25_calibrated": MethodSpec(
         slowheat=True,
@@ -155,10 +163,10 @@ _METHOD_SPECS = {
 SUPPORTED_METHODS = set(_METHOD_SPECS)
 
 
-def _structured_match(method: str) -> re.Match[str] | None:
-    return _STRUCTURED_METHOD.fullmatch(method)
+_structured_match = structured_method_match
 
 
+@lru_cache(maxsize=None)
 def _method_spec(method: str) -> MethodSpec | None:
     if spec := _METHOD_SPECS.get(method):
         return spec
@@ -371,9 +379,7 @@ class SplitMNISTConfig:
             ),
             "scroll_replay_epochs": self.scroll_replay_epochs,
         }
-        for name, value in integers.items():
-            if value < 1:
-                raise ValueError(f"{name} deve ser >= 1")
+        require_positive_integers(integers)
         for name, value in {
             "train_per_class": self.train_per_class,
             "test_per_class": self.test_per_class,
@@ -442,9 +448,7 @@ class SplitMNISTConfig:
             "global_lr_reduction": self.global_lr_reduction,
             "partial_output_slow_strength": self.partial_output_slow_strength,
         }
-        for name, value in finite_values.items():
-            if not math.isfinite(value):
-                raise ValueError(f"{name} deve ser finito")
+        require_finite_values(finite_values)
         if self.learning_rate <= 0.0 or self.weight_decay < 0.0:
             raise ValueError("learning_rate deve ser > 0 e weight_decay >= 0")
         if self.slow_strength < 0.0:
@@ -484,8 +488,7 @@ class SplitMNISTConfig:
             ),
             "scroll_ridge": self.scroll_ridge,
         }
-        if any(value < 0.0 for value in nonnegative.values()):
-            raise ValueError(f"parâmetros devem ser >= 0: {nonnegative}")
+        require_nonnegative_values(nonnegative)
         if self.classifier_expander_classifier_lr <= 0.0:
             raise ValueError("classifier_expander_classifier_lr deve ser > 0")
         if not 0.0 <= self.ewc_decay <= 1.0:
@@ -529,15 +532,11 @@ class SplitMNISTConfig:
             )
 
 
-@dataclass(frozen=True)
-class MNISTTask:
-    classes: tuple[int, ...]
-    train_x: Tensor
-    train_y: Tensor
-    validation_x: Tensor
-    validation_y: Tensor
-    test_x: Tensor
-    test_y: Tensor
+# General name for new dataset adapters; the legacy name remains the stable API.
+ContinualExperimentConfig = SplitMNISTConfig
+
+# Compatibility alias retained for notebooks and historical imports.
+MNISTTask = ContinualTask
 
 
 def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
@@ -644,6 +643,13 @@ def _split_train_validation_indices(
     return train_indices, validation_indices
 
 
+# Public adapter helpers; underscored aliases remain available for old notebooks.
+classes_for_task = _classes_for_task
+normalized_images = _normalized_images
+select_class_indices = _select_class_indices
+split_train_validation_indices = _split_train_validation_indices
+
+
 def load_split_mnist(
     config: SplitMNISTConfig,
     *,
@@ -717,118 +723,16 @@ def load_split_mnist(
     return tasks
 
 
-def _vanilla_mlp(dims: tuple[int, ...]) -> nn.Sequential:
-    layers: list[nn.Module] = []
-    for input_dim, output_dim in pairwise(dims[:-1]):
-        layers.extend((nn.Linear(input_dim, output_dim), nn.ReLU()))
-    layers.append(nn.Linear(dims[-2], dims[-1]))
-    return nn.Sequential(*layers)
-
-
-class _VanillaCNN(nn.Module):
-    """Native control with the same trainable topology as ``SlowHeatCNN``."""
-
-    def __init__(
-        self,
-        in_channels: int,
-        num_classes: int,
-        *,
-        channels: tuple[int, int],
-        pooled_size: tuple[int, int],
-    ) -> None:
-        super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(channels[0], channels[1], kernel_size=3, padding=1)
-        self.activation1 = nn.ReLU()
-        self.activation2 = nn.ReLU()
-        self.pool = nn.MaxPool2d(2)
-        self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_size)
-        self.flatten = nn.Flatten()
-        self.classifier = nn.Linear(
-            channels[1] * pooled_size[0] * pooled_size[1],
-            num_classes,
-        )
-
-    def forward_features(self, inputs: Tensor) -> Tensor:
-        """Return penultimate features for ridge/classifier-only methods."""
-
-        inputs = self.pool(self.activation1(self.conv1(inputs)))
-        inputs = self.pool(self.activation2(self.conv2(inputs)))
-        return self.flatten(self.adaptive_pool(inputs))
-
-    def forward(self, inputs: Tensor) -> Tensor:
-        return self.classifier(self.forward_features(inputs))
-
-
-def _vanilla_model(config: SplitMNISTConfig, dims: tuple[int, ...]) -> nn.Module:
-    if config.backbone == "mlp":
-        return _vanilla_mlp(dims)
-    assert config.image_shape is not None
-    return _VanillaCNN(
-        config.image_shape[0],
-        len(config.class_order),
-        channels=config.cnn_channels,
-        pooled_size=config.cnn_pooled_size,
-    )
-
-
 def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
     """Build all methods with byte-identical trainable initialization."""
 
     config.validate()
-    dims = (config.input_dim, *config.hidden_dims, len(config.class_order))
-    with torch.random.fork_rng(devices=[]):
-        torch.manual_seed(config.seed)
-        reference = _vanilla_model(config, dims)
-        reference_parameters = {
-            name: parameter.detach().clone()
-            for name, parameter in reference.named_parameters()
-        }
-        models: dict[str, nn.Module] = {}
-        for method in config.methods:
-            torch.manual_seed(config.seed)
-            if not _is_slowheat(method):
-                model = _vanilla_model(config, dims)
-            else:
-                budget = (
-                    0.0
-                    if method == "slowheat_unbudgeted"
-                    else _method_budget(method, config.plasticity_budget)
-                )
-                output_strength = (
-                    config.partial_output_slow_strength
-                    if method
-                    == "slowheat_replay_partial_output_beta_30_budget_0.25"
-                    else None
-                )
-                slow_strength = _method_strength(method, config.slow_strength)
-                if config.backbone == "mlp":
-                    model = SlowHeatMLP(
-                        *dims,
-                        act="relu",
-                        slow_strength=slow_strength,
-                        plasticity_budget=budget,
-                        protect_output=_protects_output(method),
-                        output_slow_strength=output_strength,
-                    )
-                else:
-                    assert config.image_shape is not None
-                    model = SlowHeatCNN(
-                        config.image_shape[0],
-                        len(config.class_order),
-                        channels=config.cnn_channels,
-                        pooled_size=config.cnn_pooled_size,
-                        act="relu",
-                        slow_strength=slow_strength,
-                        plasticity_budget=budget,
-                        protect_output=_protects_output(method),
-                        output_slow_strength=output_strength,
-                    )
-            with torch.no_grad():
-                for name, parameter in model.named_parameters():
-                    parameter.copy_(reference_parameters[name])
-            models[method] = model.to(config.device)
-    return models
+    specs: dict[str, MethodSpec] = {}
+    for method in config.methods:
+        spec = _method_spec(method)
+        assert spec is not None
+        specs[method] = spec
+    return _build_paired_models(config, specs)
 
 
 def _slow_layers(model: nn.Module) -> list[nn.Module]:
@@ -1403,22 +1307,31 @@ def run_split_mnist(
                 seed=config.seed + task_index,
             )
         )
-    replay_memories = [
-        _replay_memory(
-            tasks,
-            before_stage=stage,
-            samples_per_class=config.replay_per_class,
-        )
-        for stage in range(config.task_count)
-    ]
-    updated_replay_memories = [
-        _replay_memory(
-            tasks,
-            before_stage=stage + 1,
-            samples_per_class=config.replay_per_class,
-        )
-        for stage in range(config.task_count)
-    ]
+    replay_required = any(_uses_replay(method) for method in config.methods)
+    replay_memories = (
+        [
+            _replay_memory(
+                tasks,
+                before_stage=stage,
+                samples_per_class=config.replay_per_class,
+            )
+            for stage in range(config.task_count)
+        ]
+        if replay_required
+        else [None] * config.task_count
+    )
+    updated_replay_memories = (
+        [
+            _replay_memory(
+                tasks,
+                before_stage=stage + 1,
+                samples_per_class=config.replay_per_class,
+            )
+            for stage in range(config.task_count)
+        ]
+        if replay_required
+        else [None] * config.task_count
+    )
     replay_schedules = [
         (
             make_batch_schedule(
@@ -1432,10 +1345,13 @@ def run_split_mnist(
         )
         for stage, memory in enumerate(replay_memories)
     ]
-    models = build_paired_models(config)
     results: dict[str, dict[str, Any]] = {}
 
-    for method, model in models.items():
+    for method in config.methods:
+        method_spec = _method_spec(method)
+        assert method_spec is not None
+        method_config = replace(config, methods=(method,))
+        model = build_paired_models(method_config)[method]
         optimizer = _build_optimizer(method, model, config)
         matrix = np.full((config.task_count, config.task_count), np.nan)
         task_aware_matrix = np.full((config.task_count, config.task_count), np.nan)
@@ -1521,16 +1437,13 @@ def run_split_mnist(
             }
             fisher_steps = 0
 
-            if _uses_scroll(method) and stage > 0:
-                # SCROLL assimilates later tasks analytically, then adapts only
-                # from its updated replay memory.
-                epoch_budget = 0
-            elif method == "replay_more_epochs":
-                epoch_budget = config.replay_more_epochs
-            elif method == "replay_early_stopping":
-                epoch_budget = config.early_stopping_max_epochs
-            else:
-                epoch_budget = config.epochs_per_task
+            epoch_budget = method_epoch_budget(
+                method_spec,
+                stage=stage,
+                default=config.epochs_per_task,
+                replay_more=config.replay_more_epochs,
+                early_stopping=config.early_stopping_max_epochs,
+            )
             steps_per_epoch = math.ceil(len(task.train_x) / config.batch_size)
             best_validation = -math.inf
             stale_epochs = 0
@@ -2009,6 +1922,20 @@ def run_split_mnist(
                 - metrics.final_average_accuracy
             ),
         }
+        del (
+            model,
+            optimizer,
+            teacher,
+            scroll_reference,
+            lpr,
+            der_logits_parts,
+            ewc_importance,
+            ewc_anchors,
+            si_importance,
+            si_anchors,
+            best_model_state,
+            best_optimizer_state,
+        )
 
     if output_dir is not None:
         output_path = Path(output_dir)
@@ -2017,13 +1944,9 @@ def run_split_mnist(
             output_path,
             project_root=Path(__file__).resolve().parents[1],
         )
-        with (output_path / "config.json").open("w", encoding="utf-8") as handle:
-            json.dump(config_payload(config), handle, indent=2, sort_keys=True)
-        with (output_path / "results.json").open("w", encoding="utf-8") as handle:
-            json.dump(results, handle, indent=2, sort_keys=True, allow_nan=False)
-        with (output_path / "summary.csv").open(
-            "w", encoding="utf-8", newline=""
-        ) as handle:
+        write_json_atomic(output_path / "config.json", config_payload(config))
+        write_json_atomic(output_path / "results.json", results)
+        with atomic_text_writer(output_path / "summary.csv", newline="") as handle:
             fields = [
                 "method",
                 "final_average_accuracy",
@@ -2136,9 +2059,21 @@ def run_split_mnist_multi_seed(
         raise ValueError("seeds deve ser não vazio e conter valores únicos")
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    loader = load_split_mnist if task_loader is None else task_loader
+    project_root = Path(__file__).resolve().parents[1]
+    identity = build_run_identity(
+        {
+            "base_config": config_payload(base_config),
+            "seeds": seeds,
+            "paired_references": paired_references,
+        },
+        project_root=project_root,
+        task_loader=f"{loader.__module__}.{loader.__qualname__}",
+    )
+    ensure_run_identity(output_path, identity, resume=resume)
     write_environment_manifest(
         output_path,
-        project_root=Path(__file__).resolve().parents[1],
+        project_root=project_root,
     )
     raw: dict[int, dict[str, dict[str, Any]]] = {}
     for index, seed in enumerate(seeds):
@@ -2146,6 +2081,7 @@ def run_split_mnist_multi_seed(
         seed_path = output_path / f"seed_{seed}"
         saved_config_path = seed_path / "config.json"
         saved_results_path = seed_path / "results.json"
+        saved_data_identity_path = seed_path / "data_identity.json"
         if resume and saved_config_path.is_file():
             with saved_config_path.open(encoding="utf-8") as handle:
                 saved_config = json.load(handle)
@@ -2160,6 +2096,26 @@ def run_split_mnist_multi_seed(
                     f"seed {seed} possui results.json sem config.json; "
                     "não é seguro reutilizá-la"
                 )
+            if not saved_data_identity_path.is_file():
+                raise RuntimeError(
+                    f"seed {seed} possui results.json sem data_identity.json; "
+                    "não é seguro reutilizá-la"
+                )
+            data_identity = read_json_object(saved_data_identity_path)
+            data_digest = data_identity.get("tasks_sha256")
+            if (
+                data_identity.get("schema_version") != 1
+                or data_identity.get("loader") != identity["task_loader"]
+                or not isinstance(data_digest, str)
+                or len(data_digest) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in data_digest
+                )
+            ):
+                raise RuntimeError(
+                    f"data_identity.json inválido ou incompatível na seed {seed}"
+                )
             with saved_results_path.open(encoding="utf-8") as handle:
                 raw[seed] = json.load(handle)
             for method, result in raw[seed].items():
@@ -2173,11 +2129,18 @@ def run_split_mnist_multi_seed(
             continue
         if verbose:
             print(f"[Split-MNIST] seed {index + 1}/{len(seeds)}: {seed}", flush=True)
-        loader = load_split_mnist if task_loader is None else task_loader
         tasks = loader(
             config,
             data_dir=data_dir,
             download=download if index == 0 else False,
+        )
+        write_json_atomic(
+            saved_data_identity_path,
+            {
+                "schema_version": 1,
+                "loader": identity["task_loader"],
+                "tasks_sha256": task_data_fingerprint(tasks),
+            },
         )
         raw[seed] = run_split_mnist(
             config,
@@ -2258,24 +2221,18 @@ def run_split_mnist_multi_seed(
                     for seed, difference in zip(seeds, differences, strict=True)
                 )
 
-    with (output_path / "aggregate.json").open("w", encoding="utf-8") as handle:
-        json.dump(aggregate, handle, indent=2, sort_keys=True, allow_nan=False)
-    with (output_path / "multi_seed_config.json").open("w", encoding="utf-8") as handle:
-        json.dump(
-            {"base_config": config_payload(base_config), "seeds": seeds},
-            handle,
-            indent=2,
-            sort_keys=True,
-        )
-    with (output_path / "aggregate.csv").open(
-        "w", encoding="utf-8", newline=""
-    ) as handle:
+    write_json_atomic(output_path / "aggregate.json", aggregate)
+    write_json_atomic(
+        output_path / "multi_seed_config.json",
+        {"base_config": config_payload(base_config), "seeds": seeds},
+    )
+    with atomic_text_writer(output_path / "aggregate.csv", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(csv_rows[0]))
         writer.writeheader()
         writer.writerows(csv_rows)
     if paired_rows:
-        with (output_path / "paired_differences.csv").open(
-            "w", encoding="utf-8", newline=""
+        with atomic_text_writer(
+            output_path / "paired_differences.csv", newline=""
         ) as handle:
             writer = csv.DictWriter(handle, fieldnames=list(paired_rows[0]))
             writer.writeheader()
@@ -2333,11 +2290,8 @@ def run_split_mnist_epoch_sweep(
                 row[f"{metric}_ci95"] = summary["ci95_normal_half_width"]
             rows.append(row)
 
-    with (output_path / "epoch_sweep.json").open("w", encoding="utf-8") as handle:
-        json.dump(sweep, handle, indent=2, sort_keys=True, allow_nan=False)
-    with (output_path / "epoch_sweep.csv").open(
-        "w", encoding="utf-8", newline=""
-    ) as handle:
+    write_json_atomic(output_path / "epoch_sweep.json", sweep)
+    with atomic_text_writer(output_path / "epoch_sweep.csv", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)

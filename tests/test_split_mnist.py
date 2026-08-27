@@ -516,6 +516,8 @@ def test_multi_seed_resume_reuses_completed_matching_seeds(tmp_path, monkeypatch
     assert resumed["methods"] == first["methods"]
     assert resumed["methods"]["vanilla"]["replay_memory_bytes"]["mean"] == 0
     assert resumed["methods"]["replay"]["replay_memory_bytes"]["mean"] > 0
+    assert (output_dir / "run_identity.json").is_file()
+    assert list(output_dir.glob("seed_*/data_identity.json"))
 
 
 def test_epoch_sweep_writes_long_form_metrics_and_replay_comparisons(

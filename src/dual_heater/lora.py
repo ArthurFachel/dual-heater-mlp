@@ -53,6 +53,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from ._layers import validate_finite_hyperparameters
+
 
 class DualHeatLoRALinear(nn.Module):
     def __init__(
@@ -71,6 +73,13 @@ class DualHeatLoRALinear(nn.Module):
         base_bias: torch.Tensor | None = None,
     ):
         super().__init__()
+        validate_finite_hyperparameters(
+            lora_alpha=lora_alpha,
+            fast_decay=fast_decay,
+            fast_strength=fast_strength,
+            fast_decay_rate=fast_decay_rate,
+            slow_strength=slow_strength,
+        )
         if r < 1:
             raise ValueError("r deve ser >= 1")
         if lora_alpha <= 0.0:

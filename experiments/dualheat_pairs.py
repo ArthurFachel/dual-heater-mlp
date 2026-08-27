@@ -15,6 +15,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from experiments.artifacts import write_json_atomic
 from experiments.confirmatory_split_mnist import CONFIRMATORY_SEEDS
 from experiments.confirmatory_statistics import (
     PRIMARY_ENDPOINT,
@@ -138,13 +139,7 @@ def pair_protocol(config: SplitMNISTConfig, seeds: list[int]) -> dict[str, Any]:
 
 
 def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
+    write_json_atomic(path, payload)
 
 
 def _holm_adjust(p_values: list[float]) -> list[float]:

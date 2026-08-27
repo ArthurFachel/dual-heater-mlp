@@ -1,6 +1,16 @@
 """Shared layer-building helpers."""
 
+import math
+
 from torch import nn
+
+
+def validate_finite_hyperparameters(**values: float) -> None:
+    invalid = {
+        name: value for name, value in values.items() if not math.isfinite(value)
+    }
+    if invalid:
+        raise ValueError(f"hiperparâmetros devem ser finitos: {invalid}")
 
 
 def activation(name: str) -> nn.Module:

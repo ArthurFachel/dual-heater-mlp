@@ -3,8 +3,38 @@ import sys
 from pathlib import Path
 
 from experiments.multi_seed import exact_two_sided_sign_test, run_multi_seed
+from experiments.artifacts import build_run_identity, ensure_run_identity
 from experiments.provenance import environment_manifest
 from experiments.synthetic_cl import SyntheticConfig
+
+
+def test_run_identity_rejects_results_after_source_changes(tmp_path):
+    project_root = tmp_path / "project"
+    source = project_root / "src" / "package.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    first = build_run_identity(
+        {"seeds": [1]},
+        project_root=project_root,
+        task_loader="tests.loader",
+    )
+    output = tmp_path / "results"
+    ensure_run_identity(output, first, resume=True)
+    (output / "seed_1").mkdir()
+    (output / "seed_1" / "results.json").write_text("{}", encoding="utf-8")
+
+    source.write_text("VALUE = 2\n", encoding="utf-8")
+    second = build_run_identity(
+        {"seeds": [1]},
+        project_root=project_root,
+        task_loader="tests.loader",
+    )
+    try:
+        ensure_run_identity(output, second, resume=True)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("retomada aceitou resultados produzidos por outro código")
 
 
 def test_environment_command_records_relative_script_and_path_arguments(tmp_path, monkeypatch):

@@ -79,7 +79,12 @@ python run_all_tests.py --num-seeds 10 --sections confirmation --device cpu
 ```
 
 O runner cria o lock do pré-registro antes do treino e retoma seeds concluídas
-apenas quando a configuração salva coincide. Use um novo `--output-dir` para
+apenas quando a configuração salva coincide. O runner também grava
+`run_identity.json`, com hash do código e da configuração; uma mudança nesses
+insumos exige um novo diretório e não pode reutilizar resultados anteriores.
+Cada seed registra ainda `data_identity.json`, com o hash dos tensores de tarefa
+efetivamente consumidos.
+Use um novo `--output-dir` para
 uma execução confirmatória independente; não use `--fresh` para sobrescrever
 um diretório que já contenha resultados observados.
 

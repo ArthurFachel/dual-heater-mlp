@@ -31,6 +31,7 @@ from experiments.confirmatory_split_mnist import (
     run_confirmation,
     validate_preregistration,
 )
+from experiments.artifacts import write_json_atomic
 from experiments.dualheat_pairs import (
     METHOD_PAIRS,
     PAIRED_METHODS,
@@ -40,6 +41,12 @@ from experiments.dualheat_pairs import (
 )
 from experiments.multi_seed import run_multi_seed
 from experiments.provenance import relative_path
+from experiments.sections import (
+    ALL_DATASET_METHOD_SECTIONS,
+    DEFAULT_SECTION_NAMES,
+    SECTION_NAMES,
+    SECTION_OUTPUT_DIRS,
+)
 from experiments.split_mnist_suite import (
     ABLATION_METHODS,
     ALL_BASELINES,
@@ -62,57 +69,6 @@ from experiments.visual_generalization import (
 
 SEED_GENERATOR_SEED = 20_260_819
 MAX_GENERATED_SEED = 2**31 - 1
-SECTION_NAMES = (
-    "dualheat-pairs",
-    "synthetic-all-methods",
-    "split-mnist-all-methods",
-    "confirmation",
-    "all-baselines",
-    "equal-examples",
-    "ablations",
-    "slowheat-derpp",
-    "split-mnist-generalization",
-    "permuted-mnist",
-    "split-cifar10",
-    "split-cifar10-cnn",
-    "split-cifar10-cnn-sweep",
-    "split-cifar100",
-)
-DEFAULT_SECTION_NAMES = tuple(
-    name
-    for name in SECTION_NAMES
-    if name
-    not in {
-        "dualheat-pairs",
-        "synthetic-all-methods",
-        "split-mnist-all-methods",
-        "split-cifar10-cnn",
-        "split-cifar10-cnn-sweep",
-    }
-)
-ALL_DATASET_METHOD_SECTIONS = (
-    "synthetic-all-methods",
-    "split-mnist-all-methods",
-    "permuted-mnist",
-    "split-cifar10",
-    "split-cifar100",
-)
-SECTION_OUTPUT_DIRS = {
-    "dualheat-pairs": "dualheat_pairs",
-    "synthetic-all-methods": "synthetic_all_methods",
-    "split-mnist-all-methods": "split_mnist_all_methods",
-    "confirmation": "confirmation",
-    "all-baselines": "all_baselines_equal_epochs",
-    "equal-examples": "all_baselines_equal_examples",
-    "ablations": "ablations",
-    "slowheat-derpp": "slowheat_derpp_exploratory",
-    "split-mnist-generalization": "split_mnist_generalization",
-    "permuted-mnist": "permuted_mnist",
-    "split-cifar10": "split_cifar10",
-    "split-cifar10-cnn": "split_cifar10_cnn",
-    "split-cifar10-cnn-sweep": "split_cifar10_cnn_sweep",
-    "split-cifar100": "split_cifar100",
-}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -235,11 +191,7 @@ def _now() -> str:
 
 
 def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    with temporary.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True, allow_nan=False)
-    temporary.replace(path)
+    write_json_atomic(path, payload)
 
 
 def _methods_by_section(device: str) -> dict[str, list[str]]:

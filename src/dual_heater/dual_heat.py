@@ -44,7 +44,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from ._layers import activation, validate_mlp_dims
+from ._layers import activation, validate_finite_hyperparameters, validate_mlp_dims
 
 
 class DualHeatLinear(nn.Module):
@@ -93,6 +93,12 @@ class DualHeatLinear(nn.Module):
         bias: bool = True,
     ):
         super().__init__()
+        validate_finite_hyperparameters(
+            fast_decay=fast_decay,
+            fast_strength=fast_strength,
+            fast_decay_rate=fast_decay_rate,
+            slow_strength=slow_strength,
+        )
         if not 0.0 <= fast_decay < 1.0:
             raise ValueError("fast_decay deve estar no intervalo [0, 1)")
         if fast_strength < 0.0:

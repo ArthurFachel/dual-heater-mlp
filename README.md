@@ -26,7 +26,11 @@ Run from the project root; no machine-specific paths or `PYTHONPATH` setup
 are needed. This direct entry writes to `results/dualheat_pairs/split_mnist/`.
 Add `--dry-run` to preview without training, or `--no-download` if the data is
 already available. Reports store their source paths relative to the report
-directory so the result tree can be moved to another machine.
+directory so the result tree can be moved to another machine. Multi-seed runs
+also store `run_identity.json`; resume is accepted only when the requested
+seeds, loader, configuration and source fingerprint still match. Older result
+trees without this identity remain readable but are not resumed. Each seed also
+stores `data_identity.json`, containing a hash of the exact task tensors used.
 
 Alternatively, use the general protocol runner:
 

@@ -18,11 +18,11 @@ from experiments.split_mnist import (
     TEST_SPLIT_SEED_MULTIPLIER,
     TRAIN_SPLIT_SEED_MULTIPLIER,
     MNISTTask,
-    SplitMNISTConfig,
-    _classes_for_task,
-    _normalized_images,
-    _select_class_indices,
-    _split_train_validation_indices,
+    ContinualExperimentConfig as SplitMNISTConfig,
+    classes_for_task as _classes_for_task,
+    normalized_images as _normalized_images,
+    select_class_indices as _select_class_indices,
+    split_train_validation_indices as _split_train_validation_indices,
     run_split_mnist_multi_seed,
 )
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS

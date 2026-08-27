@@ -27,6 +27,7 @@ research = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.9",
+    "torchvision>=0.16,<0.26",
 ]
 
 [tool.setuptools.packages.find]

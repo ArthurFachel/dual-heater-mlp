@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
+from experiments.artifacts import write_json_atomic
 from experiments.confirmatory_statistics import (
     exact_two_sided_sign_test,
     normal_summary,
@@ -92,18 +92,11 @@ def run_multi_seed(
                 )
             aggregate["paired_differences_vs_vanilla"][method] = method_differences
 
-    with (output_path / "aggregate.json").open("w", encoding="utf-8") as handle:
-        json.dump(aggregate, handle, indent=2, sort_keys=True, allow_nan=False)
-    with (output_path / "multi_seed_config.json").open(
-        "w", encoding="utf-8"
-    ) as handle:
-        json.dump(
-            {"base_config": asdict(base_config), "seeds": seeds},
-            handle,
-            indent=2,
-            sort_keys=True,
-            allow_nan=False,
-        )
+    write_json_atomic(output_path / "aggregate.json", aggregate)
+    write_json_atomic(
+        output_path / "multi_seed_config.json",
+        {"base_config": asdict(base_config), "seeds": seeds},
+    )
     return aggregate
 
 
