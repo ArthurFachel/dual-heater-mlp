@@ -29,12 +29,21 @@ class ModelFactoryConfig(Protocol):
     device: str
 
 
+class _VanillaMLP(nn.Sequential):
+    """Native MLP exposing the same feature interface as visual backbones."""
+
+    def forward_features(self, inputs: Tensor) -> Tensor:
+        for module in list(self.children())[:-1]:
+            inputs = module(inputs)
+        return inputs
+
+
 def _vanilla_mlp(dims: tuple[int, ...]) -> nn.Sequential:
     layers: list[nn.Module] = []
     for input_dim, output_dim in pairwise(dims[:-1]):
         layers.extend((nn.Linear(input_dim, output_dim), nn.ReLU()))
     layers.append(nn.Linear(dims[-2], dims[-1]))
-    return nn.Sequential(*layers)
+    return _VanillaMLP(*layers)
 
 
 class _VanillaCNN(nn.Module):

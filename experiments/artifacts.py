@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TextIO
 
+import torch
+
 RUN_IDENTITY_SCHEMA_VERSION = 1
 
 
@@ -53,11 +55,45 @@ def write_json_atomic(path: str | Path, payload: Any) -> None:
         handle.write("\n")
 
 
+def write_torch_atomic(path: str | Path, payload: Any) -> None:
+    """Atomically persist a tensor-only checkpoint suitable for safe loading."""
+
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w+b",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_name = handle.name
+            torch.save(payload, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_name, destination)
+        temporary_name = None
+    finally:
+        if temporary_name is not None:
+            Path(temporary_name).unlink(missing_ok=True)
+
+
+def read_torch_checkpoint(path: str | Path) -> dict[str, Any]:
+    """Load an internal checkpoint without permitting arbitrary pickle globals."""
+
+    payload = torch.load(Path(path), map_location="cpu", weights_only=True)
+    if not isinstance(payload, dict):
+        raise TypeError(f"checkpoint deve conter um objeto: {path}")
+    return payload
+
+
 def read_json_object(path: str | Path) -> dict[str, Any]:
     with Path(path).open(encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
-        raise ValueError(f"artefato JSON deve conter um objeto: {path}")
+        raise TypeError(f"artefato JSON deve conter um objeto: {path}")
     return payload
 
 

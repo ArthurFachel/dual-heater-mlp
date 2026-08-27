@@ -16,6 +16,11 @@ class SectionSpec:
 SECTION_SPECS = (
     SectionSpec("dualheat-pairs", "dualheat_pairs", default=False),
     SectionSpec(
+        "replay-selection-sweep",
+        "replay_selection_sweep",
+        default=False,
+    ),
+    SectionSpec(
         "synthetic-all-methods",
         "synthetic_all_methods",
         default=False,

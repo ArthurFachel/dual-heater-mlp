@@ -46,8 +46,8 @@ def method_epoch_budget(
     replay_more: int,
     early_stopping: int,
 ) -> int:
-    if spec.epoch_budget_policy == "scroll" and stage > 0:
-        return 0
+    if spec.epoch_budget_policy == "scroll":
+        return 0 if stage > 0 else default
     if spec.epoch_budget_policy == "replay_more":
         return replay_more
     if spec.epoch_budget_policy == "early_stopping":

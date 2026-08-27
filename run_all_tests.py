@@ -23,6 +23,7 @@ for import_path in (PROJECT_ROOT, PROJECT_ROOT / "src"):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
+from experiments.artifacts import write_json_atomic
 from experiments.confirmatory_split_mnist import (
     CANDIDATE,
     CONFIRMATORY_SEEDS,
@@ -31,7 +32,6 @@ from experiments.confirmatory_split_mnist import (
     run_confirmation,
     validate_preregistration,
 )
-from experiments.artifacts import write_json_atomic
 from experiments.dualheat_pairs import (
     METHOD_PAIRS,
     PAIRED_METHODS,
@@ -41,6 +41,14 @@ from experiments.dualheat_pairs import (
 )
 from experiments.multi_seed import run_multi_seed
 from experiments.provenance import relative_path
+from experiments.replay_memory import REPLAY_SELECTION_STRATEGIES
+from experiments.replay_selection_sweep import (
+    SWEEP_DATASETS,
+    SWEEP_MEMORY_METHODS,
+    SWEEP_METHODS,
+    SWEEP_NO_MEMORY_METHODS,
+    run_replay_selection_sweep,
+)
 from experiments.sections import (
     ALL_DATASET_METHOD_SECTIONS,
     DEFAULT_SECTION_NAMES,
@@ -171,9 +179,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         )
     else:
         generator = random.Random(SEED_GENERATOR_SEED)
-        args.baseline_seeds = generator.sample(
-            range(MAX_GENERATED_SEED + 1), args.num_seeds
-        )
+        reserved = set(CONFIRMATORY_SEEDS)
+        generated: list[int] = []
+        while len(generated) < args.num_seeds:
+            candidate = generator.randrange(MAX_GENERATED_SEED + 1)
+            if candidate not in reserved and candidate not in generated:
+                generated.append(candidate)
+        args.baseline_seeds = generated
     return args
 
 
@@ -198,6 +210,7 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
     visual_configs = generalization_configs(device)
     return {
         "dualheat-pairs": list(PAIRED_METHODS),
+        "replay-selection-sweep": list(SWEEP_METHODS),
         "synthetic-all-methods": list(SYNTHETIC_METHODS),
         "split-mnist-all-methods": list(ALL_VISUAL_METHODS),
         "confirmation": list(FROZEN_CONFIG.methods),
@@ -246,6 +259,20 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 for pair in METHOD_PAIRS
             ]
             details["analysis_status"] = "exploratory_not_independent_confirmation"
+        elif name == "replay-selection-sweep":
+            details["protocol"] = {
+                "status": "exploratory_not_independent_confirmation",
+                "datasets": list(SWEEP_DATASETS),
+                "selectors": list(REPLAY_SELECTION_STRATEGIES),
+                "ranking_ownership": "each_learner",
+                "primary_endpoint": "final_average_accuracy",
+                "learner_run_count": len(args.baseline_seeds)
+                * len(SWEEP_DATASETS)
+                * (
+                    len(SWEEP_NO_MEMORY_METHODS)
+                    + len(REPLAY_SELECTION_STRATEGIES) * len(SWEEP_MEMORY_METHODS)
+                ),
+            }
         elif name == "ablations":
             details["replay_memory_per_class"] = list(REPLAY_MEMORY_SIZES)
         elif name == "split-mnist-generalization":
@@ -353,6 +380,8 @@ def _run_section(
         return run_confirmation(**confirmation_common)
     if name == "dualheat-pairs":
         return run_dualheat_pairs(**common)
+    if name == "replay-selection-sweep":
+        return run_replay_selection_sweep(**common)
     if name == "split-mnist-all-methods":
         return run_all_visual_methods(**common)
     if name == "all-baselines":

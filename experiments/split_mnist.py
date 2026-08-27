@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -24,15 +24,17 @@ from experiments.artifacts import (
     build_run_identity,
     ensure_run_identity,
     read_json_object,
+    read_torch_checkpoint,
     task_data_fingerprint,
     write_json_atomic,
+    write_torch_atomic,
 )
-from experiments.contracts import ContinualTask
 from experiments.confirmatory_statistics import (
     PRIMARY_ENDPOINT,
     normal_summary,
     paired_confirmatory_summary,
 )
+from experiments.contracts import ContinualTask
 from experiments.lpr import LPRPreconditioner
 from experiments.method_specs import (
     MethodSpec,
@@ -41,6 +43,12 @@ from experiments.method_specs import (
 )
 from experiments.model_factory import build_paired_models as _build_paired_models
 from experiments.provenance import write_environment_manifest
+from experiments.replay_memory import (
+    REPLAY_SELECTION_STRATEGIES,
+    ReplayBuffer,
+    ReplaySelectionStrategy,
+    select_task_exemplars,
+)
 from experiments.synthetic_cl import make_batch_schedule
 from experiments.validation import (
     require_finite_values,
@@ -53,6 +61,11 @@ TRAIN_SPLIT_SEED_MULTIPLIER = 1_003
 TEST_SPLIT_SEED_MULTIPLIER = 2_003
 REPLAY_SCHEDULE_SEED_OFFSET = 10_000
 CALIBRATION_OFFSETS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
+STAGE_CHECKPOINT_SCHEMA_VERSION = 1
+STAGE_RESUMABLE_METHODS = {
+    "replay",
+    "slowheat_replay_hidden_beta_30_budget_0.25",
+}
 
 _METHOD_SPECS = {
     "vanilla": MethodSpec(),
@@ -166,7 +179,7 @@ SUPPORTED_METHODS = set(_METHOD_SPECS)
 _structured_match = structured_method_match
 
 
-@lru_cache(maxsize=None)
+@cache
 def _method_spec(method: str) -> MethodSpec | None:
     if spec := _METHOD_SPECS.get(method):
         return spec
@@ -280,6 +293,7 @@ class SplitMNISTConfig:
     adaptive_maximum: float = 0.80
     replay_per_class: int = 20
     replay_batch_size: int = 64
+    replay_selection: ReplaySelectionStrategy = "first"
     distillation_strength: float = 1.0
     distillation_temperature: float = 2.0
     derpp_alpha: float = 0.5
@@ -457,6 +471,10 @@ class SplitMNISTConfig:
             raise ValueError("plasticity_budget deve estar em [0, 1]")
         if self.optimizer_state_policy not in {"native", "follow_update"}:
             raise ValueError("optimizer_state_policy inválido")
+        if self.replay_selection not in REPLAY_SELECTION_STRATEGIES:
+            raise ValueError(
+                "replay_selection deve ser first, loss, representative ou hybrid"
+            )
         if not 0.0 <= self.adaptive_target_accuracy <= 1.0:
             raise ValueError("adaptive_target_accuracy deve estar em [0, 1]")
         if self.adaptive_rate < 0.0:
@@ -543,6 +561,8 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
     """Serialize configs without perturbing legacy uniform-task protocols."""
 
     payload = asdict(config)
+    if config.replay_selection == "first":
+        payload.pop("replay_selection")
     if config.task_class_counts is None:
         payload.pop("task_class_counts")
     if config.backbone == "mlp":
@@ -1193,12 +1213,16 @@ def _new_cost_record(
         "optimizer_step_seconds": 0.0,
         "consolidation_seconds": 0.0,
         "head_calibration_seconds": 0.0,
+        "selection_seconds": 0.0,
+        "selector_forward_examples": 0,
+        "selector_distance_flops": 0,
         "slowheat_hook_flops": 0,
         "mask_application_flops": 0,
         "regularizer_flops": 0,
         "consolidation_flops": 0,
         "replay_memory_bytes": 0,
         "stored_logits_bytes": 0,
+        "replay_metadata_bytes": 0,
         "model_parameters": sum(parameter.numel() for parameter in model.parameters()),
         "forward_flops_per_example": (
             _linear_forward_flops(model)
@@ -1214,8 +1238,9 @@ def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, 
     )
     learner = int(cost["learner_forward_examples"])
     teacher = int(cost["teacher_forward_examples"])
+    selector = int(cost["selector_forward_examples"])
     backward = int(cost["learner_backward_examples"])
-    core = forward_flops * (learner + teacher + 2 * backward)
+    core = forward_flops * (learner + teacher + selector + 2 * backward)
     overhead = sum(
         int(cost[key])
         for key in (
@@ -1223,6 +1248,7 @@ def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, 
             "mask_application_flops",
             "regularizer_flops",
             "consolidation_flops",
+            "selector_distance_flops",
         )
     )
     record = dict(cost)
@@ -1230,7 +1256,7 @@ def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, 
         {
             "learner_examples_processed": int(cost["current_examples"])
             + int(cost["replay_examples"]),
-            "total_model_examples_processed": learner + teacher,
+            "total_model_examples_processed": learner + teacher + selector,
             "estimated_core_flops": core,
             "estimated_overhead_flops": overhead,
             "estimated_total_flops": core + overhead,
@@ -1254,7 +1280,12 @@ def _backfill_cost_metadata(
     """Add deterministic cost fields missing from older saved artifacts."""
 
     cost = result.setdefault("cost", {})
-    remembered_samples = config.replay_per_class * len(config.class_order)
+    history = result.get("selection_history")
+    remembered_samples = (
+        sum(int(stage.get("selected_count", 0)) for stage in history)
+        if isinstance(history, list) and history
+        else config.replay_per_class * len(config.class_order)
+    )
     replay_bytes = (
         remembered_samples * (config.input_dim * 4 + 8)
         if _uses_replay(method)
@@ -1267,6 +1298,10 @@ def _backfill_cost_metadata(
     )
     cost.setdefault("replay_memory_bytes", replay_bytes)
     cost.setdefault("stored_logits_bytes", logit_bytes)
+    cost.setdefault("replay_metadata_bytes", 0)
+    cost.setdefault("selection_seconds", 0.0)
+    cost.setdefault("selector_forward_examples", 0)
+    cost.setdefault("selector_distance_flops", 0)
 
 
 def run_split_mnist(
@@ -1274,6 +1309,7 @@ def run_split_mnist(
     tasks: list[MNISTTask],
     *,
     output_dir: str | Path | None = None,
+    resume: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Run paired methods, including replay and regularization baselines.
 
@@ -1284,6 +1320,12 @@ def run_split_mnist(
     config.validate()
     if len(tasks) != config.task_count:
         raise ValueError("quantidade de tasks incompatível com a configuração")
+    data_sha256 = (
+        task_data_fingerprint(tasks)
+        if output_dir is not None
+        and any(method in STAGE_RESUMABLE_METHODS for method in config.methods)
+        else None
+    )
 
     largest_epoch_budget = max(
         config.epochs_per_task,
@@ -1307,44 +1349,6 @@ def run_split_mnist(
                 seed=config.seed + task_index,
             )
         )
-    replay_required = any(_uses_replay(method) for method in config.methods)
-    replay_memories = (
-        [
-            _replay_memory(
-                tasks,
-                before_stage=stage,
-                samples_per_class=config.replay_per_class,
-            )
-            for stage in range(config.task_count)
-        ]
-        if replay_required
-        else [None] * config.task_count
-    )
-    updated_replay_memories = (
-        [
-            _replay_memory(
-                tasks,
-                before_stage=stage + 1,
-                samples_per_class=config.replay_per_class,
-            )
-            for stage in range(config.task_count)
-        ]
-        if replay_required
-        else [None] * config.task_count
-    )
-    replay_schedules = [
-        (
-            make_batch_schedule(
-                sample_count=len(memory[0]),
-                batch_size=config.replay_batch_size,
-                steps=len(schedules[stage]),
-                seed=config.seed + REPLAY_SCHEDULE_SEED_OFFSET + stage,
-            )
-            if memory is not None
-            else None
-        )
-        for stage, memory in enumerate(replay_memories)
-    ]
     results: dict[str, dict[str, Any]] = {}
 
     for method in config.methods:
@@ -1367,14 +1371,14 @@ def run_split_mnist(
                 for index, task in enumerate(tasks)
             ]
         )
-        pretrain_scores = np.empty(config.task_count, dtype=np.float64)
+        pretrain_scores = np.full(config.task_count, np.nan, dtype=np.float64)
         training_losses: list[list[float]] = []
         validation_acquisition: list[float] = []
         validation_history: list[list[float]] = []
         completed_epochs: list[int] = []
         capacity_history: list[list[dict[str, float]]] = []
         teacher: nn.Module | None = None
-        der_logits_parts: list[Tensor] = []
+        replay_buffer = ReplayBuffer()
         ewc_importance: dict[str, Tensor] = {}
         ewc_anchors: dict[str, Tensor] = {}
         si_importance: dict[str, Tensor] = {}
@@ -1397,19 +1401,57 @@ def run_split_mnist(
         scroll_covariance: Tensor | None = None
         scroll_class_sums: Tensor | None = None
         cost = _new_cost_record(model, tasks[0].train_x[:1])
-        remembered_samples = config.replay_per_class * len(config.class_order)
-        if _uses_replay(method):
-            # Inputs are materialized as float32 and labels as int64.
-            cost["replay_memory_bytes"] = remembered_samples * (
-                config.input_dim * 4 + 8
-            )
-        if _uses_derpp(method):
-            cost["stored_logits_bytes"] = (
-                remembered_samples * len(config.class_order) * 4
-            )
+        best_model_state: dict[str, Any] | None = None
+        best_optimizer_state: dict[str, Any] | None = None
+        start_stage = 0
+        elapsed_before = 0.0
+        checkpoint_path = (
+            Path(output_dir) / "checkpoints" / f"{method}.pt"
+            if output_dir is not None and method in STAGE_RESUMABLE_METHODS
+            else None
+        )
+        if checkpoint_path is not None and checkpoint_path.is_file():
+            if not resume:
+                raise FileExistsError(
+                    f"checkpoint existente requer resume=True: {checkpoint_path}"
+                )
+            checkpoint = read_torch_checkpoint(checkpoint_path)
+            expected_config = config_payload(method_config)
+            if (
+                checkpoint.get("schema_version") != STAGE_CHECKPOINT_SCHEMA_VERSION
+                or checkpoint.get("method") != method
+                or checkpoint.get("replay_selection") != config.replay_selection
+                or checkpoint.get("config") != expected_config
+                or checkpoint.get("data_sha256") != data_sha256
+            ):
+                raise RuntimeError(
+                    f"checkpoint incompatível com método, configuração ou dados: {method}"
+                )
+            start_stage = int(checkpoint["next_stage"])
+            if not 0 <= start_stage <= config.task_count:
+                raise RuntimeError("checkpoint contém next_stage inválido")
+            model.load_state_dict(checkpoint["model"])
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            replay_buffer.load_state_dict(checkpoint["replay_buffer"])
+            matrix = checkpoint["accuracy_matrix"].numpy().copy()
+            task_aware_matrix = checkpoint["task_aware_accuracy_matrix"].numpy().copy()
+            pretrain_scores = checkpoint["pretrain_scores"].numpy().copy()
+            training_losses = list(checkpoint["training_losses"])
+            validation_acquisition = list(checkpoint["validation_acquisition"])
+            validation_history = list(checkpoint["validation_history"])
+            completed_epochs = list(checkpoint["completed_epochs"])
+            capacity_history = list(checkpoint["capacity_history"])
+            logit_bias = checkpoint["logit_bias"].to(config.device)
+            cost = dict(checkpoint["cost"])
+            elapsed_before = float(checkpoint["elapsed_seconds"])
+            torch.set_rng_state(checkpoint["torch_rng_state"])
+            cuda_rng_states = checkpoint.get("cuda_rng_states")
+            if cuda_rng_states is not None and torch.cuda.is_available():
+                torch.cuda.set_rng_state_all(cuda_rng_states)
         started = time.perf_counter()
 
-        for stage, task in enumerate(tasks):
+        for stage in range(start_stage, config.task_count):
+            task = tasks[stage]
             seen_classes = _classes_through_stage(config, stage)
             old_classes = (
                 _classes_through_stage(config, stage - 1) if stage > 0 else ()
@@ -1425,8 +1467,17 @@ def run_split_mnist(
             model.train()
             stage_losses: list[float] = []
             stage_validation: list[float] = []
-            replay_schedule = replay_schedules[stage]
-            replay_memory = replay_memories[stage]
+            replay_memory = replay_buffer.as_memory()
+            replay_schedule = (
+                make_batch_schedule(
+                    sample_count=len(replay_memory[0]),
+                    batch_size=config.replay_batch_size,
+                    steps=len(schedules[stage]),
+                    seed=config.seed + REPLAY_SCHEDULE_SEED_OFFSET + stage,
+                )
+                if replay_memory is not None
+                else None
+            )
             si_path = {
                 name: torch.zeros_like(parameter)
                 for name, parameter in model.named_parameters()
@@ -1486,7 +1537,9 @@ def run_split_mnist(
                             replay_x = None
                             replay_y = None
                         elif _uses_derpp(method):
-                            replay_targets = torch.cat(der_logits_parts)[
+                            if replay_buffer.logits is None:
+                                raise RuntimeError("DER++ requer logits no replay buffer")
+                            replay_targets = replay_buffer.logits[
                                 replay_indices[: len(replay_x)]
                             ].to(config.device)
 
@@ -1716,6 +1769,32 @@ def run_split_mnist(
                 model.load_state_dict(best_model_state)
                 assert best_optimizer_state is not None
                 optimizer.load_state_dict(best_optimizer_state)
+
+            if _uses_replay(method):
+                selection_started = time.perf_counter()
+                selection = select_task_exemplars(
+                    model,
+                    task,
+                    task_index=stage,
+                    seen_classes=seen_classes,
+                    samples_per_class=config.replay_per_class,
+                    strategy=config.replay_selection,
+                    device=config.device,
+                    batch_size=EVALUATION_BATCH_SIZE,
+                    store_logits=_uses_derpp(method),
+                )
+                replay_buffer.append(selection)
+                cost["selection_seconds"] += time.perf_counter() - selection_started
+                cost["selector_forward_examples"] += (
+                    selection.selector_forward_examples
+                )
+                cost["selector_distance_flops"] += (
+                    selection.selector_distance_flops
+                )
+                cost["replay_memory_bytes"] = replay_buffer.replay_memory_bytes
+                cost["stored_logits_bytes"] = replay_buffer.stored_logits_bytes
+                cost["replay_metadata_bytes"] = replay_buffer.metadata_bytes
+
             if _uses_scroll(method):
                 if scroll_reference is None:
                     # In the no-checkpoint benchmark, task 0 is the documented
@@ -1739,7 +1818,7 @@ def run_split_mnist(
                 )
                 cost["regularizer_flops"] += ridge_operations
                 cost["teacher_forward_examples"] += len(task.train_x)
-                updated_memory = updated_replay_memories[stage]
+                updated_memory = replay_buffer.as_memory()
                 assert updated_memory is not None
                 replay_stage_losses, replay_stage_examples = _train_scroll_replay(
                     model,
@@ -1766,7 +1845,7 @@ def run_split_mnist(
                 )
 
             if _uses_classifier_expander(method) and stage > 0:
-                updated_memory = updated_replay_memories[stage]
+                updated_memory = replay_buffer.as_memory()
                 assert updated_memory is not None
                 head_losses, head_examples = _train_classifier_expander_head(
                     model,
@@ -1877,22 +1956,50 @@ def run_split_mnist(
                     logit_bias=logit_bias,
                 )
 
-            if _uses_derpp(method):
-                memory_inputs: list[Tensor] = []
-                for label in task.classes:
-                    class_indices = torch.nonzero(
-                        task.train_y == label, as_tuple=False
-                    ).flatten()[: config.replay_per_class]
-                    memory_inputs.append(task.train_x[class_indices])
-                remembered_x = torch.cat(memory_inputs).to(config.device)
-                with torch.no_grad():
-                    der_logits_parts.append(model(remembered_x).detach().cpu())
             if _uses_distillation(method) or _uses_classifier_expander(method):
                 teacher = deepcopy(model).eval()
                 for parameter in teacher.parameters():
                     parameter.requires_grad_(False)
 
-        elapsed = time.perf_counter() - started
+            if checkpoint_path is not None:
+                assert data_sha256 is not None
+                write_torch_atomic(
+                    checkpoint_path,
+                    {
+                        "schema_version": STAGE_CHECKPOINT_SCHEMA_VERSION,
+                        "method": method,
+                        "replay_selection": config.replay_selection,
+                        "config": config_payload(method_config),
+                        "data_sha256": data_sha256,
+                        "next_stage": stage + 1,
+                        "model": model.state_dict(),
+                        "optimizer": optimizer.state_dict(),
+                        "replay_buffer": replay_buffer.state_dict(),
+                        "accuracy_matrix": torch.from_numpy(matrix.copy()),
+                        "task_aware_accuracy_matrix": torch.from_numpy(
+                            task_aware_matrix.copy()
+                        ),
+                        "pretrain_scores": torch.from_numpy(pretrain_scores.copy()),
+                        "training_losses": training_losses,
+                        "validation_acquisition": validation_acquisition,
+                        "validation_history": validation_history,
+                        "completed_epochs": completed_epochs,
+                        "capacity_history": capacity_history,
+                        "logit_bias": logit_bias.detach().cpu(),
+                        "cost": cost,
+                        "elapsed_seconds": elapsed_before
+                        + time.perf_counter()
+                        - started,
+                        "torch_rng_state": torch.get_rng_state(),
+                        "cuda_rng_states": (
+                            torch.cuda.get_rng_state_all()
+                            if torch.cuda.is_available()
+                            else None
+                        ),
+                    },
+                )
+
+        elapsed = elapsed_before + time.perf_counter() - started
         metrics = compute_cl_metrics(
             matrix,
             pretrain_scores=pretrain_scores,
@@ -1912,6 +2019,7 @@ def run_split_mnist(
             "baseline_scores": baseline_scores.tolist(),
             "pretrain_scores": pretrain_scores.tolist(),
             "capacity_history": capacity_history,
+            "selection_history": replay_buffer.selection_history,
             "final_logit_bias": logit_bias.detach().cpu().tolist(),
             "elapsed_seconds": elapsed,
             "cost": _finalize_cost(model, cost),
@@ -1928,7 +2036,7 @@ def run_split_mnist(
             teacher,
             scroll_reference,
             lpr,
-            der_logits_parts,
+            replay_buffer,
             ewc_importance,
             ewc_anchors,
             si_importance,
@@ -1963,6 +2071,9 @@ def run_split_mnist(
                 "estimated_overhead_flops",
                 "replay_memory_bytes",
                 "stored_logits_bytes",
+                "replay_metadata_bytes",
+                "selector_forward_examples",
+                "selection_seconds",
             ]
             writer = csv.DictWriter(handle, fieldnames=fields)
             writer.writeheader()
@@ -2006,6 +2117,15 @@ def run_split_mnist(
                         "stored_logits_bytes": result["cost"][
                             "stored_logits_bytes"
                         ],
+                        "replay_metadata_bytes": result["cost"][
+                            "replay_metadata_bytes"
+                        ],
+                        "selector_forward_examples": result["cost"][
+                            "selector_forward_examples"
+                        ],
+                        "selection_seconds": result["cost"][
+                            "selection_seconds"
+                        ],
                     }
                 )
     return results
@@ -2026,6 +2146,9 @@ AGGREGATE_METRICS = {
     "estimated_overhead_flops": ("cost", "estimated_overhead_flops"),
     "replay_memory_bytes": ("cost", "replay_memory_bytes"),
     "stored_logits_bytes": ("cost", "stored_logits_bytes"),
+    "replay_metadata_bytes": ("cost", "replay_metadata_bytes"),
+    "selector_forward_examples": ("cost", "selector_forward_examples"),
+    "selection_seconds": ("cost", "selection_seconds"),
 }
 
 
@@ -2060,6 +2183,11 @@ def run_split_mnist_multi_seed(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     loader = load_split_mnist if task_loader is None else task_loader
+    loader_identity = (
+        "experiments.split_mnist.load_split_mnist"
+        if task_loader is None
+        else f"{loader.__module__}.{loader.__qualname__}"
+    )
     project_root = Path(__file__).resolve().parents[1]
     identity = build_run_identity(
         {
@@ -2068,7 +2196,7 @@ def run_split_mnist_multi_seed(
             "paired_references": paired_references,
         },
         project_root=project_root,
-        task_loader=f"{loader.__module__}.{loader.__qualname__}",
+        task_loader=loader_identity,
     )
     ensure_run_identity(output_path, identity, resume=resume)
     write_environment_manifest(
@@ -2146,6 +2274,7 @@ def run_split_mnist_multi_seed(
             config,
             tasks,
             output_dir=seed_path,
+            resume=resume,
         )
         for method, result in raw[seed].items():
             _backfill_cost_metadata(result, method=method, config=config)

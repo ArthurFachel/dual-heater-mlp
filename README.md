@@ -160,6 +160,13 @@ Available experimental consolidation strategies:
 - `mean`: running mean across task statistics;
 - `sum`: unnormalized accumulated importance.
 
+Replay can also let each learner rank which training images enter its episodic
+memory. The `first`, `loss`, `representative` and `hybrid` policies work with
+both MLP and CNN backbones; no-memory controls remain available through
+`vanilla` and hidden-only SlowHeat. See
+[the replay-selection protocol](docs/replay_selection.md) for configuration,
+the ten-seed visual sweep and task-boundary checkpoint behavior.
+
 The persistent evidence is converted to a `[0, 1]` protection vector after
 each consolidation, so at least `plasticity_budget` of every layer remains
 unprotected. `adapt_capacity()` can update that budget from a separately held

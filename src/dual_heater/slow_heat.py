@@ -637,6 +637,13 @@ class SlowHeatMLP(nn.Sequential):
             layers.append(nn.Linear(dims[-2], dims[-1]))
         super().__init__(*layers)
 
+    def forward_features(self, x: Tensor) -> Tensor:
+        """Return the penultimate representation used by replay selectors."""
+
+        for module in list(self.children())[:-1]:
+            x = module(x)
+        return x
+
     def get_slow_layers(self) -> list[SlowHeatLinear]:
         return [m for m in self.modules() if isinstance(m, SlowHeatLinear)]
 
