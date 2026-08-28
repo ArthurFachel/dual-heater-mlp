@@ -99,13 +99,13 @@ def test_cli_filters_benchmark_and_cache(sweep_report, capsys):
     assert output.count("first") == 2
 
 
-def test_accuracy_high_selects_best_cache_per_benchmark_and_learner(
+def test_accuracy_high_selects_best_cache_and_learner_per_benchmark(
     sweep_report, capsys
 ):
     assert cli.main([str(sweep_report), "--accuracy", "--high"]) == 0
 
     output = capsys.readouterr().out
-    assert output.count("hybrid") == 4
+    assert output.count("hybrid") == 2
     assert "first" not in output
     assert "78.00 [77.00, 79.00]" in output
     assert "92.00 [91.00, 93.00]" in output
@@ -117,7 +117,7 @@ def test_forget_low_selects_smallest_forgetting(sweep_report, capsys):
     ) == 0
 
     output = capsys.readouterr().out
-    assert output.count("hybrid") == 2
+    assert output.count("hybrid") == 1
     assert "first" not in output
     assert "12.00 [11.00, 13.00]" in output
 
@@ -149,7 +149,7 @@ def test_benchmark_and_cache_directories_are_inferred(tmp_path, capsys):
     benchmark_output = capsys.readouterr().out
     assert "split_cifar10_cnn" in benchmark_output
     assert "loss" in benchmark_output
-    assert "  3  " in benchmark_output
+    assert "|     3 |" in benchmark_output
 
     assert cli.main([str(run_dir)]) == 0
     cache_output = capsys.readouterr().out

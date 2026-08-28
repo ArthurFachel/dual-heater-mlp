@@ -320,7 +320,7 @@ def filter_rows(
 def select_extreme_rows(
     rows: list[ResultRow], *, metric: str | None, direction: str | None
 ) -> list[ResultRow]:
-    """Select one cache per benchmark/learner using a metric mean."""
+    """Select one cache/learner combination per benchmark using a metric mean."""
     if (metric is None) != (direction is None):
         raise ResultsError(
             "use --accuracy ou --forget junto com --high ou --low"
@@ -328,9 +328,9 @@ def select_extreme_rows(
     if metric is None:
         return rows
 
-    grouped: dict[tuple[str, str], list[ResultRow]] = {}
+    grouped: dict[str, list[ResultRow]] = {}
     for row in rows:
-        grouped.setdefault((row.benchmark, row.learner_key), []).append(row)
+        grouped.setdefault(row.benchmark, []).append(row)
 
     selected: list[ResultRow] = []
     for candidates in grouped.values():
@@ -385,14 +385,15 @@ def format_table(rows: list[ResultRow]) -> str:
 
     separator = " + ".join("-" * width for width in widths)
     output = [render(headers), separator]
-    previous_cache = None
+    previous_group: tuple[str, str] | None = None
 
     for result, rendered_row in zip(rows, body):
-        if previous_cache is not None and result.cache != previous_cache:
+        current_group = (result.benchmark, result.cache)
+        if previous_group is not None and current_group != previous_group:
             output.append(separator)
 
         output.append(render(rendered_row))
-        previous_cache = result.cache
+        previous_group = current_group
 
     return "\n".join(output)
 

@@ -84,7 +84,8 @@ python show_cache_results.py \
   --cache loss
 ```
 
-Para mostrar somente o cache com maior acurácia em cada benchmark e learner:
+Para mostrar somente a combinação de cache e learner com maior acurácia em cada
+benchmark:
 
 ```bash
 python show_cache_results.py \
@@ -94,9 +95,9 @@ python show_cache_results.py \
 
 Também estão disponíveis `--accuracy --low`, `--forget --high` e
 `--forget --low`. A métrica e a direção devem ser informadas juntas. A seleção
-compara as médias entre os caches disponíveis para cada combinação de benchmark
-e learner; por isso, datasets e learners diferentes não são comparados entre si.
-O IC95% continua aparecendo na linha selecionada, mas não participa do ranking.
+compara as médias de todos os caches de Replay e SlowHeat+Replay dentro de cada
+benchmark. Benchmarks diferentes não são comparados entre si. O IC95% continua
+aparecendo na linha selecionada, mas não participa do ranking.
 
 Também é possível passar diretamente a pasta de um benchmark ou cache. Se a
 execução ainda estiver incompleta, o utilitário agrega os `seed_*/results.json`
