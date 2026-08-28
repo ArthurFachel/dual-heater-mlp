@@ -1,0 +1,594 @@
+{
+  "methods": {
+    "derpp": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.012653811880659172,
+        "mean": 0.2048,
+        "std": 0.020415748278664148
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.012653811880659172,
+        "mean": -0.2048,
+        "std": 0.020415748278664148
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.009536124592772963,
+        "mean": 0.15944000000000003,
+        "std": 0.015385649879749096
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.06836350978653004,
+        "mean": 2.5581349074956963,
+        "std": 0.11029816314726855
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 201924280320.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.009742170530682027,
+        "mean": 0.8250599999999999,
+        "std": 0.015718085832003317
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.03447991038915914,
+        "mean": -0.12965,
+        "std": 0.055630127728696716
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 628800.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 8000.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.0011514247020298208,
+        "mean": 0.9844999999999999,
+        "std": 0.001857716639079049
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0018510790846902744,
+        "mean": 0.01065000000000001,
+        "std": 0.0029865438962862175
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      }
+    },
+    "er_ace": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.002597975707695852,
+        "mean": 0.04300000000000002,
+        "std": 0.00419159211331976
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.022943281650384905,
+        "mean": 0.48895,
+        "std": 0.03701685051732821
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.0030030884369262093,
+        "mean": 0.2747400000000001,
+        "std": 0.004845203814082515
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.09145757570375054,
+        "mean": 2.556912978598848,
+        "std": 0.1475582900515963
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 201924280320.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.0038331462539856658,
+        "mean": 0.70704,
+        "std": 0.006184424881192337
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.034641240329346686,
+        "mean": -0.1306,
+        "std": 0.05589041857858008
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 628800.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.0018344129475726639,
+        "mean": 0.98178,
+        "std": 0.002959654634506461
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0028264218643995,
+        "mean": 0.013375000000000008,
+        "std": 0.004560168734694898
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      }
+    },
+    "replay": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.011449934614078222,
+        "mean": 0.2779,
+        "std": 0.01847340430637154
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.011449934614078222,
+        "mean": -0.2779,
+        "std": 0.01847340430637154
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.009042142774561552,
+        "mean": 0.21689999999999995,
+        "std": 0.014588656171453532
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.053853409768248775,
+        "mean": 2.46434146699612,
+        "std": 0.08688746665001362
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 201924280320.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.00927612780899924,
+        "mean": 0.76658,
+        "std": 0.014966169256767832
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.0349396724862218,
+        "mean": -0.129575,
+        "std": 0.05637191110039743
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 628800.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.0011762903345310187,
+        "mean": 0.9834799999999999,
+        "std": 0.001897835023856852
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0017131323163530976,
+        "mean": 0.011675000000000008,
+        "std": 0.0027639796188346478
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      }
+    },
+    "slowheat_derpp_hidden_beta_30_budget_0.25": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.008296625954098587,
+        "mean": 0.15674999999999994,
+        "std": 0.01338583413745874
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.008296625954098587,
+        "mean": -0.15674999999999994,
+        "std": 0.01338583413745874
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.005452809396183893,
+        "mean": 0.12849999999999998,
+        "std": 0.00879760068301457
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.09649210537603932,
+        "mean": 4.177783063793322,
+        "std": 0.15568103531288896
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 407300480.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 202331580800.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.005194571121640176,
+        "mean": 0.85434,
+        "std": 0.008380957251080881
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.0343891109122253,
+        "mean": -0.12860000000000002,
+        "std": 0.0554836312197871
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 628800.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 8000.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.0014804020114669739,
+        "mean": 0.98284,
+        "std": 0.002388490922923645
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0016271148289738716,
+        "mean": 0.008150000000000008,
+        "std": 0.0026251984052003915
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      }
+    },
+    "slowheat_er_ace_hidden_beta_30_budget_0.25": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.004717591475883997,
+        "mean": 0.046350000000000016,
+        "std": 0.007611394966320785
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.019067129263036255,
+        "mean": 0.503625,
+        "std": 0.03076303924083792
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.003928179909887594,
+        "mean": 0.27196,
+        "std": 0.006337752843959069
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.0973439670572884,
+        "mean": 4.185679725609953,
+        "std": 0.15705543488644377
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 407300480.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 202331580800.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.004021987073298195,
+        "mean": 0.71132,
+        "std": 0.006489101975192288
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.034922698724786747,
+        "mean": -0.1302,
+        "std": 0.056344525515399944
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 628800.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.0014256445933915917,
+        "mean": 0.98328,
+        "std": 0.0023001449229704406
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0018840059270961277,
+        "mean": 0.010125000000000009,
+        "std": 0.0030396682933065823
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      }
+    },
+    "slowheat_hidden_beta_30_budget_0.25": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.0011462462892221368,
+        "mean": 0.991875,
+        "std": 0.0018493617517643195
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.0011462462892221368,
+        "mean": -0.991875,
+        "std": 0.0018493617517643195
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.03458611406497636,
+        "mean": 0.5686599999999999,
+        "std": 0.05580147747944394
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.03365448900590331,
+        "mean": 3.3035151035932357,
+        "std": 0.05429838711619917
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 344385920.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 144576014720.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.000618565566451931,
+        "mean": 0.19513999999999998,
+        "std": 0.0009979979959899698
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.034641240329346686,
+        "mean": -0.1306,
+        "std": 0.05589041857858008
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 102400.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.03454002241522788,
+        "mean": 0.7638,
+        "std": 0.055727112890505213
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.04263075408017601,
+        "mean": 0.2810750000000001,
+        "std": 0.06878075574687377
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 102400.0,
+        "std": 0.0
+      }
+    },
+    "slowheat_replay_hidden_beta_30_budget_0.25": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.00962765143278001,
+        "mean": 0.273275,
+        "std": 0.015533319921310367
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.00962765143278001,
+        "mean": -0.273275,
+        "std": 0.015533319921310367
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.007634333489062541,
+        "mean": 0.215,
+        "std": 0.012317286858539691
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.04816108321496832,
+        "mean": 4.199843259097543,
+        "std": 0.07770342731643093
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 407300480.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 202331580800.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.008266316620545765,
+        "mean": 0.7674399999999999,
+        "std": 0.013336932847464514
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.0347508738515227,
+        "mean": -0.125675,
+        "std": 0.0560673020673468
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 628800.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.001534763298434737,
+        "mean": 0.9824400000000001,
+        "std": 0.002476197802186992
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0012984743184043179,
+        "mean": 0.010250000000000009,
+        "std": 0.002094967514996091
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 143360.0,
+        "std": 0.0
+      }
+    },
+    "vanilla": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.0011387742435521667,
+        "mean": 0.9933250000000001,
+        "std": 0.0018373063012041644
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.0011387742435521667,
+        "mean": -0.9933250000000001,
+        "std": 0.0018373063012041644
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.037809388397886334,
+        "mean": 0.5055999999999999,
+        "std": 0.06100193075268647
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.05660573551042163,
+        "mean": 1.6256581699941308,
+        "std": 0.09132808818469708
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 144231628800.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.00041237704430129214,
+        "mean": 0.19624,
+        "std": 0.0006653319973266542
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.034641240329346686,
+        "mean": -0.1306,
+        "std": 0.05589041857858008
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 102400.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.03786966175572912,
+        "mean": 0.70184,
+        "std": 0.061099176208303595
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.04720197973837773,
+        "mean": 0.36132500000000006,
+        "std": 0.07615600308285327
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 102400.0,
+        "std": 0.0
+      }
+    }
+  },
+  "paired_analysis_note": "Diferen\u00e7as s\u00e3o sempre m\u00e9todo menos refer\u00eancia. Student-t e bootstrap reamostram pares; contagem de sinais preserva empates.",
+  "primary_endpoint": "final_average_accuracy",
+  "seeds": [
+    2101606466,
+    1872839281,
+    637029796,
+    1357204345,
+    1758462037,
+    748737880,
+    1611510062,
+    333205446,
+    130501536,
+    492612040
+  ]
+}

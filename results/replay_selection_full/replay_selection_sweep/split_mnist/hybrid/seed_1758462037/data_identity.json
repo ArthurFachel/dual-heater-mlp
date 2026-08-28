@@ -1,0 +1,5 @@
+{
+  "loader": "experiments.split_mnist.load_split_mnist",
+  "schema_version": 1,
+  "tasks_sha256": "3c1fcbe9be8dd6c98961b8c5840aaeb9760f8b571c697155fab33c4266e9605f"
+}

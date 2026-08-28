@@ -15,6 +15,5 @@ outputs/
 output/
 checkpoints/
 data/
-results/
 tmp/
 .DS_Store

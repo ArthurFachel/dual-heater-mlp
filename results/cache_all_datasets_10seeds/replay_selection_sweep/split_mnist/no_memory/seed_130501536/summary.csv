@@ -1,0 +1,3 @@
+method,final_average_accuracy,average_forgetting,backward_transfer,forward_transfer,task_aware_final_accuracy,task_aware_forgetting,classifier_gap,elapsed_seconds,learner_examples_processed,total_model_examples_processed,estimated_total_flops,estimated_overhead_flops,replay_memory_bytes,stored_logits_bytes,replay_metadata_bytes,selector_forward_examples,selection_seconds
+vanilla,0.19519999999999998,0.99175,-0.99175,-0.12000000000000001,0.6728,0.39475,0.47759999999999997,1.587420388997998,102400,102400,144231628800,0,0,0,0,0,0.0
+slowheat_hidden_beta_30_budget_0.25,0.194,0.9902500000000001,-0.9902500000000001,-0.12000000000000001,0.7475999999999999,0.2985,0.5535999999999999,3.2613260119978804,102400,102400,144576014720,344385920,0,0,0,0,0.0

@@ -1,0 +1,1471 @@
+{
+  "methods": {
+    "replay": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.0032694160429994497,
+        "mean": 0.037270000000000005,
+        "std": 0.0052748986298843175
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.0032694160429994497,
+        "mean": -0.037270000000000005,
+        "std": 0.0052748986298843175
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.12899127709168373,
+        "mean": 12.802126475299156,
+        "std": 0.20811542546103096
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 2272336281600.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.002084596554582618,
+        "mean": 0.9326760000000001,
+        "std": 0.003363302609704381
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.01075686350506813,
+        "mean": 0.021374999999999998,
+        "std": 0.017355198548753815
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 707840.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 3144000.0,
+        "std": 0.0
+      },
+      "replay_metadata_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 32000.0,
+        "std": 0.0
+      },
+      "selection_seconds": {
+        "ci95_normal_half_width": 0.0002992932073803932,
+        "mean": 0.02979701090080198,
+        "std": 0.00048288174670365274
+      },
+      "selector_forward_examples": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.002084596554582618,
+        "mean": 0.9326760000000001,
+        "std": 0.003363302609704381
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0032694160429994497,
+        "mean": 0.037270000000000005,
+        "std": 0.0052748986298843175
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 707840.0,
+        "std": 0.0
+      }
+    },
+    "slowheat_replay_hidden_beta_30_budget_0.25": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.0027218783293894663,
+        "mean": 0.025595,
+        "std": 0.004391497466696296
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.0027411284975352762,
+        "mean": -0.025580000000000002,
+        "std": 0.004422555822146285
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.10547791323090108,
+        "mean": 21.458664606299862,
+        "std": 0.1701788003322741
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 4280847360.0,
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 2276617128960.0,
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.0017402131527168817,
+        "mean": 0.93788,
+        "std": 0.002807672028963153
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.010125859978622394,
+        "mean": 0.015505,
+        "std": 0.016337133061423807
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 707840.0,
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 3144000.0,
+        "std": 0.0
+      },
+      "replay_metadata_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 32000.0,
+        "std": 0.0
+      },
+      "selection_seconds": {
+        "ci95_normal_half_width": 0.00013616711254264236,
+        "mean": 0.029689908599539194,
+        "std": 0.00021969296838940383
+      },
+      "selector_forward_examples": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.0017402131527168817,
+        "mean": 0.93788,
+        "std": 0.002807672028963153
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.0027218783293894663,
+        "mean": 0.025595,
+        "std": 0.004391497466696296
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "mean": 707840.0,
+        "std": 0.0
+      }
+    }
+  },
+  "paired_analysis_note": "Diferen\u00e7as s\u00e3o sempre m\u00e9todo menos refer\u00eancia. Student-t e bootstrap reamostram pares; contagem de sinais preserva empates.",
+  "paired_differences_vs_replay": {
+    "slowheat_replay_hidden_beta_30_budget_0.25": {
+      "average_forgetting": {
+        "ci95_normal_half_width": 0.002550731228491143,
+        "confirmatory": {
+          "mean_difference": -0.011675000000000008,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              -0.013915000000000005,
+              -0.00908987500000002
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.001953125,
+            "negative": 10,
+            "positive": 0,
+            "ties": 0
+          },
+          "std_difference": 0.004115367541301728,
+          "student_t": {
+            "ci95": [
+              -0.01461895659127771,
+              -0.008731043408722307
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": -8.971152955827575,
+            "two_sided_p": 8.765187564474148e-06
+          }
+        },
+        "mean": -0.011675000000000008,
+        "paired_values": [
+          {
+            "difference": -0.011249999999999954,
+            "seed": 2101606466
+          },
+          {
+            "difference": -0.010099999999999998,
+            "seed": 1872839281
+          },
+          {
+            "difference": -0.012850000000000028,
+            "seed": 637029796
+          },
+          {
+            "difference": -0.012750000000000011,
+            "seed": 1357204345
+          },
+          {
+            "difference": -0.006000000000000061,
+            "seed": 1758462037
+          },
+          {
+            "difference": -0.01325000000000004,
+            "seed": 748737880
+          },
+          {
+            "difference": -0.014599999999999974,
+            "seed": 1611510062
+          },
+          {
+            "difference": -0.01674999999999996,
+            "seed": 333205446
+          },
+          {
+            "difference": -0.015500000000000014,
+            "seed": 130501536
+          },
+          {
+            "difference": -0.0037000000000000366,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.004115367541301728
+      },
+      "backward_transfer": {
+        "ci95_normal_half_width": 0.0025538481604564134,
+        "confirmatory": {
+          "mean_difference": 0.01169000000000001,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.00909987500000002,
+              0.013950125000000011
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.001953125,
+            "negative": 0,
+            "positive": 10,
+            "ties": 0
+          },
+          "std_difference": 0.004120396421057871,
+          "student_t": {
+            "ci95": [
+              0.008742445964859456,
+              0.014637554035140563
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 8.971715842301762,
+            "two_sided_p": 8.760692423996212e-06
+          }
+        },
+        "mean": 0.01169000000000001,
+        "paired_values": [
+          {
+            "difference": 0.011249999999999954,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.010099999999999998,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.01300000000000004,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.012750000000000011,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.006000000000000061,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.01325000000000004,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.014599999999999974,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.01674999999999996,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.015500000000000014,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0037000000000000366,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.004120396421057871
+      },
+      "classifier_gap": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 0.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0,
+              0.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": null,
+            "negative": 0,
+            "positive": 0,
+            "ties": 10
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 0.0,
+            "two_sided_p": 1.0
+          }
+        },
+        "mean": 0.0,
+        "paired_values": [
+          {
+            "difference": 0.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "elapsed_seconds": {
+        "ci95_normal_half_width": 0.1865764731603452,
+        "confirmatory": {
+          "mean_difference": 8.656538131000707,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              8.458407831172753,
+              8.797900072030844
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.001953125,
+            "negative": 0,
+            "positive": 10,
+            "ties": 0
+          },
+          "std_difference": 0.30102378213671677,
+          "student_t": {
+            "ci95": [
+              8.441198689587798,
+              8.871877572413615
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 90.93758955439135,
+            "two_sided_p": 1.1919206757872693e-14
+          }
+        },
+        "mean": 8.656538131000707,
+        "paired_values": [
+          {
+            "difference": 8.97365939100564,
+            "seed": 2101606466
+          },
+          {
+            "difference": 8.783492130001832,
+            "seed": 1872839281
+          },
+          {
+            "difference": 8.834410340998147,
+            "seed": 637029796
+          },
+          {
+            "difference": 8.745318157001748,
+            "seed": 1357204345
+          },
+          {
+            "difference": 8.617720401001861,
+            "seed": 1758462037
+          },
+          {
+            "difference": 8.70307235099608,
+            "seed": 748737880
+          },
+          {
+            "difference": 8.710124279998126,
+            "seed": 1611510062
+          },
+          {
+            "difference": 8.52550961200177,
+            "seed": 333205446
+          },
+          {
+            "difference": 8.79981555500126,
+            "seed": 130501536
+          },
+          {
+            "difference": 7.872259092000604,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.30102378213671677
+      },
+      "estimated_overhead_flops": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 4280847360.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              4280847360.0,
+              4280847360.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.001953125,
+            "negative": 0,
+            "positive": 10,
+            "ties": 0
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              4280847360.0,
+              4280847360.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": null,
+            "two_sided_p": 0.0
+          }
+        },
+        "mean": 4280847360.0,
+        "paired_values": [
+          {
+            "difference": 4280847360.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "estimated_total_flops": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 4280847360.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              4280847360.0,
+              4280847360.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.001953125,
+            "negative": 0,
+            "positive": 10,
+            "ties": 0
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              4280847360.0,
+              4280847360.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": null,
+            "two_sided_p": 0.0
+          }
+        },
+        "mean": 4280847360.0,
+        "paired_values": [
+          {
+            "difference": 4280847360.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 4280847360.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "final_average_accuracy": {
+        "ci95_normal_half_width": 0.0019547820677166803,
+        "confirmatory": {
+          "mean_difference": 0.005204000000000019,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0032118999999999945,
+              0.006895999999999991
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.021484375,
+            "negative": 1,
+            "positive": 9,
+            "ties": 0
+          },
+          "std_difference": 0.0031538590118562297,
+          "student_t": {
+            "ci95": [
+              0.0029478651754108534,
+              0.007460134824589185
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 5.217891123747699,
+            "two_sided_p": 0.0005507445853001203
+          }
+        },
+        "mean": 0.005204000000000019,
+        "paired_values": [
+          {
+            "difference": 0.006040000000000156,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0049600000000000755,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.005760000000000098,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.006079999999999974,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0011200000000000099,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.006159999999999943,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.005799999999999805,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.00888000000000011,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.008680000000000021,
+            "seed": 130501536
+          },
+          {
+            "difference": -0.0014399999999999968,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0031538590118562297
+      },
+      "forward_transfer": {
+        "ci95_normal_half_width": 0.00517358326887661,
+        "confirmatory": {
+          "mean_difference": -0.00587,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              -0.010935125,
+              -0.0011648750000000016
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.34375,
+            "negative": 7,
+            "positive": 3,
+            "ties": 0
+          },
+          "std_difference": 0.008347095303157859,
+          "student_t": {
+            "ci95": [
+              -0.011841152269909262,
+              0.0001011522699092618
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": -2.223835860381974,
+            "two_sided_p": 0.05322974225388119
+          }
+        },
+        "mean": -0.00587,
+        "paired_values": [
+          {
+            "difference": -0.005350000000000001,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0029500000000000012,
+            "seed": 1872839281
+          },
+          {
+            "difference": -0.02175,
+            "seed": 637029796
+          },
+          {
+            "difference": -0.006850000000000002,
+            "seed": 1357204345
+          },
+          {
+            "difference": -0.010600000000000002,
+            "seed": 1758462037
+          },
+          {
+            "difference": -0.006700000000000006,
+            "seed": 748737880
+          },
+          {
+            "difference": -0.0029999999999999923,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.005899999999999999,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0012500000000000011,
+            "seed": 130501536
+          },
+          {
+            "difference": -0.01455,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.008347095303157859
+      },
+      "learner_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 0.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0,
+              0.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": null,
+            "negative": 0,
+            "positive": 0,
+            "ties": 10
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 0.0,
+            "two_sided_p": 1.0
+          }
+        },
+        "mean": 0.0,
+        "paired_values": [
+          {
+            "difference": 0.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "replay_memory_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 0.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0,
+              0.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": null,
+            "negative": 0,
+            "positive": 0,
+            "ties": 10
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 0.0,
+            "two_sided_p": 1.0
+          }
+        },
+        "mean": 0.0,
+        "paired_values": [
+          {
+            "difference": 0.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "replay_metadata_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 0.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0,
+              0.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": null,
+            "negative": 0,
+            "positive": 0,
+            "ties": 10
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 0.0,
+            "two_sided_p": 1.0
+          }
+        },
+        "mean": 0.0,
+        "paired_values": [
+          {
+            "difference": 0.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "selection_seconds": {
+        "ci95_normal_half_width": 0.00035474971224714935,
+        "confirmatory": {
+          "mean_difference": -0.00010710230126278474,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              -0.0004758052645775024,
+              0.00018600504216010447
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 1.0,
+            "negative": 5,
+            "positive": 5,
+            "ties": 0
+          },
+          "std_difference": 0.0005723556581583273,
+          "student_t": {
+            "ci95": [
+              -0.0005165408739977285,
+              0.00030233627147215893
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": -0.5917425813972451,
+            "two_sided_p": 0.5685871602791501
+          }
+        },
+        "mean": -0.00010710230126278474,
+        "paired_values": [
+          {
+            "difference": -0.0006055810008547269,
+            "seed": 2101606466
+          },
+          {
+            "difference": -0.0014812580120633356,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.00023080399842001498,
+            "seed": 637029796
+          },
+          {
+            "difference": -3.7510006222873926e-05,
+            "seed": 1357204345
+          },
+          {
+            "difference": -0.00026180499844485894,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.00019452599372016266,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0001804109924705699,
+            "seed": 1611510062
+          },
+          {
+            "difference": -6.55029944027774e-05,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.00034246700670337304,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0004324260080466047,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0005723556581583273
+      },
+      "selector_forward_examples": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 0.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0,
+              0.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": null,
+            "negative": 0,
+            "positive": 0,
+            "ties": 10
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 0.0,
+            "two_sided_p": 1.0
+          }
+        },
+        "mean": 0.0,
+        "paired_values": [
+          {
+            "difference": 0.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "stored_logits_bytes": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 0.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0,
+              0.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": null,
+            "negative": 0,
+            "positive": 0,
+            "ties": 10
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 0.0,
+            "two_sided_p": 1.0
+          }
+        },
+        "mean": 0.0,
+        "paired_values": [
+          {
+            "difference": 0.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      },
+      "task_aware_final_accuracy": {
+        "ci95_normal_half_width": 0.0019547820677166803,
+        "confirmatory": {
+          "mean_difference": 0.005204000000000019,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0032118999999999945,
+              0.006895999999999991
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.021484375,
+            "negative": 1,
+            "positive": 9,
+            "ties": 0
+          },
+          "std_difference": 0.0031538590118562297,
+          "student_t": {
+            "ci95": [
+              0.0029478651754108534,
+              0.007460134824589185
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 5.217891123747699,
+            "two_sided_p": 0.0005507445853001203
+          }
+        },
+        "mean": 0.005204000000000019,
+        "paired_values": [
+          {
+            "difference": 0.006040000000000156,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0049600000000000755,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.005760000000000098,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.006079999999999974,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0011200000000000099,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.006159999999999943,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.005799999999999805,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.00888000000000011,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.008680000000000021,
+            "seed": 130501536
+          },
+          {
+            "difference": -0.0014399999999999968,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0031538590118562297
+      },
+      "task_aware_forgetting": {
+        "ci95_normal_half_width": 0.002550731228491143,
+        "confirmatory": {
+          "mean_difference": -0.011675000000000008,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              -0.013915000000000005,
+              -0.00908987500000002
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": 0.001953125,
+            "negative": 10,
+            "positive": 0,
+            "ties": 0
+          },
+          "std_difference": 0.004115367541301728,
+          "student_t": {
+            "ci95": [
+              -0.01461895659127771,
+              -0.008731043408722307
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": -8.971152955827575,
+            "two_sided_p": 8.765187564474148e-06
+          }
+        },
+        "mean": -0.011675000000000008,
+        "paired_values": [
+          {
+            "difference": -0.011249999999999954,
+            "seed": 2101606466
+          },
+          {
+            "difference": -0.010099999999999998,
+            "seed": 1872839281
+          },
+          {
+            "difference": -0.012850000000000028,
+            "seed": 637029796
+          },
+          {
+            "difference": -0.012750000000000011,
+            "seed": 1357204345
+          },
+          {
+            "difference": -0.006000000000000061,
+            "seed": 1758462037
+          },
+          {
+            "difference": -0.01325000000000004,
+            "seed": 748737880
+          },
+          {
+            "difference": -0.014599999999999974,
+            "seed": 1611510062
+          },
+          {
+            "difference": -0.01674999999999996,
+            "seed": 333205446
+          },
+          {
+            "difference": -0.015500000000000014,
+            "seed": 130501536
+          },
+          {
+            "difference": -0.0037000000000000366,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.004115367541301728
+      },
+      "total_model_examples_processed": {
+        "ci95_normal_half_width": 0.0,
+        "confirmatory": {
+          "mean_difference": 0.0,
+          "n_pairs": 10,
+          "paired_bootstrap": {
+            "ci95_percentile": [
+              0.0,
+              0.0
+            ],
+            "resamples": 10000,
+            "seed": 20260815
+          },
+          "signs": {
+            "exact_two_sided_p": null,
+            "negative": 0,
+            "positive": 0,
+            "ties": 10
+          },
+          "std_difference": 0.0,
+          "student_t": {
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "degrees_of_freedom": 9,
+            "statistic": 0.0,
+            "two_sided_p": 1.0
+          }
+        },
+        "mean": 0.0,
+        "paired_values": [
+          {
+            "difference": 0.0,
+            "seed": 2101606466
+          },
+          {
+            "difference": 0.0,
+            "seed": 1872839281
+          },
+          {
+            "difference": 0.0,
+            "seed": 637029796
+          },
+          {
+            "difference": 0.0,
+            "seed": 1357204345
+          },
+          {
+            "difference": 0.0,
+            "seed": 1758462037
+          },
+          {
+            "difference": 0.0,
+            "seed": 748737880
+          },
+          {
+            "difference": 0.0,
+            "seed": 1611510062
+          },
+          {
+            "difference": 0.0,
+            "seed": 333205446
+          },
+          {
+            "difference": 0.0,
+            "seed": 130501536
+          },
+          {
+            "difference": 0.0,
+            "seed": 492612040
+          }
+        ],
+        "std": 0.0
+      }
+    }
+  },
+  "primary_endpoint": "final_average_accuracy",
+  "seeds": [
+    2101606466,
+    1872839281,
+    637029796,
+    1357204345,
+    1758462037,
+    748737880,
+    1611510062,
+    333205446,
+    130501536,
+    492612040
+  ]
+}

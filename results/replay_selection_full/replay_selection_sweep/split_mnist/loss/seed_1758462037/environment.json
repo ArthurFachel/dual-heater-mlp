@@ -1,0 +1,31 @@
+{
+  "command": [
+    "python",
+    "run_all_tests.py",
+    "--num-seeds",
+    "10",
+    "--sections",
+    "replay-selection-sweep",
+    "--device",
+    "cpu",
+    "--no-download",
+    "--output-dir",
+    "results/replay_selection_full"
+  ],
+  "command_path_base": "project_root",
+  "git": {
+    "branch": "main",
+    "commit": "ed4fc4f7f07dfbdf4350751bcb765706f7b699c0",
+    "dirty": true
+  },
+  "packages": {
+    "dual-heater": "0.2.0",
+    "numpy": "2.5.1",
+    "pandas": "2.3.3",
+    "scipy": "1.18.0",
+    "torch": "2.6.0+cu126",
+    "torchvision": "0.21.0+cu126"
+  },
+  "platform": "Linux-6.17.0-35-generic-x86_64-with-glibc2.39",
+  "python": "3.12.3"
+}

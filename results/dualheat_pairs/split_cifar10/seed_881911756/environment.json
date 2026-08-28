@@ -1,0 +1,31 @@
+{
+  "command": [
+    "python",
+    "run_dualheat_pairs.py",
+    "--datasets",
+    "split_mnist",
+    "permuted_mnist",
+    "split_cifar10",
+    "split_cifar100",
+    "--num-seeds",
+    "10",
+    "--device",
+    "cuda"
+  ],
+  "command_path_base": "project_root",
+  "git": {
+    "branch": "main",
+    "commit": "be0506803db8e2146e55a8ef6afa2675a131c95a",
+    "dirty": true
+  },
+  "packages": {
+    "dual-heater": "0.2.0",
+    "numpy": "2.5.1",
+    "pandas": "2.3.3",
+    "scipy": "1.18.0",
+    "torch": "2.6.0+cu126",
+    "torchvision": "0.21.0+cu126"
+  },
+  "platform": "Linux-6.17.0-35-generic-x86_64-with-glibc2.39",
+  "python": "3.12.3"
+}

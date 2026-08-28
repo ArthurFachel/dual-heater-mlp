@@ -1,0 +1,127 @@
+{
+  "component": "DualHeat (Functional SlowHeat; not legacy DualHeatMLP)",
+  "component_settings": {
+    "consolidation": "max_at_known_task_boundaries",
+    "importance": "normalized abs(z * dL/dz)",
+    "optimizer_state_policy": "follow_update",
+    "plasticity_budget": 0.25,
+    "protection": "factorized_incoming_rows_and_outgoing_columns",
+    "scope": "hidden_only",
+    "strength": 30.0
+  },
+  "config": {
+    "adaptive_maximum": 0.8,
+    "adaptive_minimum": 0.1,
+    "adaptive_rate": 0.2,
+    "adaptive_target_accuracy": 0.9,
+    "batch_size": 128,
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260815,
+    "class_order": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "classes_per_task": 2,
+    "derpp_alpha": 0.5,
+    "derpp_beta": 0.5,
+    "device": "cuda",
+    "distillation_strength": 1.0,
+    "distillation_temperature": 2.0,
+    "domain_task_count": null,
+    "early_stopping_max_epochs": 30,
+    "early_stopping_min_delta": 0.0,
+    "early_stopping_patience": 3,
+    "epochs_per_task": 10,
+    "ewc_decay": 1.0,
+    "ewc_lambda": 100.0,
+    "global_lr_reduction": 0.03225806451612903,
+    "hidden_dims": [
+      256,
+      128
+    ],
+    "input_dim": 784,
+    "learning_rate": 0.001,
+    "lwf_old_class_weight": 1.0,
+    "max_train_examples_per_task": null,
+    "methods": [
+      "vanilla",
+      "slowheat_hidden_beta_30_budget_0.25",
+      "replay",
+      "slowheat_replay_hidden_beta_30_budget_0.25",
+      "derpp",
+      "slowheat_derpp_hidden_beta_30_budget_0.25",
+      "er_ace",
+      "slowheat_er_ace_hidden_beta_30_budget_0.25"
+    ],
+    "optimizer_state_policy": "follow_update",
+    "partial_output_slow_strength": 3.0,
+    "plasticity_budget": 0.25,
+    "replay_batch_size": 64,
+    "replay_more_epochs": 20,
+    "replay_per_class": 20,
+    "scenario": "class_incremental",
+    "seed": 42,
+    "si_epsilon": 0.1,
+    "si_lambda": 1.0,
+    "slow_strength": 30.0,
+    "test_per_class": 500,
+    "train_per_class": 1000,
+    "validation_per_class": 200,
+    "weight_decay": 0.0001
+  },
+  "dataset": "split_mnist",
+  "difference_direction": "candidate_minus_reference",
+  "fairness": "paired initialization, data, batches, replay indices and epochs",
+  "limitations": [
+    "Fixed defaults, not individually tuned baselines; no universal benefit claim.",
+    "No task ID at inference; known task boundaries at consolidation.",
+    "Elapsed time is descriptive; no isolated warm-up timing or peak memory measurement.",
+    "Replay/logit bytes are not total or peak memory."
+  ],
+  "multiplicity": "Holm over the four accuracy contrasts within this dataset",
+  "pairs": [
+    {
+      "candidate": "slowheat_hidden_beta_30_budget_0.25",
+      "label": "Convencional (AdamW)",
+      "reference": "vanilla"
+    },
+    {
+      "candidate": "slowheat_replay_hidden_beta_30_budget_0.25",
+      "label": "Replay",
+      "reference": "replay"
+    },
+    {
+      "candidate": "slowheat_derpp_hidden_beta_30_budget_0.25",
+      "label": "DER++",
+      "reference": "derpp"
+    },
+    {
+      "candidate": "slowheat_er_ace_hidden_beta_30_budget_0.25",
+      "label": "ER-ACE",
+      "reference": "er_ace"
+    }
+  ],
+  "primary_endpoint": "final_average_accuracy",
+  "schema_version": 1,
+  "seeds": [
+    2101606466,
+    1872839281,
+    637029796,
+    1357204345,
+    1758462037,
+    748737880,
+    1611510062,
+    333205446,
+    130501536,
+    492612040
+  ],
+  "status": "exploratory_not_independent_confirmation"
+}

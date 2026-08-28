@@ -1,0 +1,5 @@
+{
+  "loader": "experiments.visual_generalization.load_permuted_mnist",
+  "schema_version": 1,
+  "tasks_sha256": "07b9b13883323f30c2232dc5dd8a6008c052f5002139adb8527e4f2e65a53fb5"
+}
