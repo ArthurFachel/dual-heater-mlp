@@ -19,6 +19,7 @@ LEARNERS = {
     "slowheat_derpp_hidden_beta_30_budget_0.25": "SlowHeat+DER++",
 }
 METRICS = ("final_average_accuracy", "average_forgetting")
+TIMING_METRICS = ("elapsed_seconds", "selection_seconds")
 
 
 class ResultsError(RuntimeError):
@@ -39,6 +40,8 @@ class ResultRow:
     seeds: int
     accuracy: MetricSummary
     forgetting: MetricSummary
+    elapsed: MetricSummary | None = None
+    selection_time: MetricSummary | None = None
     partial: bool = False
 
 
@@ -73,6 +76,17 @@ def _summary_from_payload(payload: Any, *, context: str) -> MetricSummary:
     if half_width < 0.0:
         raise ResultsError(f"IC95 negativo em {context}")
     return MetricSummary(mean, half_width)
+
+
+def _optional_summary_from_payload(
+    payload: Any, *, context: str
+) -> MetricSummary | None:
+    if payload is None:
+        return None
+    summary = _summary_from_payload(payload, context=context)
+    if summary.mean < 0.0:
+        raise ResultsError(f"tempo negativo em {context}")
+    return summary
 
 
 def _summary_from_values(values: list[float]) -> MetricSummary:
@@ -117,6 +131,14 @@ def _rows_from_sweep_report(path: Path) -> list[ResultRow]:
                     metrics.get(METRICS[1]),
                     context=f"{benchmark}/{cache}/{learner_key}/{METRICS[1]}",
                 )
+                elapsed = _optional_summary_from_payload(
+                    metrics.get(TIMING_METRICS[0]),
+                    context=f"{benchmark}/{cache}/{learner_key}/{TIMING_METRICS[0]}",
+                )
+                selection_time = _optional_summary_from_payload(
+                    metrics.get(TIMING_METRICS[1]),
+                    context=f"{benchmark}/{cache}/{learner_key}/{TIMING_METRICS[1]}",
+                )
                 _validate_metric_range(accuracy, context=f"{benchmark}/accuracy")
                 _validate_metric_range(forgetting, context=f"{benchmark}/forgetting")
                 metric_values = metrics[METRICS[0]].get("values", [])
@@ -131,6 +153,8 @@ def _rows_from_sweep_report(path: Path) -> list[ResultRow]:
                         seeds=row_seed_count or seed_count,
                         accuracy=accuracy,
                         forgetting=forgetting,
+                        elapsed=elapsed,
+                        selection_time=selection_time,
                     )
                 )
     return rows
@@ -191,6 +215,14 @@ def _rows_from_aggregate(run_dir: Path, path: Path) -> list[ResultRow]:
         forgetting = _summary_from_payload(
             metrics.get(METRICS[1]), context=f"{path}:{learner_key}/{METRICS[1]}"
         )
+        elapsed = _optional_summary_from_payload(
+            metrics.get(TIMING_METRICS[0]),
+            context=f"{path}:{learner_key}/{TIMING_METRICS[0]}",
+        )
+        selection_time = _optional_summary_from_payload(
+            metrics.get(TIMING_METRICS[1]),
+            context=f"{path}:{learner_key}/{TIMING_METRICS[1]}",
+        )
         _validate_metric_range(accuracy, context=f"{path}:accuracy")
         _validate_metric_range(forgetting, context=f"{path}:forgetting")
         rows.append(
@@ -201,6 +233,8 @@ def _rows_from_aggregate(run_dir: Path, path: Path) -> list[ResultRow]:
                 seeds=seed_count,
                 accuracy=accuracy,
                 forgetting=forgetting,
+                elapsed=elapsed,
+                selection_time=selection_time,
             )
         )
     return rows
@@ -212,7 +246,8 @@ def _rows_from_partial_seeds(run_dir: Path) -> list[ResultRow]:
         return []
     benchmark, cache = _infer_run_context(run_dir)
     values: dict[str, dict[str, list[float]]] = {
-        learner: {metric: [] for metric in METRICS} for learner in LEARNERS
+        learner: {metric: [] for metric in (*METRICS, *TIMING_METRICS)}
+        for learner in LEARNERS
     }
     for seed_path in seed_paths:
         payload = _read_json(seed_path)
@@ -227,6 +262,21 @@ def _rows_from_partial_seeds(run_dir: Path) -> list[ResultRow]:
                 values[learner_key][metric].append(
                     _finite_number(
                         metrics.get(metric), context=f"{seed_path}:{learner_key}/{metric}"
+                    )
+                )
+            elapsed = result.get(TIMING_METRICS[0])
+            selection = result.get("cost", {}).get(TIMING_METRICS[1])
+            if elapsed is not None:
+                values[learner_key][TIMING_METRICS[0]].append(
+                    _finite_number(
+                        elapsed, context=f"{seed_path}:{learner_key}/{TIMING_METRICS[0]}"
+                    )
+                )
+            if selection is not None:
+                values[learner_key][TIMING_METRICS[1]].append(
+                    _finite_number(
+                        selection,
+                        context=f"{seed_path}:{learner_key}/{TIMING_METRICS[1]}",
                     )
                 )
 
@@ -248,6 +298,16 @@ def _rows_from_partial_seeds(run_dir: Path) -> list[ResultRow]:
                 seeds=len(metrics[METRICS[0]]),
                 accuracy=accuracy,
                 forgetting=forgetting,
+                elapsed=(
+                    _summary_from_values(metrics[TIMING_METRICS[0]])
+                    if len(metrics[TIMING_METRICS[0]]) == len(metrics[METRICS[0]])
+                    else None
+                ),
+                selection_time=(
+                    _summary_from_values(metrics[TIMING_METRICS[1]])
+                    if len(metrics[TIMING_METRICS[1]]) == len(metrics[METRICS[0]])
+                    else None
+                ),
                 partial=True,
             )
         )
@@ -355,6 +415,16 @@ def _format_metric(summary: MetricSummary) -> str:
     return f"{mean:.2f} [{mean - half_width:.2f}, {mean + half_width:.2f}]"
 
 
+def _format_seconds(summary: MetricSummary | None) -> str:
+    if summary is None:
+        return "N/D"
+    return (
+        f"{summary.mean:.2f} "
+        f"[{summary.mean - summary.ci95_half_width:.2f}, "
+        f"{summary.mean + summary.ci95_half_width:.2f}]"
+    )
+
+
 def format_table(rows: list[ResultRow]) -> str:
     headers = (
         "Benchmark",
@@ -363,6 +433,8 @@ def format_table(rows: list[ResultRow]) -> str:
         "Seeds",
         "Accuracy % (IC95%)",
         "Forgetting % (IC95%)",
+        "Tempo total s (IC95%)",
+        "Tempo cache s (IC95%)",
     )
     body = [
         (
@@ -372,6 +444,8 @@ def format_table(rows: list[ResultRow]) -> str:
             str(row.seeds),
             _format_metric(row.accuracy),
             _format_metric(row.forgetting),
+            _format_seconds(row.elapsed),
+            _format_seconds(row.selection_time),
         )
         for row in rows
     ]

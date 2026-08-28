@@ -392,7 +392,15 @@ def run_replay_selection_sweep(
         comparable = {key: saved.get(key) for key in identity if key != "status"}
         expected = {key: value for key, value in identity.items() if key != "status"}
         if not resume or comparable != expected:
-            raise RuntimeError("índice existente é incompatível ou resume está desativado")
+            reason = (
+                "resume está desativado"
+                if not resume
+                else "schema, seeds, datasets, seletores, métodos ou configuração mudaram"
+            )
+            raise RuntimeError(
+                f"índice incompatível em {index_path}: {reason}. "
+                "Use outro --output-dir ou mova a árvore existente antes de executar."
+            )
     write_json_atomic(index_path, identity)
 
     loaders = _loaders()

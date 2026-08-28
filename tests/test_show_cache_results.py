@@ -25,10 +25,17 @@ def _summary(mean: float, half_width: float = 0.01, seeds: int = 2):
     }
 
 
-def _method_summary(accuracy: float, forgetting: float):
+def _method_summary(
+    accuracy: float,
+    forgetting: float,
+    elapsed: float = 12.0,
+    selection_time: float = 1.5,
+):
     return {
         "final_average_accuracy": _summary(accuracy),
         "average_forgetting": _summary(forgetting),
+        "elapsed_seconds": _summary(elapsed, half_width=0.5),
+        "selection_seconds": _summary(selection_time, half_width=0.1),
     }
 
 
@@ -83,6 +90,9 @@ def test_cli_without_filters_shows_all_cache_results_only(sweep_report, capsys):
     assert "SlowHeat+DER++" in captured.out
     assert "vanilla" not in captured.out.lower()
     assert "75.00 [74.00, 76.00]" in captured.out
+    assert "Tempo total s (IC95%)" in captured.out
+    assert "12.00 [11.50, 12.50]" in captured.out
+    assert "1.50 [1.40, 1.60]" in captured.out
     assert captured.err == ""
 
 

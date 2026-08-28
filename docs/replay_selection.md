@@ -66,7 +66,11 @@ estiverem disponíveis e `--fresh` para exigir uma nova árvore de resultados.
 
 O utilitário `show_cache_results.py` mostra apenas métodos com memória: Replay,
 SlowHeat+Replay, DER++ e SlowHeat+DER++. A saída usa porcentagens e IC95% normal
-sobre as seeds concluídas.
+sobre as seeds concluídas. A tabela também apresenta `Tempo total`, medido por
+`elapsed_seconds` para a execução completa do learner, e `Tempo cache`, medido
+por `selection_seconds` durante o ranking e atualização do buffer. Ambos são
+mostrados em segundos com média e IC95%. Artefatos antigos sem esses campos são
+marcados como `N/D`.
 
 Todos os benchmarks e caches encontrados:
 
