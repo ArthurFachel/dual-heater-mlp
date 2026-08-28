@@ -1,0 +1,1974 @@
+{
+  "derpp": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        null,
+        null,
+        null
+      ],
+      [
+        0.425,
+        0.15,
+        0.2,
+        null,
+        null
+      ],
+      [
+        0.175,
+        0.05,
+        0.0,
+        0.275,
+        null
+      ],
+      [
+        0.275,
+        0.15,
+        0.0,
+        0.25,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [],
+    "classifier_gap": 0.385,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 0,
+      "consolidation_seconds": 0.0,
+      "current_examples": 320,
+      "estimated_core_flops": 29380608,
+      "estimated_overhead_flops": 0,
+      "estimated_total_flops": 29380608,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 384,
+      "learner_examples_processed": 384,
+      "learner_forward_examples": 384,
+      "mask_application_flops": 0,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.019850397999107372,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 64,
+      "replay_memory_bytes": 62880,
+      "slowheat_hook_flops": 0,
+      "stored_logits_bytes": 800,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 384
+    },
+    "elapsed_seconds": 0.13525646400012192,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.1125,
+      "backward_transfer": -0.07500000000000001,
+      "final_average_accuracy": 0.135,
+      "forward_transfer": 0.05,
+      "per_task_forgetting": [
+        0.22499999999999998,
+        0.0,
+        0.2,
+        0.025000000000000022
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.2,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.25,
+      0.2583333333333333,
+      0.125,
+      0.135
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.037500000000000006,
+      0.20833333333333334,
+      0.1125
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.55,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        0.475,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.55,
+        0.55,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.006249999999999978,
+      "backward_transfer": 0.018750000000000017,
+      "final_average_accuracy": 0.52,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.02499999999999991,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        2.092724323272705,
+        2.077608108520508
+      ],
+      [
+        2.728693962097168,
+        2.6658406257629395
+      ],
+      [
+        3.0915164947509766,
+        3.032773017883301
+      ],
+      [
+        3.8238162994384766,
+        3.794133186340332
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.0,
+      0.1,
+      0.35,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.25
+      ],
+      [
+        0.19999999999999998
+      ],
+      [
+        0.11249999999999999
+      ],
+      [
+        0.13999999999999999
+      ]
+    ]
+  },
+  "er_ace": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.025,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [],
+    "classifier_gap": 0.41000000000000003,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 0,
+      "consolidation_seconds": 0.0,
+      "current_examples": 320,
+      "estimated_core_flops": 29380608,
+      "estimated_overhead_flops": 0,
+      "estimated_total_flops": 29380608,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 384,
+      "learner_examples_processed": 384,
+      "learner_forward_examples": 384,
+      "mask_application_flops": 0,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.026459483002327033,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 64,
+      "replay_memory_bytes": 62880,
+      "slowheat_hook_flops": 0,
+      "stored_logits_bytes": 0,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 384
+    },
+    "elapsed_seconds": 0.14976166399901558,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.0,
+      "backward_transfer": 0.00625,
+      "final_average_accuracy": 0.10500000000000001,
+      "forward_transfer": 0.0,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.25,
+      0.16666666666666666,
+      0.125,
+      0.10500000000000001
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.475,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.425,
+        0.575,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.425,
+        0.65,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.012499999999999997,
+      "backward_transfer": 0.006250000000000019,
+      "final_average_accuracy": 0.515,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.04999999999999999,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        1.0376144647598267,
+        1.0209262371063232
+      ],
+      [
+        1.2068299055099487,
+        1.2095860242843628
+      ],
+      [
+        1.3740265369415283,
+        1.4473960399627686
+      ],
+      [
+        1.4814876317977905,
+        1.4833444356918335
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.25
+      ],
+      [
+        0.16666666666666666
+      ],
+      [
+        0.125
+      ],
+      [
+        0.1
+      ]
+    ]
+  },
+  "replay": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.05,
+        null,
+        null,
+        null
+      ],
+      [
+        0.35,
+        0.175,
+        0.2,
+        null,
+        null
+      ],
+      [
+        0.1,
+        0.05,
+        0.0,
+        0.35,
+        null
+      ],
+      [
+        0.175,
+        0.05,
+        0.0,
+        0.3,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [],
+    "classifier_gap": 0.395,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 0,
+      "consolidation_seconds": 0.0,
+      "current_examples": 320,
+      "estimated_core_flops": 29380608,
+      "estimated_overhead_flops": 0,
+      "estimated_total_flops": 29380608,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 384,
+      "learner_examples_processed": 384,
+      "learner_forward_examples": 384,
+      "mask_application_flops": 0,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.02923758699762402,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 64,
+      "replay_memory_bytes": 62880,
+      "slowheat_hook_flops": 0,
+      "stored_logits_bytes": 0,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 384
+    },
+    "elapsed_seconds": 0.1445216079991951,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.175,
+      "backward_transfer": -0.14375,
+      "final_average_accuracy": 0.10499999999999998,
+      "forward_transfer": 0.05625,
+      "per_task_forgetting": [
+        0.325,
+        0.12499999999999999,
+        0.2,
+        0.04999999999999999
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.225,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.275,
+      0.2416666666666666,
+      0.125,
+      0.10499999999999998
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.07500000000000001,
+      0.2416666666666667,
+      0.175
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.625,
+        0.475,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.525,
+        0.475,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.024999999999999994,
+      "backward_transfer": -0.012499999999999983,
+      "final_average_accuracy": 0.5,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.09999999999999998,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        1.397464394569397,
+        1.3896353244781494
+      ],
+      [
+        1.8315041065216064,
+        1.779942274093628
+      ],
+      [
+        2.0772063732147217,
+        2.027167558670044
+      ],
+      [
+        2.6614203453063965,
+        2.639080047607422
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.05,
+      0.1,
+      0.35,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.275
+      ],
+      [
+        0.19999999999999998
+      ],
+      [
+        0.11249999999999999
+      ],
+      [
+        0.11000000000000001
+      ]
+    ]
+  },
+  "slowheat_derpp_hidden_beta_30_budget_0.25": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.05,
+        null
+      ],
+      [
+        0.475,
+        0.0,
+        0.0,
+        0.05,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ]
+    ],
+    "classifier_gap": 0.42500000000000004,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 440,
+      "consolidation_seconds": 0.009584938998159487,
+      "current_examples": 320,
+      "estimated_core_flops": 29380608,
+      "estimated_overhead_flops": 164264,
+      "estimated_total_flops": 29544872,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 384,
+      "learner_examples_processed": 384,
+      "learner_forward_examples": 384,
+      "mask_application_flops": 126960,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.08506668800146144,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 64,
+      "replay_memory_bytes": 62880,
+      "slowheat_hook_flops": 36864,
+      "stored_logits_bytes": 800,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 384
+    },
+    "elapsed_seconds": 0.2629682500009949,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.0062500000000000056,
+      "backward_transfer": -0.0062500000000000056,
+      "final_average_accuracy": 0.10500000000000001,
+      "forward_transfer": 0.00625,
+      "per_task_forgetting": [
+        0.025000000000000022,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.025,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.25,
+      0.16666666666666666,
+      0.1375,
+      0.10500000000000001
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0062500000000000056
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.6,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        0.5,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        0.575,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.0062500000000000056,
+      "backward_transfer": 0.012499999999999983,
+      "final_average_accuracy": 0.53,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.025000000000000022,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        2.092724323272705,
+        2.110194444656372
+      ],
+      [
+        2.7524678707122803,
+        2.7411067485809326
+      ],
+      [
+        3.048388957977295,
+        3.084118366241455
+      ],
+      [
+        3.6437745094299316,
+        3.63346529006958
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.0,
+      0.0,
+      0.05,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.25
+      ],
+      [
+        0.16666666666666666
+      ],
+      [
+        0.1375
+      ],
+      [
+        0.1
+      ]
+    ]
+  },
+  "slowheat_er_ace_hidden_beta_30_budget_0.25": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ]
+    ],
+    "classifier_gap": 0.42500000000000004,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 440,
+      "consolidation_seconds": 0.006816123001044616,
+      "current_examples": 320,
+      "estimated_core_flops": 29380608,
+      "estimated_overhead_flops": 164264,
+      "estimated_total_flops": 29544872,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 384,
+      "learner_examples_processed": 384,
+      "learner_forward_examples": 384,
+      "mask_application_flops": 126960,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.07362292200377851,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 64,
+      "replay_memory_bytes": 62880,
+      "slowheat_hook_flops": 36864,
+      "stored_logits_bytes": 0,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 384
+    },
+    "elapsed_seconds": 0.2696029119997547,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.0,
+      "backward_transfer": 0.0,
+      "final_average_accuracy": 0.1,
+      "forward_transfer": 0.0,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.25,
+      0.16666666666666666,
+      0.125,
+      0.1
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.6,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        0.55,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        0.55,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.0062500000000000056,
+      "backward_transfer": -0.0062500000000000056,
+      "final_average_accuracy": 0.525,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.025000000000000022,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        1.0376144647598267,
+        1.0393218994140625
+      ],
+      [
+        1.2177597284317017,
+        1.22417414188385
+      ],
+      [
+        1.3720979690551758,
+        1.444488763809204
+      ],
+      [
+        1.4877649545669556,
+        1.4943759441375732
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.25
+      ],
+      [
+        0.16666666666666666
+      ],
+      [
+        0.125
+      ],
+      [
+        0.1
+      ]
+    ]
+  },
+  "slowheat_hidden_beta_30_budget_0.25": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.025,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.025,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ]
+    ],
+    "classifier_gap": 0.4149999999999999,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 440,
+      "consolidation_seconds": 0.007134880999728921,
+      "current_examples": 320,
+      "estimated_core_flops": 24483840,
+      "estimated_overhead_flops": 158120,
+      "estimated_total_flops": 24641960,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 320,
+      "learner_examples_processed": 320,
+      "learner_forward_examples": 320,
+      "mask_application_flops": 126960,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.07572179099952336,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 0,
+      "replay_memory_bytes": 0,
+      "slowheat_hook_flops": 30720,
+      "stored_logits_bytes": 0,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 320
+    },
+    "elapsed_seconds": 0.18527682599960826,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.0,
+      "backward_transfer": 0.0,
+      "final_average_accuracy": 0.10500000000000001,
+      "forward_transfer": 0.00625,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.025,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.25,
+      0.16666666666666666,
+      0.13125,
+      0.10500000000000001
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.6,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.55,
+        0.525,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.525,
+        0.575,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.01874999999999999,
+      "backward_transfer": -0.0062500000000000056,
+      "final_average_accuracy": 0.5199999999999999,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.07499999999999996,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        1.4009368419647217,
+        1.42179536819458
+      ],
+      [
+        1.8789466619491577,
+        1.8677778244018555
+      ],
+      [
+        2.0312695503234863,
+        2.0043938159942627
+      ],
+      [
+        2.5295920372009277,
+        2.4955434799194336
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.25
+      ],
+      [
+        0.16666666666666666
+      ],
+      [
+        0.125
+      ],
+      [
+        0.1
+      ]
+    ]
+  },
+  "slowheat_replay_hidden_beta_30_budget_0.25": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.0,
+        0.0,
+        0.025,
+        null
+      ],
+      [
+        0.475,
+        0.0,
+        0.0,
+        0.025,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ],
+      [
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        },
+        {
+          "plastic_fraction": 0.25,
+          "protected_fraction": 0.75
+        }
+      ]
+    ],
+    "classifier_gap": 0.41500000000000004,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 440,
+      "consolidation_seconds": 0.00510455599942361,
+      "current_examples": 320,
+      "estimated_core_flops": 29380608,
+      "estimated_overhead_flops": 164264,
+      "estimated_total_flops": 29544872,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 384,
+      "learner_examples_processed": 384,
+      "learner_forward_examples": 384,
+      "mask_application_flops": 126960,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.10892362200320349,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 64,
+      "replay_memory_bytes": 62880,
+      "slowheat_hook_flops": 36864,
+      "stored_logits_bytes": 0,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 384
+    },
+    "elapsed_seconds": 0.28318969899919466,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.0062500000000000056,
+      "backward_transfer": -0.0062500000000000056,
+      "final_average_accuracy": 0.1,
+      "forward_transfer": 0.00625,
+      "per_task_forgetting": [
+        0.025000000000000022,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.025,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.25,
+      0.16666666666666666,
+      0.13125,
+      0.1
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0062500000000000056
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.6,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.55,
+        0.5,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.55,
+        0.525,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.012499999999999983,
+      "backward_transfer": -0.006249999999999978,
+      "final_average_accuracy": 0.515,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.04999999999999993,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        1.397464394569397,
+        1.4132119417190552
+      ],
+      [
+        1.8526769876480103,
+        1.8451879024505615
+      ],
+      [
+        2.0322418212890625,
+        2.036174774169922
+      ],
+      [
+        2.46968150138855,
+        2.453099489212036
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.25
+      ],
+      [
+        0.16666666666666666
+      ],
+      [
+        0.125
+      ],
+      [
+        0.1
+      ]
+    ]
+  },
+  "vanilla": {
+    "accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.05,
+        null,
+        null,
+        null
+      ],
+      [
+        0.275,
+        0.25,
+        0.225,
+        null,
+        null
+      ],
+      [
+        0.1,
+        0.075,
+        0.0,
+        0.4,
+        null
+      ],
+      [
+        0.15,
+        0.075,
+        0.0,
+        0.4,
+        0.0
+      ]
+    ],
+    "baseline_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "capacity_history": [],
+    "classifier_gap": 0.385,
+    "completed_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "consolidation_flops": 0,
+      "consolidation_seconds": 0.0,
+      "current_examples": 320,
+      "estimated_core_flops": 24483840,
+      "estimated_overhead_flops": 0,
+      "estimated_total_flops": 24483840,
+      "flop_convention": "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor shapes; backward=2x forward. Hooks, masks, regularizers and consolidation are reported separately as operation-count approximations.",
+      "forward_flops_per_example": 25504,
+      "head_calibration_seconds": 0.0,
+      "learner_backward_examples": 320,
+      "learner_examples_processed": 320,
+      "learner_forward_examples": 320,
+      "mask_application_flops": 0,
+      "model_parameters": 12786,
+      "optimizer_step_seconds": 0.027086648002295988,
+      "optimizer_steps": 10,
+      "regularizer_flops": 0,
+      "replay_examples": 0,
+      "replay_memory_bytes": 0,
+      "slowheat_hook_flops": 0,
+      "stored_logits_bytes": 0,
+      "teacher_forward_examples": 0,
+      "total_model_examples_processed": 320
+    },
+    "elapsed_seconds": 0.1352340470002673,
+    "final_logit_bias": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "metrics": {
+      "average_forgetting": 0.18749999999999997,
+      "backward_transfer": -0.13749999999999998,
+      "final_average_accuracy": 0.125,
+      "forward_transfer": 0.06875,
+      "per_task_forgetting": [
+        0.35,
+        0.175,
+        0.225,
+        0.0
+      ]
+    },
+    "pretrain_scores": [
+      0.5,
+      0.0,
+      0.0,
+      0.275,
+      0.0
+    ],
+    "stage_average_accuracy": [
+      0.5,
+      0.275,
+      0.25,
+      0.14375,
+      0.125
+    ],
+    "stage_average_forgetting": [
+      0.0,
+      0.0,
+      0.11249999999999999,
+      0.26666666666666666,
+      0.18749999999999997
+    ],
+    "task_aware_accuracy_matrix": [
+      [
+        0.5,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        null,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.5,
+        null,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        0.475,
+        null
+      ],
+      [
+        0.5,
+        0.5,
+        0.575,
+        0.475,
+        0.5
+      ]
+    ],
+    "task_aware_metrics": {
+      "average_forgetting": 0.0,
+      "backward_transfer": 0.01874999999999999,
+      "final_average_accuracy": 0.51,
+      "forward_transfer": null,
+      "per_task_forgetting": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "training_losses": [
+      [
+        0.8355951905250549,
+        0.7548787593841553
+      ],
+      [
+        1.4009368419647217,
+        1.3895268440246582
+      ],
+      [
+        1.8463054895401,
+        1.7768192291259766
+      ],
+      [
+        2.1021430492401123,
+        2.0376484394073486
+      ],
+      [
+        2.81103515625,
+        2.771968364715576
+      ]
+    ],
+    "validation_acquisition": [
+      0.5,
+      0.1,
+      0.1,
+      0.4,
+      0.0
+    ],
+    "validation_history": [
+      [
+        0.5
+      ],
+      [
+        0.3
+      ],
+      [
+        0.21666666666666667
+      ],
+      [
+        0.125
+      ],
+      [
+        0.1
+      ]
+    ]
+  }
+}

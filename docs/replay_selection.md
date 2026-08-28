@@ -55,6 +55,39 @@ SlowHeat+Replay rodam uma vez para cada um dos quatro seletores.
 Use `--dry-run` para inspecionar a matriz, `--no-download` quando os datasets já
 estiverem disponíveis e `--fresh` para exigir uma nova árvore de resultados.
 
+## Consultar acurácia e forgetting
+
+O utilitário `show_cache_results.py` mostra apenas Replay e SlowHeat+Replay. A
+saída usa porcentagens e IC95% normal sobre as seeds concluídas.
+
+Todos os benchmarks e caches encontrados:
+
+```bash
+python show_cache_results.py \
+  results/cache_all_datasets_10seeds/replay_selection_sweep
+```
+
+Um cache em todos os benchmarks:
+
+```bash
+python show_cache_results.py \
+  results/cache_all_datasets_10seeds/replay_selection_sweep \
+  --cache hybrid
+```
+
+Um benchmark e cache específicos:
+
+```bash
+python show_cache_results.py \
+  results/cache_all_datasets_10seeds/replay_selection_sweep \
+  --benchmark split_cifar10_cnn \
+  --cache loss
+```
+
+Também é possível passar diretamente a pasta de um benchmark ou cache. Se a
+execução ainda estiver incompleta, o utilitário agrega os `seed_*/results.json`
+já disponíveis e mostra um aviso no terminal.
+
 ## Checkpoints e dados sensíveis
 
 Replay e SlowHeat+Replay salvam um checkpoint móvel ao final de cada tarefa. Uma
