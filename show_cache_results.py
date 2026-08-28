@@ -317,6 +317,34 @@ def filter_rows(
     )
 
 
+def select_extreme_rows(
+    rows: list[ResultRow], *, metric: str | None, direction: str | None
+) -> list[ResultRow]:
+    """Select one cache per benchmark/learner using a metric mean."""
+    if (metric is None) != (direction is None):
+        raise ResultsError(
+            "use --accuracy ou --forget junto com --high ou --low"
+        )
+    if metric is None:
+        return rows
+
+    grouped: dict[tuple[str, str], list[ResultRow]] = {}
+    for row in rows:
+        grouped.setdefault((row.benchmark, row.learner_key), []).append(row)
+
+    selected: list[ResultRow] = []
+    for candidates in grouped.values():
+        def metric_mean(row: ResultRow) -> float:
+            summary = row.accuracy if metric == "accuracy" else row.forgetting
+            return summary.mean
+
+        choose = max if direction == "high" else min
+        selected.append(choose(candidates, key=metric_mean))
+
+    selected_ids = {id(row) for row in selected}
+    return [row for row in rows if id(row) in selected_ids]
+
+
 def _format_metric(summary: MetricSummary) -> str:
     mean = 100.0 * summary.mean
     half_width = 100.0 * summary.ci95_half_width
@@ -383,16 +411,44 @@ def build_parser() -> argparse.ArgumentParser:
         choices=CACHE_ORDER,
         help="filtrar por first, loss, representative ou hybrid",
     )
+    metric_group = parser.add_mutually_exclusive_group()
+    metric_group.add_argument(
+        "--accuracy",
+        action="store_true",
+        help="selecionar os caches pela acurácia média",
+    )
+    metric_group.add_argument(
+        "--forget",
+        action="store_true",
+        help="selecionar os caches pelo forgetting médio",
+    )
+    direction_group = parser.add_mutually_exclusive_group()
+    direction_group.add_argument(
+        "--high",
+        action="store_true",
+        help="mostrar o maior valor da métrica escolhida",
+    )
+    direction_group.add_argument(
+        "--low",
+        action="store_true",
+        help="mostrar o menor valor da métrica escolhida",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        rows = filter_rows(
-            discover_rows(args.results_path),
-            benchmark=args.benchmark,
-            cache=args.cache,
+        rows = select_extreme_rows(
+            filter_rows(
+                discover_rows(args.results_path),
+                benchmark=args.benchmark,
+                cache=args.cache,
+            ),
+            metric=(
+                "accuracy" if args.accuracy else "forgetting" if args.forget else None
+            ),
+            direction="high" if args.high else "low" if args.low else None,
         )
     except ResultsError as error:
         print(f"erro: {error}", file=sys.stderr)

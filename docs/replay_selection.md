@@ -84,6 +84,20 @@ python show_cache_results.py \
   --cache loss
 ```
 
+Para mostrar somente o cache com maior acurácia em cada benchmark e learner:
+
+```bash
+python show_cache_results.py \
+  results/cache_all_datasets_10seeds/replay_selection_sweep \
+  --accuracy --high
+```
+
+Também estão disponíveis `--accuracy --low`, `--forget --high` e
+`--forget --low`. A métrica e a direção devem ser informadas juntas. A seleção
+compara as médias entre os caches disponíveis para cada combinação de benchmark
+e learner; por isso, datasets e learners diferentes não são comparados entre si.
+O IC95% continua aparecendo na linha selecionada, mas não participa do ranking.
+
 Também é possível passar diretamente a pasta de um benchmark ou cache. Se a
 execução ainda estiver incompleta, o utilitário agrega os `seed_*/results.json`
 já disponíveis e mostra um aviso no terminal.

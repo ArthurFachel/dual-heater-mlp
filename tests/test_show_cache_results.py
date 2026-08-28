@@ -99,6 +99,37 @@ def test_cli_filters_benchmark_and_cache(sweep_report, capsys):
     assert output.count("first") == 2
 
 
+def test_accuracy_high_selects_best_cache_per_benchmark_and_learner(
+    sweep_report, capsys
+):
+    assert cli.main([str(sweep_report), "--accuracy", "--high"]) == 0
+
+    output = capsys.readouterr().out
+    assert output.count("hybrid") == 4
+    assert "first" not in output
+    assert "78.00 [77.00, 79.00]" in output
+    assert "92.00 [91.00, 93.00]" in output
+
+
+def test_forget_low_selects_smallest_forgetting(sweep_report, capsys):
+    assert cli.main(
+        [str(sweep_report), "--benchmark", "split_cifar10", "--forget", "--low"]
+    ) == 0
+
+    output = capsys.readouterr().out
+    assert output.count("hybrid") == 2
+    assert "first" not in output
+    assert "12.00 [11.00, 13.00]" in output
+
+
+def test_metric_and_direction_must_be_used_together(sweep_report, capsys):
+    assert cli.main([str(sweep_report), "--accuracy"]) == 2
+    assert "junto com --high ou --low" in capsys.readouterr().err
+
+    assert cli.main([str(sweep_report), "--low"]) == 2
+    assert "junto com --high ou --low" in capsys.readouterr().err
+
+
 def test_benchmark_and_cache_directories_are_inferred(tmp_path, capsys):
     benchmark = tmp_path / "split_cifar10_cnn"
     run_dir = benchmark / "loss"
