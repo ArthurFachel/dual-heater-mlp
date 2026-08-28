@@ -345,17 +345,28 @@ def format_table(rows: list[ResultRow]) -> str:
     ]
     widths = [
         max(len(headers[index]), *(len(row[index]) for row in body))
-        for index in range(len(headers))
+        for index in range(len(headers)) 
     ]
 
     def render(values: tuple[str, ...]) -> str:
-        return "  ".join(
+        return " | ".join(
             value.rjust(widths[index]) if index == 3 else value.ljust(widths[index])
             for index, value in enumerate(values)
+            
         )
 
-    separator = "  ".join("-" * width for width in widths)
-    return "\n".join((render(headers), separator, *(render(row) for row in body)))
+    separator = " + ".join("-" * width for width in widths)
+    output = [render(headers), separator]
+    previous_cache = None
+
+    for result, rendered_row in zip(rows, body):
+        if previous_cache is not None and result.cache != previous_cache:
+            output.append(separator)
+
+        output.append(render(rendered_row))
+        previous_cache = result.cache
+
+    return "\n".join(output)
 
 
 def build_parser() -> argparse.ArgumentParser:
