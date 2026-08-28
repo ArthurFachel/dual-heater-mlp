@@ -8,6 +8,7 @@ import pytest
 import show_cache_results as cli
 
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
+SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
 
 
 def _write_json(path: Path, payload) -> None:
@@ -49,10 +50,20 @@ def sweep_report(tmp_path: Path) -> Path:
                         "first": _method_summary(0.72, 0.18),
                         "hybrid": _method_summary(0.78, 0.12),
                     },
+                    "derpp": {
+                        "first": _method_summary(0.73, 0.17),
+                        "hybrid": _method_summary(0.76, 0.14),
+                    },
+                    SLOWHEAT_DERPP: {
+                        "first": _method_summary(0.74, 0.16),
+                        "hybrid": _method_summary(0.80, 0.10),
+                    },
                 },
                 "split_mnist": {
                     "replay": {"hybrid": _method_summary(0.90, 0.05)},
                     CANDIDATE: {"hybrid": _method_summary(0.92, 0.04)},
+                    "derpp": {"hybrid": _method_summary(0.91, 0.045)},
+                    SLOWHEAT_DERPP: {"hybrid": _method_summary(0.93, 0.03)},
                 },
             },
         },
@@ -68,6 +79,8 @@ def test_cli_without_filters_shows_all_cache_results_only(sweep_report, capsys):
     assert "split_mnist" in captured.out
     assert "Replay" in captured.out
     assert "SlowHeat+Replay" in captured.out
+    assert "DER++" in captured.out
+    assert "SlowHeat+DER++" in captured.out
     assert "vanilla" not in captured.out.lower()
     assert "75.00 [74.00, 76.00]" in captured.out
     assert captured.err == ""
@@ -96,7 +109,7 @@ def test_cli_filters_benchmark_and_cache(sweep_report, capsys):
     output = capsys.readouterr().out
     assert "split_cifar10" in output
     assert "split_mnist" not in output
-    assert output.count("first") == 2
+    assert output.count("first") == 4
 
 
 def test_accuracy_high_selects_best_cache_and_learner_per_benchmark(
@@ -107,8 +120,9 @@ def test_accuracy_high_selects_best_cache_and_learner_per_benchmark(
     output = capsys.readouterr().out
     assert output.count("hybrid") == 2
     assert "first" not in output
-    assert "78.00 [77.00, 79.00]" in output
-    assert "92.00 [91.00, 93.00]" in output
+    assert "80.00 [79.00, 81.00]" in output
+    assert "93.00 [92.00, 94.00]" in output
+    assert "SlowHeat+DER++" in output
 
 
 def test_forget_low_selects_smallest_forgetting(sweep_report, capsys):
@@ -119,7 +133,7 @@ def test_forget_low_selects_smallest_forgetting(sweep_report, capsys):
     output = capsys.readouterr().out
     assert output.count("hybrid") == 1
     assert "first" not in output
-    assert "12.00 [11.00, 13.00]" in output
+    assert "10.00 [9.00, 11.00]" in output
 
 
 def test_metric_and_direction_must_be_used_together(sweep_report, capsys):

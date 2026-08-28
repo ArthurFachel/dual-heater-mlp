@@ -65,6 +65,8 @@ STAGE_CHECKPOINT_SCHEMA_VERSION = 1
 STAGE_RESUMABLE_METHODS = {
     "replay",
     "slowheat_replay_hidden_beta_30_budget_0.25",
+    "derpp",
+    "slowheat_derpp_hidden_beta_30_budget_0.25",
 }
 
 _METHOD_SPECS = {

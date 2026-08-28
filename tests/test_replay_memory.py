@@ -159,7 +159,12 @@ def test_ranked_replay_runs_with_mlp_and_cnn():
         seed=4, class_order=(0, 1, 2, 3), classes_per_task=2,
         input_dim=4, hidden_dims=(4,), batch_size=4, epochs_per_task=1,
         replay_per_class=1, replay_batch_size=2, replay_selection="hybrid",
-        methods=("replay", "slowheat_replay_hidden_beta_30_budget_0.25"),
+        methods=(
+            "replay",
+            "slowheat_replay_hidden_beta_30_budget_0.25",
+            "derpp",
+            "slowheat_derpp_hidden_beta_30_budget_0.25",
+        ),
     )
     cnn = replace(
         mlp, input_dim=16, hidden_dims=(1,), backbone="cnn",
@@ -180,6 +185,12 @@ def test_ranked_replay_runs_with_mlp_and_cnn():
         assert tuple(results) == mlp.methods
         assert all(len(result["selection_history"]) == 2 for result in results.values())
         assert all(result["cost"]["selector_forward_examples"] > 0 for result in results.values())
+        assert results["derpp"]["cost"]["stored_logits_bytes"] > 0
+        assert (
+            results["slowheat_derpp_hidden_beta_30_budget_0.25"]["cost"]
+            ["stored_logits_bytes"]
+            > 0
+        )
 
 
 def test_default_config_payload_omits_replay_selection():
@@ -205,12 +216,18 @@ def test_no_memory_methods_ignore_selector_and_report_zero_replay_cost():
         assert result["cost"]["selector_forward_examples"] == 0
 
 
-def test_task_boundary_checkpoint_resume_matches_continuous_run(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "method",
+    ("replay", "derpp", "slowheat_derpp_hidden_beta_30_budget_0.25"),
+)
+def test_task_boundary_checkpoint_resume_matches_continuous_run(
+    tmp_path, monkeypatch, method
+):
     config = SplitMNISTConfig(
         seed=8, class_order=(0, 1, 2, 3), classes_per_task=2,
         input_dim=4, hidden_dims=(5,), batch_size=4, epochs_per_task=1,
         replay_per_class=1, replay_batch_size=2, replay_selection="hybrid",
-        methods=("replay",),
+        methods=(method,),
     )
     tasks = _continual_tasks(config)
     continuous = run_split_mnist(config, tasks, output_dir=tmp_path / "continuous")
@@ -240,8 +257,10 @@ def test_task_boundary_checkpoint_resume_matches_continuous_run(tmp_path, monkey
         "selection_history",
         "metrics",
     ):
-        assert resumed["replay"][key] == continuous["replay"][key]
-    assert (tmp_path / "resumed/checkpoints/replay.pt").is_file()
+        assert resumed[method][key] == continuous[method][key]
+    assert (tmp_path / f"resumed/checkpoints/{method}.pt").is_file()
+    if "derpp" in method:
+        assert resumed[method]["cost"]["stored_logits_bytes"] > 0
 
 
 def test_checkpoint_rejects_changed_selection(tmp_path):
@@ -288,6 +307,16 @@ def test_replay_selection_sweep_writes_paired_artifacts(tmp_path, monkeypatch):
         "holm_adjusted_p" in comparison["final_average_accuracy"]
         for comparison in comparisons.values()
     )
+    assert set(sweep.SWEEP_MEMORY_METHODS).issubset(
+        report["paired_differences_vs_first"]["split_mnist"]
+    )
+    assert set(report["slowheat_vs_derpp"]["split_mnist"]) == set(
+        sweep.REPLAY_SELECTION_STRATEGIES
+    )
+    assert set(report["memory_vs_no_memory"]["split_mnist"]) == set(
+        sweep.SWEEP_MEMORY_METHODS
+    )
+    assert report["no_memory_references"] == sweep.NO_MEMORY_REFERENCES
     for name in (
         "sweep_index.json", "sweep_report.json", "sweep_summary.csv",
         "sweep_differences.csv",

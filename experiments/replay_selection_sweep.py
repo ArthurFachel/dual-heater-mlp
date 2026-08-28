@@ -26,7 +26,7 @@ from experiments.split_mnist import (
     config_payload,
     run_split_mnist_multi_seed,
 )
-from experiments.split_mnist_suite import CANDIDATE, baseline_config
+from experiments.split_mnist_suite import CANDIDATE, SLOWHEAT_DERPP, baseline_config
 from experiments.visual_generalization import (
     generalization_configs,
     load_permuted_mnist,
@@ -34,11 +34,21 @@ from experiments.visual_generalization import (
     load_split_cifar100,
 )
 
-SWEEP_SCHEMA_VERSION = 1
+SWEEP_SCHEMA_VERSION = 2
 NO_MEMORY_CANDIDATE = "slowheat_hidden_beta_30_budget_0.25"
-SWEEP_MEMORY_METHODS = ("replay", CANDIDATE)
+SWEEP_MEMORY_METHODS = ("replay", CANDIDATE, "derpp", SLOWHEAT_DERPP)
 SWEEP_NO_MEMORY_METHODS = ("vanilla", NO_MEMORY_CANDIDATE)
 SWEEP_METHODS = (*SWEEP_NO_MEMORY_METHODS, *SWEEP_MEMORY_METHODS)
+SLOWHEAT_MEMORY_PAIRS = (
+    ("slowheat_vs_replay", "replay", CANDIDATE),
+    ("slowheat_vs_derpp", "derpp", SLOWHEAT_DERPP),
+)
+NO_MEMORY_REFERENCES = {
+    "replay": "vanilla",
+    CANDIDATE: NO_MEMORY_CANDIDATE,
+    "derpp": "vanilla",
+    SLOWHEAT_DERPP: NO_MEMORY_CANDIDATE,
+}
 SWEEP_DATASETS = (
     "split_mnist",
     "permuted_mnist",
@@ -127,18 +137,22 @@ def _build_report(
             + len(selectors) * len(SWEEP_MEMORY_METHODS)
         ),
         "ranking_ownership": "each_learner_ranks_its_own_training_images",
+        "no_memory_references": dict(NO_MEMORY_REFERENCES),
         "no_memory_execution": (
-            "Vanilla and hidden-only SlowHeat are trained once per dataset/seed "
-            "and reused as selector-independent ablations."
+            "Vanilla is the no-cache control for Replay and DER++; hidden-only "
+            "SlowHeat is the no-cache control for SlowHeat+Replay and "
+            "SlowHeat+DER++. Both controls are trained once per dataset/seed."
         ),
         "comparison_warning": (
-            "Ranked Replay and ranked SlowHeat+Replay intentionally use different "
-            "memories; their contrast is algorithm-level, not an isolated SlowHeat effect."
+            "Every ranked learner selects its own memory. Replay/SlowHeat+Replay and "
+            "DER++/SlowHeat+DER++ contrasts are algorithm-level comparisons, not "
+            "isolated SlowHeat effects."
         ),
         "configs": {name: config_payload(configs[name]) for name in datasets},
         "summaries": {},
         "paired_differences_vs_first": {},
         "slowheat_vs_replay": {},
+        "slowheat_vs_derpp": {},
         "memory_vs_no_memory": {},
         "multiplicity": (
             "Holm over loss, representative and hybrid final-accuracy contrasts "
@@ -152,6 +166,7 @@ def _build_report(
         report["summaries"][dataset] = {}
         report["paired_differences_vs_first"][dataset] = {}
         report["slowheat_vs_replay"][dataset] = {}
+        report["slowheat_vs_derpp"][dataset] = {}
         report["memory_vs_no_memory"][dataset] = {}
         for method in SWEEP_METHODS:
             report["summaries"][dataset][method] = {}
@@ -251,39 +266,43 @@ def _build_report(
                 ):
                     comparison[PRIMARY_ENDPOINT]["holm_adjusted_p"] = adjusted
 
-        for selector in selectors:
-            metric_summaries = {}
-            for metric in AGGREGATE_METRICS:
-                differences = [
-                    _result_metric(raw[dataset][selector][seed][CANDIDATE], metric)
-                    - _result_metric(raw[dataset][selector][seed]["replay"], metric)
-                    for seed in seeds
-                ]
-                metric_summaries[metric] = normal_summary(differences)
-                metric_summaries[metric]["paired_values"] = [
-                    {"seed": seed, "difference": difference}
-                    for seed, difference in zip(seeds, differences, strict=True)
-                ]
-                difference_rows.extend(
-                    {
-                        "comparison": "slowheat_minus_replay",
-                        "dataset": dataset,
-                        "backbone": configs[dataset].backbone,
-                        "learner": CANDIDATE,
-                        "selector": selector,
-                        "reference": "replay",
-                        "metric": metric,
-                        "seed": seed,
-                        "difference": difference,
-                    }
-                    for seed, difference in zip(seeds, differences, strict=True)
-                )
-            report["slowheat_vs_replay"][dataset][selector] = metric_summaries
+        for report_key, reference, candidate in SLOWHEAT_MEMORY_PAIRS:
+            for selector in selectors:
+                metric_summaries = {}
+                for metric in AGGREGATE_METRICS:
+                    differences = [
+                        _result_metric(
+                            raw[dataset][selector][seed][candidate], metric
+                        )
+                        - _result_metric(
+                            raw[dataset][selector][seed][reference], metric
+                        )
+                        for seed in seeds
+                    ]
+                    metric_summaries[metric] = normal_summary(differences)
+                    metric_summaries[metric]["paired_values"] = [
+                        {"seed": seed, "difference": difference}
+                        for seed, difference in zip(seeds, differences, strict=True)
+                    ]
+                    difference_rows.extend(
+                        {
+                            "comparison": f"{candidate}_minus_{reference}",
+                            "dataset": dataset,
+                            "backbone": configs[dataset].backbone,
+                            "learner": candidate,
+                            "selector": selector,
+                            "reference": reference,
+                            "metric": metric,
+                            "seed": seed,
+                            "difference": difference,
+                        }
+                        for seed, difference in zip(
+                            seeds, differences, strict=True
+                        )
+                    )
+                report[report_key][dataset][selector] = metric_summaries
 
-        for memory_method, no_memory_method in (
-            ("replay", "vanilla"),
-            (CANDIDATE, NO_MEMORY_CANDIDATE),
-        ):
+        for memory_method, no_memory_method in NO_MEMORY_REFERENCES.items():
             report["memory_vs_no_memory"][dataset][memory_method] = {}
             for selector in selectors:
                 metric_summaries = {}
@@ -410,7 +429,7 @@ def run_replay_selection_sweep(
                 output_dir=root / dataset / selector,
                 download=False,
                 verbose=verbose,
-                paired_references=("replay",),
+                paired_references=("replay", "derpp"),
                 task_loader=loaders[dataset],
                 resume=resume,
             )

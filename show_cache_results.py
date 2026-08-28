@@ -15,6 +15,8 @@ CACHE_ORDER = ("first", "loss", "representative", "hybrid")
 LEARNERS = {
     "replay": "Replay",
     "slowheat_replay_hidden_beta_30_budget_0.25": "SlowHeat+Replay",
+    "derpp": "DER++",
+    "slowheat_derpp_hidden_beta_30_budget_0.25": "SlowHeat+DER++",
 }
 METRICS = ("final_average_accuracy", "average_forgetting")
 
@@ -304,7 +306,9 @@ def filter_rows(
         and (cache is None or row.cache == cache)
     ]
     if not selected:
-        raise ResultsError("nenhum resultado de Replay ou SlowHeat+Replay foi encontrado")
+        raise ResultsError(
+            "nenhum resultado de Replay, DER++ ou variantes SlowHeat foi encontrado"
+        )
     learner_order = {learner: index for index, learner in enumerate(LEARNERS)}
     cache_order = {name: index for index, name in enumerate(CACHE_ORDER)}
     return sorted(

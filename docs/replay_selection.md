@@ -48,17 +48,25 @@ python run_all_tests.py \
   --device cpu
 ```
 
-Com os cinco streams e dez seeds, são 500 execuções de learner: as duas
-referências sem memória rodam uma vez por dataset/seed, enquanto Replay e
-SlowHeat+Replay rodam uma vez para cada um dos quatro seletores.
+Com os cinco streams e dez seeds, são 900 execuções de learner: as duas
+referências sem memória rodam uma vez por dataset/seed, enquanto Replay,
+SlowHeat+Replay, DER++ e SlowHeat+DER++ rodam uma vez para cada um dos quatro
+seletores. DER++ guarda também os logits produzidos no momento da seleção.
+
+Não existe DER++ propriamente dito sem memória, porque seus termos de regressão
+de logits e cross-entropy de replay dependem do buffer. Para a comparação “sem
+cache”, DER++ usa Vanilla como referência; SlowHeat+DER++ usa SlowHeat hidden-only
+sem memória. Essas referências são as mesmas usadas pelos pares de Replay e são
+treinadas apenas uma vez por dataset/seed.
 
 Use `--dry-run` para inspecionar a matriz, `--no-download` quando os datasets já
 estiverem disponíveis e `--fresh` para exigir uma nova árvore de resultados.
 
 ## Consultar acurácia e forgetting
 
-O utilitário `show_cache_results.py` mostra apenas Replay e SlowHeat+Replay. A
-saída usa porcentagens e IC95% normal sobre as seeds concluídas.
+O utilitário `show_cache_results.py` mostra apenas métodos com memória: Replay,
+SlowHeat+Replay, DER++ e SlowHeat+DER++. A saída usa porcentagens e IC95% normal
+sobre as seeds concluídas.
 
 Todos os benchmarks e caches encontrados:
 
@@ -95,9 +103,10 @@ python show_cache_results.py \
 
 Também estão disponíveis `--accuracy --low`, `--forget --high` e
 `--forget --low`. A métrica e a direção devem ser informadas juntas. A seleção
-compara as médias de todos os caches de Replay e SlowHeat+Replay dentro de cada
-benchmark. Benchmarks diferentes não são comparados entre si. O IC95% continua
-aparecendo na linha selecionada, mas não participa do ranking.
+compara as médias de todos os caches de Replay, SlowHeat+Replay, DER++ e
+SlowHeat+DER++ dentro de cada benchmark. Benchmarks diferentes não são
+comparados entre si. O IC95% continua aparecendo na linha selecionada, mas não
+participa do ranking.
 
 Também é possível passar diretamente a pasta de um benchmark ou cache. Se a
 execução ainda estiver incompleta, o utilitário agrega os `seed_*/results.json`
@@ -105,7 +114,8 @@ já disponíveis e mostra um aviso no terminal.
 
 ## Checkpoints e dados sensíveis
 
-Replay e SlowHeat+Replay salvam um checkpoint móvel ao final de cada tarefa. Uma
-retomada reinicia apenas a tarefa que estava incompleta. O checkpoint contém os
-tensores das imagens selecionadas, rótulos, scores e estado do modelo/otimizador;
-portanto, deve receber a mesma proteção aplicada ao dataset de treinamento.
+Os quatro learners com memória salvam um checkpoint móvel ao final de cada
+tarefa. Uma retomada reinicia apenas a tarefa que estava incompleta. O checkpoint
+contém os tensores das imagens selecionadas, rótulos, scores e estado do
+modelo/otimizador; nos métodos DER++, contém também os logits armazenados.
+Portanto, deve receber a mesma proteção aplicada ao dataset de treinamento.
