@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from dual_heater import SlowHeatAdamW, compute_cl_metrics
+from dual_heater import FastHeatConfig, FastHeatGate, SlowHeatAdamW, compute_cl_metrics
 from experiments.artifacts import (
     atomic_text_writer,
     build_run_identity,
@@ -63,6 +63,8 @@ REPLAY_SCHEDULE_SEED_OFFSET = 10_000
 CALIBRATION_OFFSETS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 STAGE_CHECKPOINT_SCHEMA_VERSION = 1
 STAGE_RESUMABLE_METHODS = {
+    "fastheat",
+    "dualheat",
     "replay",
     "slowheat_replay_hidden_beta_30_budget_0.25",
     "derpp",
@@ -71,7 +73,9 @@ STAGE_RESUMABLE_METHODS = {
 
 _METHOD_SPECS = {
     "vanilla": MethodSpec(),
+    "fastheat": MethodSpec(fastheat=True),
     "slowheat": MethodSpec(slowheat=True),
+    "dualheat": MethodSpec(slowheat=True, fastheat=True),
     "slowheat_adaptive": MethodSpec(slowheat=True),
     "slowheat_native_state": MethodSpec(slowheat=True),
     "slowheat_unidirectional": MethodSpec(slowheat=True),
@@ -112,12 +116,30 @@ _METHOD_SPECS = {
         budget=0.25,
         protect_output=False,
     ),
+    "dualheat_lpr": MethodSpec(
+        slowheat=True,
+        fastheat=True,
+        replay=True,
+        lpr=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
     "classifier_expander": MethodSpec(
         replay=True,
         classifier_expander=True,
     ),
     "slowheat_classifier_expander": MethodSpec(
         slowheat=True,
+        replay=True,
+        classifier_expander=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "dualheat_classifier_expander": MethodSpec(
+        slowheat=True,
+        fastheat=True,
         replay=True,
         classifier_expander=True,
         strength=30.0,
@@ -131,6 +153,16 @@ _METHOD_SPECS = {
     ),
     "slowheat_scroll": MethodSpec(
         slowheat=True,
+        replay=True,
+        scroll=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+        epoch_budget_policy="scroll",
+    ),
+    "dualheat_scroll": MethodSpec(
+        slowheat=True,
+        fastheat=True,
         replay=True,
         scroll=True,
         strength=30.0,
@@ -175,7 +207,16 @@ _METHOD_SPECS = {
     ),
 }
 
-SUPPORTED_METHODS = set(_METHOD_SPECS)
+FUNCTIONAL_DUALHEAT_METHODS = {
+    "fastheat",
+    "dualheat",
+    "dualheat_lpr",
+    "dualheat_classifier_expander",
+    "dualheat_scroll",
+}
+# Historical public registry retained for consumers that enumerate the original
+# benchmark matrix.  Validation uses the complete declarative registry below.
+SUPPORTED_METHODS = set(_METHOD_SPECS) - FUNCTIONAL_DUALHEAT_METHODS
 
 
 _structured_match = structured_method_match
@@ -206,6 +247,11 @@ def _method_spec(method: str) -> MethodSpec | None:
 def _is_slowheat(method: str) -> bool:
     spec = _method_spec(method)
     return spec is not None and spec.slowheat
+
+
+def _is_fastheat(method: str) -> bool:
+    spec = _method_spec(method)
+    return spec is not None and spec.fastheat
 
 
 def _uses_replay(method: str) -> bool:
@@ -292,6 +338,10 @@ class SplitMNISTConfig:
     weight_decay: float = 1e-4
     slow_strength: float = 3.0
     plasticity_budget: float = 0.25
+    fast_decay: float = 0.90
+    fast_strength: float = 0.5
+    fast_threshold: float = 0.5
+    fast_eps: float = 1e-8
     optimizer_state_policy: str = "follow_update"
     adaptive_target_accuracy: float = 0.90
     adaptive_rate: float = 0.20
@@ -463,6 +513,10 @@ class SplitMNISTConfig:
             "weight_decay": self.weight_decay,
             "slow_strength": self.slow_strength,
             "plasticity_budget": self.plasticity_budget,
+            "fast_decay": self.fast_decay,
+            "fast_strength": self.fast_strength,
+            "fast_threshold": self.fast_threshold,
+            "fast_eps": self.fast_eps,
             "adaptive_target_accuracy": self.adaptive_target_accuracy,
             "adaptive_rate": self.adaptive_rate,
             "adaptive_minimum": self.adaptive_minimum,
@@ -500,6 +554,12 @@ class SplitMNISTConfig:
             raise ValueError("learning_rate deve ser > 0 e weight_decay >= 0")
         if self.slow_strength < 0.0:
             raise ValueError("slow_strength deve ser >= 0")
+        FastHeatConfig(
+            fast_decay=self.fast_decay,
+            fast_strength=self.fast_strength,
+            fast_threshold=self.fast_threshold,
+            eps=self.fast_eps,
+        )
         if not 0.0 <= self.plasticity_budget <= 1.0:
             raise ValueError("plasticity_budget deve estar em [0, 1]")
         if self.optimizer_state_policy not in {"native", "follow_update"}:
@@ -553,7 +613,7 @@ class SplitMNISTConfig:
         unknown = {
             method
             for method in self.methods
-            if method not in SUPPORTED_METHODS and _structured_match(method) is None
+            if method not in _METHOD_SPECS and _structured_match(method) is None
         }
         if unknown:
             raise ValueError(f"métodos desconhecidos: {sorted(unknown)}")
@@ -594,6 +654,14 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
     """Serialize configs without perturbing legacy uniform-task protocols."""
 
     payload = asdict(config)
+    if not any(_is_fastheat(method) for method in config.methods):
+        for field in (
+            "fast_decay",
+            "fast_strength",
+            "fast_threshold",
+            "fast_eps",
+        ):
+            payload.pop(field)
     if config.replay_selection == "first":
         payload.pop("replay_selection")
     if config.task_class_counts is None:
@@ -813,6 +881,25 @@ def _slow_layers(model: nn.Module) -> list[nn.Module]:
 def _slow_states(model: nn.Module) -> list[nn.Module]:
     getter = getattr(model, "get_slow_states", None)
     return list(getter()) if callable(getter) else _slow_layers(model)
+
+
+def _fast_states(model: nn.Module) -> list[FastHeatGate]:
+    return [module for module in model.modules() if isinstance(module, FastHeatGate)]
+
+
+def _direct_buffer_bytes(modules: list[nn.Module]) -> int:
+    """Count each persistent method-state buffer once."""
+
+    total = 0
+    seen: set[int] = set()
+    for module in modules:
+        for buffer in module.buffers(recurse=False):
+            identity = buffer.data_ptr()
+            if identity in seen:
+                continue
+            seen.add(identity)
+            total += buffer.numel() * buffer.element_size()
+    return total
 
 
 def _cnn_classifier(model: nn.Module) -> nn.Module:
@@ -1258,6 +1345,14 @@ def _new_cost_record(
     model: nn.Module,
     sample_input: Tensor | None = None,
 ) -> dict[str, float | int]:
+    forward_flops = (
+        _linear_forward_flops(model)
+        if sample_input is None
+        else _model_forward_flops(model, sample_input)
+    )
+    fast_states = _fast_states(model)
+    fastheat_state_bytes = _direct_buffer_bytes(fast_states)
+    slowheat_state_bytes = _direct_buffer_bytes(_slow_states(model))
     return {
         "current_examples": 0,
         "replay_examples": 0,
@@ -1272,18 +1367,21 @@ def _new_cost_record(
         "selector_forward_examples": 0,
         "selector_distance_flops": 0,
         "slowheat_hook_flops": 0,
+        "fastheat_flops_per_example": sum(
+            gate.estimated_flops_per_example() for gate in fast_states
+        ),
+        "fastheat_overhead_flops": 0,
         "mask_application_flops": 0,
         "regularizer_flops": 0,
         "consolidation_flops": 0,
         "replay_memory_bytes": 0,
         "stored_logits_bytes": 0,
         "replay_metadata_bytes": 0,
+        "fastheat_state_bytes": fastheat_state_bytes,
+        "slowheat_state_bytes": slowheat_state_bytes,
+        "method_state_bytes": fastheat_state_bytes + slowheat_state_bytes,
         "model_parameters": sum(parameter.numel() for parameter in model.parameters()),
-        "forward_flops_per_example": (
-            _linear_forward_flops(model)
-            if sample_input is None
-            else _model_forward_flops(model, sample_input)
-        ),
+        "forward_flops_per_example": forward_flops,
     }
 
 
@@ -1296,10 +1394,15 @@ def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, 
     selector = int(cost["selector_forward_examples"])
     backward = int(cost["learner_backward_examples"])
     core = forward_flops * (learner + teacher + selector + 2 * backward)
+    fastheat_overhead = int(cost.get("fastheat_flops_per_example", 0)) * (
+        learner + teacher + selector
+    )
+    cost["fastheat_overhead_flops"] = fastheat_overhead
     overhead = sum(
         int(cost[key])
         for key in (
             "slowheat_hook_flops",
+            "fastheat_overhead_flops",
             "mask_application_flops",
             "regularizer_flops",
             "consolidation_flops",
@@ -1319,7 +1422,8 @@ def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, 
                 "Linear/Conv2d forward=2 FLOPs/MAC/example from observed tensor "
                 "shapes; backward=2x forward. "
                 "Hooks, masks, regularizers and consolidation are reported "
-                "separately as operation-count approximations."
+                "separately as operation-count approximations; FastHeat uses "
+                "observed activation shapes."
             ),
         }
     )
@@ -1357,6 +1461,13 @@ def _backfill_cost_metadata(
     cost.setdefault("selection_seconds", 0.0)
     cost.setdefault("selector_forward_examples", 0)
     cost.setdefault("selector_distance_flops", 0)
+    cost.setdefault("fastheat_overhead_flops", 0)
+    cost.setdefault("fastheat_state_bytes", 0)
+    cost.setdefault("slowheat_state_bytes", 0)
+    cost.setdefault(
+        "method_state_bytes",
+        int(cost["fastheat_state_bytes"]) + int(cost["slowheat_state_bytes"]),
+    )
 
 
 def run_split_mnist(
@@ -1375,6 +1486,7 @@ def run_split_mnist(
     config.validate()
     if len(tasks) != config.task_count:
         raise ValueError("quantidade de tasks incompatível com a configuração")
+    contains_fastheat = any(_is_fastheat(method) for method in config.methods)
     data_sha256 = (
         task_data_fingerprint(tasks)
         if output_dir is not None
@@ -1559,6 +1671,12 @@ def run_split_mnist(
             stop_stage = False
 
             for epoch_index in range(epoch_budget):
+                # Evaluation freezes FastHeat by switching the model to eval().
+                # New paired sweeps restore every learner together so only
+                # optimization forwards advance FastHeat, while legacy sweeps
+                # without FastHeat preserve their historical execution path.
+                if contains_fastheat:
+                    model.train()
                 epoch_start = epoch_index * steps_per_epoch
                 epoch_end = epoch_start + steps_per_epoch
                 for step_index in range(epoch_start, epoch_end):
@@ -2125,6 +2243,10 @@ def run_split_mnist(
                 "total_model_examples_processed",
                 "estimated_total_flops",
                 "estimated_overhead_flops",
+                "fastheat_overhead_flops",
+                "fastheat_state_bytes",
+                "slowheat_state_bytes",
+                "method_state_bytes",
                 "replay_memory_bytes",
                 "stored_logits_bytes",
                 "replay_metadata_bytes",
@@ -2167,6 +2289,18 @@ def run_split_mnist(
                         "estimated_overhead_flops": result["cost"][
                             "estimated_overhead_flops"
                         ],
+                        "fastheat_overhead_flops": result["cost"][
+                            "fastheat_overhead_flops"
+                        ],
+                        "fastheat_state_bytes": result["cost"][
+                            "fastheat_state_bytes"
+                        ],
+                        "slowheat_state_bytes": result["cost"][
+                            "slowheat_state_bytes"
+                        ],
+                        "method_state_bytes": result["cost"][
+                            "method_state_bytes"
+                        ],
                         "replay_memory_bytes": result["cost"][
                             "replay_memory_bytes"
                         ],
@@ -2200,6 +2334,10 @@ AGGREGATE_METRICS = {
     "total_model_examples_processed": ("cost", "total_model_examples_processed"),
     "estimated_total_flops": ("cost", "estimated_total_flops"),
     "estimated_overhead_flops": ("cost", "estimated_overhead_flops"),
+    "fastheat_overhead_flops": ("cost", "fastheat_overhead_flops"),
+    "fastheat_state_bytes": ("cost", "fastheat_state_bytes"),
+    "slowheat_state_bytes": ("cost", "slowheat_state_bytes"),
+    "method_state_bytes": ("cost", "method_state_bytes"),
     "replay_memory_bytes": ("cost", "replay_memory_bytes"),
     "stored_logits_bytes": ("cost", "stored_logits_bytes"),
     "replay_metadata_bytes": ("cost", "replay_metadata_bytes"),

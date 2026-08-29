@@ -6,15 +6,16 @@ Research code for neuron-level plasticity mechanisms in continual learning.
 
 ## Current focus
 
-The current research direction is **Functional SlowHeat**: scale-invariant
-neuron utility, factorized path protection, capacity budgeting and explicit
-optimizer-state semantics.
+The repository now distinguishes **Functional SlowHeat**, the new
+**Functional DualHeat** (activation FastHeat + Functional SlowHeat), and the
+historical `DualHeatLinear`/`DualHeatMLP` API.
 
 ### Method versus method + DualHeat
 
-The dedicated MLP comparison treats DualHeat as an add-on to four learners:
-conventional AdamW, Replay, DER++ and ER-ACE. Here **DualHeat refers to the
-current Functional SlowHeat component**, not the legacy `DualHeatMLP` class.
+The older dedicated MLP comparison is retained under its historical artifact
+name, but it evaluates **Functional SlowHeat only** as an add-on to four
+learners. It does not evaluate Functional DualHeat or the legacy
+`DualHeatMLP` class.
 Each learner is compared only with its own augmented counterpart, using the
 same initialization, data, training/replay schedules and epoch budget.
 
@@ -321,13 +322,16 @@ Not supported:
 ```text
 src/dual_heater/
   dual_heat.py       legacy DualHeat mechanism
+  fast_heat.py       normalized activation gate and online FastHeat state
   slow_heat.py       SlowHeat linear/conv layers and consolidation
+  resnet.py          CIFAR ResNet18 controls and Functional DualHeat variant
   lora.py            experimental LoRA adaptation
   optim.py           optimizer-aware update masking
   metrics.py         continual-learning metrics
   _layers.py         shared activation and MLP validation helpers
 
 experiments/
+  functional_dualheat.py        pilot, frozen manifest and 13-method reports
   lpr.py                         LPR covariance preconditioner
   split_mnist.py                 shared benchmark and baseline engine
   split_mnist_suite.py           fairness, ablations and orchestration
@@ -462,6 +466,22 @@ PYTHONPATH=src:. python run_all_tests.py \
 This is 220 learner runs (2 architectures x 11 methods x 10 paired seeds).
 The new output directories end in `_all_methods`, so historical VGG and
 ResNet artifacts cannot be mistaken for resumable runs of this protocol.
+
+The actual Functional DualHeat protocol is separate. It first calibrates
+FastHeat on validation only, freezes the selected configuration, and then runs
+fresh 13-method VGG11 and ResNet18 benchmarks in new output directories:
+
+```bash
+python run_all_tests.py \
+  --num-seeds 10 \
+  --sections functional-dualheat-pilot \
+    split-cifar10-vgg11-functional-dualheat \
+    split-cifar10-resnet18-functional-dualheat \
+  --device cuda --run-unit-tests
+```
+
+See [the Functional DualHeat protocol](docs/functional_dualheat.md) for the
+gate equation, placement, fixed seeds, calibration rule and paired contrasts.
 
 After the pilot, run the preselected CNN stability/plasticity sweep with ten
 paired seeds:

@@ -66,6 +66,21 @@ SECTION_SPECS = (
         default=False,
     ),
     SectionSpec(
+        "functional-dualheat-pilot",
+        "functional_dualheat_pilot",
+        default=False,
+    ),
+    SectionSpec(
+        "split-cifar10-vgg11-functional-dualheat",
+        "split_cifar10_vgg11_functional_dualheat",
+        default=False,
+    ),
+    SectionSpec(
+        "split-cifar10-resnet18-functional-dualheat",
+        "split_cifar10_resnet18_functional_dualheat",
+        default=False,
+    ),
+    SectionSpec(
         "split-cifar100",
         "split_cifar100",
         all_dataset_method=True,

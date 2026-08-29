@@ -11,11 +11,17 @@ from torch import Tensor, nn
 
 from dual_heater import (
     CIFARResNet18,
+    FastHeatConfig,
+    FunctionalDualHeatCNN,
+    FunctionalDualHeatMLP,
+    FunctionalDualHeatResNet18,
+    FunctionalDualHeatVGG11,
     SlowHeatCNN,
     SlowHeatMLP,
     SlowHeatResNet18,
     SlowHeatVGG11,
 )
+from dual_heater.fast_heat import FastHeatActivation
 from experiments.method_specs import MethodSpec
 
 
@@ -36,6 +42,10 @@ class ModelFactoryConfig(Protocol):
     slow_strength: float
     plasticity_budget: float
     partial_output_slow_strength: float
+    fast_decay: float
+    fast_strength: float
+    fast_threshold: float
+    fast_eps: float
     device: str
 
 
@@ -48,10 +58,39 @@ class _VanillaMLP(nn.Sequential):
         return inputs
 
 
-def _vanilla_mlp(dims: tuple[int, ...]) -> nn.Sequential:
+def _activation(
+    units: int,
+    *,
+    unit_dim: int,
+    fast_heat_config: FastHeatConfig | None,
+) -> nn.Module:
+    if fast_heat_config is None:
+        return nn.ReLU()
+    return FastHeatActivation(
+        nn.ReLU(),
+        units,
+        unit_dim=unit_dim,
+        config=fast_heat_config,
+    )
+
+
+def _vanilla_mlp(
+    dims: tuple[int, ...],
+    *,
+    fast_heat_config: FastHeatConfig | None = None,
+) -> nn.Sequential:
     layers: list[nn.Module] = []
     for input_dim, output_dim in pairwise(dims[:-1]):
-        layers.extend((nn.Linear(input_dim, output_dim), nn.ReLU()))
+        layers.extend(
+            (
+                nn.Linear(input_dim, output_dim),
+                _activation(
+                    output_dim,
+                    unit_dim=-1,
+                    fast_heat_config=fast_heat_config,
+                ),
+            )
+        )
     layers.append(nn.Linear(dims[-2], dims[-1]))
     return _VanillaMLP(*layers)
 
@@ -66,12 +105,17 @@ class _VanillaCNN(nn.Module):
         *,
         channels: tuple[int, int],
         pooled_size: tuple[int, int],
+        fast_heat_config: FastHeatConfig | None = None,
     ) -> None:
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(channels[0], channels[1], kernel_size=3, padding=1)
-        self.activation1 = nn.ReLU()
-        self.activation2 = nn.ReLU()
+        self.activation1 = _activation(
+            channels[0], unit_dim=1, fast_heat_config=fast_heat_config
+        )
+        self.activation2 = _activation(
+            channels[1], unit_dim=1, fast_heat_config=fast_heat_config
+        )
         self.pool = nn.MaxPool2d(2)
         self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_size)
         self.flatten = nn.Flatten()
@@ -99,6 +143,7 @@ class _VanillaVGG11(nn.Module):
         *,
         channels: tuple[int, ...],
         pooled_size: tuple[int, int],
+        fast_heat_config: FastHeatConfig | None = None,
     ) -> None:
         super().__init__()
         pool_after = {0, 1, 3, 5, 7}
@@ -108,7 +153,11 @@ class _VanillaVGG11(nn.Module):
             feature_layers.extend(
                 (
                     nn.Conv2d(input_width, output_width, kernel_size=3, padding=1),
-                    nn.ReLU(),
+                    _activation(
+                        output_width,
+                        unit_dim=1,
+                        fast_heat_config=fast_heat_config,
+                    ),
                 )
             )
             if index in pool_after:
@@ -129,9 +178,14 @@ class _VanillaVGG11(nn.Module):
         return self.classifier(self.forward_features(inputs))
 
 
-def _vanilla_model(config: ModelFactoryConfig, dims: tuple[int, ...]) -> nn.Module:
+def _vanilla_model(
+    config: ModelFactoryConfig,
+    dims: tuple[int, ...],
+    *,
+    fast_heat_config: FastHeatConfig | None = None,
+) -> nn.Module:
     if config.backbone == "mlp":
-        return _vanilla_mlp(dims)
+        return _vanilla_mlp(dims, fast_heat_config=fast_heat_config)
     assert config.image_shape is not None
     if config.cnn_architecture == "vgg11":
         return _VanillaVGG11(
@@ -139,6 +193,7 @@ def _vanilla_model(config: ModelFactoryConfig, dims: tuple[int, ...]) -> nn.Modu
             len(config.class_order),
             channels=config.vgg_channels,
             pooled_size=config.cnn_pooled_size,
+            fast_heat_config=fast_heat_config,
         )
     if config.cnn_architecture == "resnet18":
         return CIFARResNet18(
@@ -146,12 +201,23 @@ def _vanilla_model(config: ModelFactoryConfig, dims: tuple[int, ...]) -> nn.Modu
             len(config.class_order),
             stage_channels=config.resnet_stage_channels,
             blocks_per_stage=config.resnet_blocks_per_stage,
+            fast_heat_config=fast_heat_config,
         )
     return _VanillaCNN(
         config.image_shape[0],
         len(config.class_order),
         channels=config.cnn_channels,
         pooled_size=config.cnn_pooled_size,
+        fast_heat_config=fast_heat_config,
+    )
+
+
+def _fast_heat_config(config: ModelFactoryConfig) -> FastHeatConfig:
+    return FastHeatConfig(
+        fast_decay=config.fast_decay,
+        fast_strength=config.fast_strength,
+        fast_threshold=config.fast_threshold,
+        eps=config.fast_eps,
     )
 
 
@@ -173,8 +239,13 @@ def build_paired_models(
         for method in config.methods:
             spec = method_specs[method]
             torch.manual_seed(config.seed)
+            fast_config = _fast_heat_config(config) if spec.fastheat else None
             if not spec.slowheat:
-                model = _vanilla_model(config, dims)
+                model = _vanilla_model(
+                    config,
+                    dims,
+                    fast_heat_config=fast_config,
+                )
             else:
                 budget = (
                     0.0 if spec.disable_capacity_budget else (
@@ -199,34 +270,86 @@ def build_paired_models(
                     "output_slow_strength": output_strength,
                 }
                 if config.backbone == "mlp":
-                    model = SlowHeatMLP(*dims, **common)
+                    if spec.fastheat:
+                        model = FunctionalDualHeatMLP(
+                            *dims,
+                            fast_decay=config.fast_decay,
+                            fast_strength=config.fast_strength,
+                            fast_threshold=config.fast_threshold,
+                            fast_eps=config.fast_eps,
+                            **common,
+                        )
+                    else:
+                        model = SlowHeatMLP(*dims, **common)
                 elif config.cnn_architecture == "small":
                     assert config.image_shape is not None
-                    model = SlowHeatCNN(
+                    cnn_type = FunctionalDualHeatCNN if spec.fastheat else SlowHeatCNN
+                    fast_kwargs = (
+                        {
+                            "fast_decay": config.fast_decay,
+                            "fast_strength": config.fast_strength,
+                            "fast_threshold": config.fast_threshold,
+                            "fast_eps": config.fast_eps,
+                        }
+                        if spec.fastheat
+                        else {}
+                    )
+                    model = cnn_type(
                         config.image_shape[0],
                         len(config.class_order),
                         channels=config.cnn_channels,
                         pooled_size=config.cnn_pooled_size,
+                        **fast_kwargs,
                         **common,
                     )
                 elif config.cnn_architecture == "vgg11":
                     assert config.image_shape is not None
-                    model = SlowHeatVGG11(
+                    vgg_type = (
+                        FunctionalDualHeatVGG11 if spec.fastheat else SlowHeatVGG11
+                    )
+                    fast_kwargs = (
+                        {
+                            "fast_decay": config.fast_decay,
+                            "fast_strength": config.fast_strength,
+                            "fast_threshold": config.fast_threshold,
+                            "fast_eps": config.fast_eps,
+                        }
+                        if spec.fastheat
+                        else {}
+                    )
+                    model = vgg_type(
                         config.image_shape[0],
                         len(config.class_order),
                         channels=config.vgg_channels,
                         pooled_size=config.cnn_pooled_size,
+                        **fast_kwargs,
                         **common,
                     )
                 else:
                     assert config.image_shape is not None
                     resnet_common = dict(common)
                     resnet_common.pop("act")
-                    model = SlowHeatResNet18(
+                    resnet_type = (
+                        FunctionalDualHeatResNet18
+                        if spec.fastheat
+                        else SlowHeatResNet18
+                    )
+                    fast_kwargs = (
+                        {
+                            "fast_decay": config.fast_decay,
+                            "fast_strength": config.fast_strength,
+                            "fast_threshold": config.fast_threshold,
+                            "fast_eps": config.fast_eps,
+                        }
+                        if spec.fastheat
+                        else {}
+                    )
+                    model = resnet_type(
                         config.image_shape[0],
                         len(config.class_order),
                         stage_channels=config.resnet_stage_channels,
                         blocks_per_stage=config.resnet_blocks_per_stage,
+                        **fast_kwargs,
                         **resnet_common,
                     )
             with torch.no_grad():

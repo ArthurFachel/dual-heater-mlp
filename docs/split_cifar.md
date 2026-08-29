@@ -109,6 +109,12 @@ São 220 execuções de learner. Cada arquitetura possui diretório próprio com
 identidade de execução e retomada por seed; os nomes `_all_methods` evitam
 colisão com resultados históricos sem `run_identity.json`.
 
+Esses sweeps avaliam apenas Functional SlowHeat e suas combinações. O protocolo
+novo de Functional DualHeat, incluindo FastHeat, piloto de validação e dois
+benchmarks de 13 métodos, está documentado em
+[functional_dualheat.md](functional_dualheat.md). Seus diretórios terminam em
+`_functional_dualheat` e não sobrescrevem os resultados acima.
+
 ## Métodos
 
 Cada seção executa os 32 itens de `ALL_VISUAL_METHODS`, na ordem abaixo:

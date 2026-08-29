@@ -19,6 +19,7 @@ class MethodSpec:
     """Resolved capabilities for one benchmark method."""
 
     slowheat: bool = False
+    fastheat: bool = False
     replay: bool = False
     distillation: bool = False
     derpp: bool = False

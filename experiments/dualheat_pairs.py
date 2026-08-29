@@ -1,7 +1,8 @@
-"""Evaluate each MLP learner against the same learner + Functional SlowHeat.
+"""Historical MLP suite: each learner versus Functional SlowHeat only.
 
-DualHeat is the proposal's public name here, not the legacy DualHeatMLP class.
-This exploratory suite never changes the frozen Split-MNIST confirmation.
+The artifact and CLI names are retained for reproducibility, but this suite
+does not evaluate Functional DualHeat (FastHeat + SlowHeat) or the legacy
+``DualHeatMLP`` class.  It never changes the frozen Split-MNIST confirmation.
 """
 
 from __future__ import annotations
@@ -112,7 +113,7 @@ def pair_protocol(config: SplitMNISTConfig, seeds: list[int]) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "status": "exploratory_not_independent_confirmation",
-        "component": "DualHeat (Functional SlowHeat; not legacy DualHeatMLP)",
+        "component": "Functional SlowHeat only (historical suite name)",
         "pairs": [asdict(pair) for pair in METHOD_PAIRS],
         "seeds": seeds,
         "config": json.loads(json.dumps(config_payload(config))),
@@ -258,7 +259,7 @@ def summarize_pair_results(
         "status": "exploratory_reanalysis"
         if not (source / "pair_protocol.json").exists()
         else "exploratory_paired_suite",
-        "component": "DualHeat (Functional SlowHeat; not legacy DualHeatMLP)",
+        "component": "Functional SlowHeat only (historical suite name)",
         "source_dir": relative_path(source, base=output_dir),
         "source_dir_base": "report_directory",
         "source_sha256": fingerprints,
@@ -283,8 +284,11 @@ def _write_pair_report(
 ) -> None:
     rows = []
     lines = [
-        "# Método versus método + DualHeat\n",
-        "Implementação: **Functional SlowHeat**, não a classe legada DualHeatMLP.\n",
+        "# Método versus método + Functional SlowHeat (suíte histórica)\n",
+        (
+            "Esta suíte não contém Functional DualHeat (FastHeat + SlowHeat) "
+            "nem a classe legada DualHeatMLP.\n"
+        ),
         (
             f"Execução de origem: `{report['source_dir']}` "
             "(caminho relativo à pasta deste relatório).\n"

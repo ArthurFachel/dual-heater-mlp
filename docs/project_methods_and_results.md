@@ -675,12 +675,14 @@ Os dados **não** permitem afirmar ainda que:
 ```text
 src/dual_heater/
   dual_heat.py       DualHeat legado
+  fast_heat.py       FastHeat normalizado de ativação
   slow_heat.py       Functional SlowHeat linear, convolucional e MLP
   optim.py           SlowHeatAdamW e SlowHeatSGD
   lora.py            adaptação DualHeat-LoRA experimental
   metrics.py         métricas de aprendizagem contínua
 
 experiments/
+  functional_dualheat.py        piloto e benchmarks Functional DualHeat
   split_mnist.py                 runner principal e baselines
   split_mnist_suite.py           fairness, ablações e generalização
   confirmatory_split_mnist.py    confirmação pré-registrada

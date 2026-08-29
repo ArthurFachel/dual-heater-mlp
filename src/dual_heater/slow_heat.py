@@ -35,6 +35,35 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from ._layers import activation, validate_finite_hyperparameters, validate_mlp_dims
+from .fast_heat import (
+    FastHeatActivation,
+    FastHeatConfig,
+    FastHeatGate,
+    fast_heat_states,
+)
+
+
+def _activation_with_optional_fast_heat(
+    name: str,
+    unit_count: int,
+    *,
+    unit_dim: int,
+    config: FastHeatConfig | None,
+) -> nn.Module:
+    base = activation(name)
+    if config is None:
+        return base
+    return FastHeatActivation(
+        base,
+        unit_count,
+        unit_dim=unit_dim,
+        config=config,
+    )
+
+
+def _reset_model_fast_heat(model: nn.Module) -> None:
+    for gate in fast_heat_states(model):
+        gate.reset_fast_heat()
 
 
 def _adapt_budget(
@@ -515,6 +544,7 @@ class SlowHeatCNN(nn.Module):
         importance_eps: float = 1e-8,
         protect_output: bool = True,
         output_slow_strength: float | None = None,
+        fast_heat_config: FastHeatConfig | None = None,
     ) -> None:
         super().__init__()
         if (
@@ -568,8 +598,18 @@ class SlowHeatCNN(nn.Module):
             padding=1,
             **common,
         )
-        self.activation1 = activation(act)
-        self.activation2 = activation(act)
+        self.activation1 = _activation_with_optional_fast_heat(
+            act,
+            channels[0],
+            unit_dim=1,
+            config=fast_heat_config,
+        )
+        self.activation2 = _activation_with_optional_fast_heat(
+            act,
+            channels[1],
+            unit_dim=1,
+            config=fast_heat_config,
+        )
         self.pool = nn.MaxPool2d(2)
         self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_shape)
         self.flatten = nn.Flatten()
@@ -614,6 +654,12 @@ class SlowHeatCNN(nn.Module):
     def get_lr_scales(self) -> list[Tensor]:
         return [layer.get_lr_scales() for layer in self.get_slow_layers()]
 
+    def get_fast_states(self) -> list[FastHeatGate]:
+        return fast_heat_states(self)
+
+    def reset_fast_heat(self) -> None:
+        _reset_model_fast_heat(self)
+
     def adapt_capacity(
         self,
         *,
@@ -656,6 +702,7 @@ class SlowHeatVGG11(nn.Module):
         importance_eps: float = 1e-8,
         protect_output: bool = True,
         output_slow_strength: float | None = None,
+        fast_heat_config: FastHeatConfig | None = None,
     ) -> None:
         super().__init__()
         if len(channels) != 8 or any(
@@ -696,7 +743,12 @@ class SlowHeatVGG11(nn.Module):
                         padding=1,
                         **common,
                     ),
-                    activation(act),
+                    _activation_with_optional_fast_heat(
+                        act,
+                        output_width,
+                        unit_dim=1,
+                        config=fast_heat_config,
+                    ),
                 )
             )
             if index in pool_after:
@@ -743,6 +795,12 @@ class SlowHeatVGG11(nn.Module):
     def get_lr_scales(self) -> list[Tensor]:
         return [layer.get_lr_scales() for layer in self.get_slow_layers()]
 
+    def get_fast_states(self) -> list[FastHeatGate]:
+        return fast_heat_states(self)
+
+    def reset_fast_heat(self) -> None:
+        _reset_model_fast_heat(self)
+
     def adapt_capacity(
         self,
         *,
@@ -782,6 +840,7 @@ class SlowHeatMLP(nn.Sequential):
         plasticity_budget: float = 0.25,
         protect_output: bool = True,
         output_slow_strength: float | None = None,
+        fast_heat_config: FastHeatConfig | None = None,
     ):
         validate_mlp_dims(dims)
         layers: list[nn.Module] = []
@@ -793,7 +852,14 @@ class SlowHeatMLP(nn.Sequential):
                     plasticity_budget=plasticity_budget,
                 )
             )
-            layers.append(activation(act))
+            layers.append(
+                _activation_with_optional_fast_heat(
+                    act,
+                    dims[i + 1],
+                    unit_dim=-1,
+                    config=fast_heat_config,
+                )
+            )
         if protect_output:
             layers.append(
                 SlowHeatLinear(
@@ -829,6 +895,12 @@ class SlowHeatMLP(nn.Sequential):
     def get_lr_scales(self) -> list[Tensor]:
         return [m.get_lr_scales() for m in self.get_slow_layers()]
 
+    def get_fast_states(self) -> list[FastHeatGate]:
+        return fast_heat_states(self)
+
+    def reset_fast_heat(self) -> None:
+        _reset_model_fast_heat(self)
+
     def adapt_capacity(
         self,
         *,
@@ -847,4 +919,101 @@ class SlowHeatMLP(nn.Sequential):
             adaptation_rate=adaptation_rate,
             minimum=minimum,
             maximum=maximum,
+        )
+
+
+def _functional_fast_heat_config(
+    *,
+    fast_decay: float,
+    fast_strength: float,
+    fast_threshold: float,
+    fast_eps: float,
+) -> FastHeatConfig:
+    return FastHeatConfig(
+        fast_decay=fast_decay,
+        fast_strength=fast_strength,
+        fast_threshold=fast_threshold,
+        eps=fast_eps,
+    )
+
+
+class FunctionalDualHeatMLP(SlowHeatMLP):
+    """MLP combining activation FastHeat with Functional SlowHeat.
+
+    This is the new Functional DualHeat API.  The historical
+    :class:`dual_heater.dual_heat.DualHeatMLP` remains unchanged.
+    """
+
+    def __init__(
+        self,
+        *dims: int,
+        fast_decay: float = 0.90,
+        fast_strength: float = 0.5,
+        fast_threshold: float = 0.5,
+        fast_eps: float = 1e-8,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            *dims,
+            fast_heat_config=_functional_fast_heat_config(
+                fast_decay=fast_decay,
+                fast_strength=fast_strength,
+                fast_threshold=fast_threshold,
+                fast_eps=fast_eps,
+            ),
+            **kwargs,
+        )
+
+
+class FunctionalDualHeatCNN(SlowHeatCNN):
+    """Small CNN combining activation FastHeat with Functional SlowHeat."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        *,
+        fast_decay: float = 0.90,
+        fast_strength: float = 0.5,
+        fast_threshold: float = 0.5,
+        fast_eps: float = 1e-8,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            in_channels,
+            num_classes,
+            fast_heat_config=_functional_fast_heat_config(
+                fast_decay=fast_decay,
+                fast_strength=fast_strength,
+                fast_threshold=fast_threshold,
+                fast_eps=fast_eps,
+            ),
+            **kwargs,
+        )
+
+
+class FunctionalDualHeatVGG11(SlowHeatVGG11):
+    """VGG11 combining activation FastHeat with Functional SlowHeat."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        *,
+        fast_decay: float = 0.90,
+        fast_strength: float = 0.5,
+        fast_threshold: float = 0.5,
+        fast_eps: float = 1e-8,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            in_channels,
+            num_classes,
+            fast_heat_config=_functional_fast_heat_config(
+                fast_decay=fast_decay,
+                fast_strength=fast_strength,
+                fast_threshold=fast_threshold,
+                fast_eps=fast_eps,
+            ),
+            **kwargs,
         )

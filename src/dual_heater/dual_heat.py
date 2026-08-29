@@ -1,6 +1,10 @@
 """
-DualHeat v3: inibição lateral + decay ativo + modulação local de plasticidade
+DualHeat legado v3: inibição lateral + decay ativo + modulação local de plasticidade
                            + slow heat com memória limitada (forgetting)
+
+Esta implementação histórica permanece inalterada para compatibilidade. Novos
+experimentos devem usar ``FunctionalDualHeatMLP`` (ou as variantes CNN/VGG/
+ResNet), que combinam FastHeat de ativação com Functional SlowHeat.
 
 Novidade vs v2 (única mudança de comportamento):
 

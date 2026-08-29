@@ -6,6 +6,12 @@ from collections.abc import Callable
 
 from torch import Tensor, nn
 
+from .fast_heat import (
+    FastHeatActivation,
+    FastHeatConfig,
+    FastHeatGate,
+    fast_heat_states,
+)
 from .slow_heat import SlowHeatChannelTracker, SlowHeatConv2d, SlowHeatLinear
 
 
@@ -30,6 +36,7 @@ class _CIFARBasicBlock(nn.Module):
         convolution: Callable[..., nn.Module],
         normalization: Callable[[int], nn.Module],
         tracker: Callable[[int], nn.Module],
+        fast_heat_config: FastHeatConfig | None,
     ) -> None:
         super().__init__()
         self.conv1 = convolution(
@@ -62,6 +69,16 @@ class _CIFARBasicBlock(nn.Module):
         else:
             self.downsample_conv = None
             self.downsample_norm = None
+        self.output_activation: nn.Module = (
+            FastHeatActivation(
+                nn.ReLU(),
+                out_channels,
+                unit_dim=1,
+                config=fast_heat_config,
+            )
+            if fast_heat_config is not None
+            else nn.ReLU()
+        )
         self.output_tracker = tracker(out_channels)
 
     def forward(self, inputs: Tensor) -> Tensor:
@@ -71,7 +88,7 @@ class _CIFARBasicBlock(nn.Module):
         if self.downsample_conv is not None:
             assert self.downsample_norm is not None
             identity = self.downsample_norm(self.downsample_conv(identity))
-        return self.output_tracker(self.relu(output + identity))
+        return self.output_tracker(self.output_activation(output + identity))
 
 
 class _CIFARResNet18(nn.Module):
@@ -91,6 +108,7 @@ class _CIFARResNet18(nn.Module):
         importance_eps: float = 1e-8,
         protect_output: bool = True,
         output_slow_strength: float | None = None,
+        fast_heat_config: FastHeatConfig | None = None,
     ) -> None:
         super().__init__()
         if not isinstance(in_channels, int) or isinstance(in_channels, bool) or in_channels < 1:
@@ -139,7 +157,16 @@ class _CIFARResNet18(nn.Module):
             bias=False,
         )
         self.stem_norm = normalization(stage_channels[0])
-        self.relu = nn.ReLU()
+        self.relu: nn.Module = (
+            FastHeatActivation(
+                nn.ReLU(),
+                stage_channels[0],
+                unit_dim=1,
+                config=fast_heat_config,
+            )
+            if fast_heat_config is not None
+            else nn.ReLU()
+        )
         self.stem_tracker = tracker(stage_channels[0])
 
         stages: list[nn.ModuleList] = []
@@ -158,6 +185,7 @@ class _CIFARResNet18(nn.Module):
                         convolution=convolution,
                         normalization=normalization,
                         tracker=tracker,
+                        fast_heat_config=fast_heat_config,
                     )
                 )
                 current_channels = width
@@ -282,6 +310,13 @@ class _CIFARResNet18(nn.Module):
     def get_lr_scales(self) -> list[Tensor]:
         return [state.get_lr_scales() for state in self.get_slow_states()]
 
+    def get_fast_states(self) -> list[FastHeatGate]:
+        return fast_heat_states(self)
+
+    def reset_fast_heat(self) -> None:
+        for gate in self.get_fast_states():
+            gate.reset_fast_heat()
+
     def adapt_capacity(
         self,
         *,
@@ -315,3 +350,31 @@ class SlowHeatResNet18(_CIFARResNet18):
 
     def __init__(self, in_channels: int, num_classes: int, **kwargs) -> None:
         super().__init__(in_channels, num_classes, slowheat=True, **kwargs)
+
+
+class FunctionalDualHeatResNet18(_CIFARResNet18):
+    """CIFAR ResNet-18 with activation FastHeat and Functional SlowHeat."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        *,
+        fast_decay: float = 0.90,
+        fast_strength: float = 0.5,
+        fast_threshold: float = 0.5,
+        fast_eps: float = 1e-8,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            in_channels,
+            num_classes,
+            slowheat=True,
+            fast_heat_config=FastHeatConfig(
+                fast_decay=fast_decay,
+                fast_strength=fast_strength,
+                fast_threshold=fast_threshold,
+                eps=fast_eps,
+            ),
+            **kwargs,
+        )
