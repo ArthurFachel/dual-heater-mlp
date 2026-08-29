@@ -1,0 +1,5 @@
+{
+  "loader": "experiments.visual_generalization.load_split_cifar10",
+  "schema_version": 1,
+  "tasks_sha256": "91443e29f73d1cdba7636ed774554321491a872730ac60deabd49a44da152952"
+}
