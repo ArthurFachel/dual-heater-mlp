@@ -63,6 +63,7 @@ VGG11_METHODS = (
     "slowheat",
     "hard_freeze",
 )
+DEEP_CNN_ALL_METHODS = CNN_VISUAL_METHODS
 CNN_SWEEP_METHODS = (
     "vanilla",
     "slowheat_none",
@@ -366,6 +367,18 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
         cnn_pooled_size=(1, 1),
         methods=VGG11_METHODS,
     )
+    configs["split_cifar10_vgg11_all_methods"] = replace(
+        configs["split_cifar10_vgg11"],
+        methods=DEEP_CNN_ALL_METHODS,
+        lpr_update_frequency=300,
+    )
+    configs["split_cifar10_resnet18_all_methods"] = replace(
+        configs["split_cifar10_cnn"],
+        cnn_architecture="resnet18",
+        cnn_pooled_size=(1, 1),
+        methods=DEEP_CNN_ALL_METHODS,
+        lpr_update_frequency=300,
+    )
     return configs
 
 
@@ -388,10 +401,16 @@ def run_visual_generalization(
         "split_cifar10_cnn": load_split_cifar10,
         "split_cifar10_cnn_sweep": load_split_cifar10,
         "split_cifar10_vgg11": load_split_cifar10,
+        "split_cifar10_vgg11_all_methods": load_split_cifar10,
+        "split_cifar10_resnet18_all_methods": load_split_cifar10,
     }
     if name not in configs:
         raise ValueError(f"benchmark desconhecido: {name}")
-    if name == "split_cifar10_cnn":
+    if name in {
+        "split_cifar10_cnn",
+        "split_cifar10_vgg11_all_methods",
+        "split_cifar10_resnet18_all_methods",
+    }:
         paired_references = ("vanilla", "lpr", "classifier_expander", "scroll")
     elif configs[name].backbone == "cnn":
         paired_references = ("vanilla",)

@@ -85,6 +85,30 @@ bootstrap pareado da representação. Portanto, `scroll` neste runner é uma
 adaptação autocontida do protocolo, não uma reprodução numérica do resultado
 pré-treinado do artigo.
 
+### Sweep profundo VGG11 + ResNet-18
+
+As seções `split-cifar10-vgg11-all-methods` e
+`split-cifar10-resnet18-all-methods` executam os mesmos 11 métodos descritos
+acima. A ResNet usa stem 3x3 com stride 1, GroupNorm, quatro estágios
+64/128/256/512 com 2/2/2/2 blocos e global average pooling. O SlowHeat observa
+as saídas após cada soma residual e protege também projeções e parâmetros
+affine do GroupNorm.
+
+O LPR permanece exato, com `lpr_update_frequency=300`. Para executar as duas
+arquiteturas com dez seeds pareadas:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 10 \
+  --sections split-cifar10-vgg11-all-methods split-cifar10-resnet18-all-methods \
+  --device cuda \
+  --run-unit-tests
+```
+
+São 220 execuções de learner. Cada arquitetura possui diretório próprio com
+identidade de execução e retomada por seed; os nomes `_all_methods` evitam
+colisão com resultados históricos sem `run_identity.json`.
+
 ## Métodos
 
 Cada seção executa os 32 itens de `ALL_VISUAL_METHODS`, na ordem abaixo:

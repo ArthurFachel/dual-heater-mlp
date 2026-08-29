@@ -21,14 +21,17 @@ MaskSignature: TypeAlias = tuple[int, int, str]
 MaskRegistration: TypeAlias = tuple[Parameter, MaskSource, str]
 
 
-class _SlowHeatModule(Protocol):
+class _SlowHeatSource(Protocol):
     slow_heat: Tensor
     slow_strength: float
+
+    def get_lr_scales(self) -> Tensor: ...
+
+
+class _SlowHeatModule(_SlowHeatSource, Protocol):
     weight: Parameter
     bias: Parameter | None
     gradient_masking: bool
-
-    def get_lr_scales(self) -> Tensor: ...
 
 
 @dataclass
@@ -81,6 +84,7 @@ class _PlasticityMaskMixin:
         *,
         input_module: torch.nn.Module | None = None,
         input_expansion: int = 1,
+        input_key: str | None = None,
         hard: bool = False,
     ) -> None:
         """Atomically register factorized masks derived from SlowHeat layers.
@@ -115,7 +119,7 @@ class _PlasticityMaskMixin:
         ):
             raise ValueError("input_expansion deve ser um inteiro positivo")
 
-        typed_input: _SlowHeatModule | None = None
+        typed_input: _SlowHeatSource | None = None
         input_position: tuple[int, int] | None = None
         grouped_convolution = False
         groups = 1
@@ -124,11 +128,13 @@ class _PlasticityMaskMixin:
             input_strength = getattr(input_module, "slow_strength", None)
             if not isinstance(input_heat, Tensor) or input_strength is None:
                 raise TypeError("input_module deve expor slow_heat e slow_strength")
-            typed_input = cast(_SlowHeatModule, input_module)
-            input_position = self._parameter_position(typed_input.weight)
-            if input_position is None:
+            typed_input = cast(_SlowHeatSource, input_module)
+            input_weight = getattr(input_module, "weight", None)
+            if isinstance(input_weight, Parameter):
+                input_position = self._parameter_position(input_weight)
+            if input_position is None and input_key is None:
                 raise ValueError(
-                    "o peso do input_module deve pertencer ao mesmo optimizer"
+                    "fonte sem peso requer input_key estável para o checkpoint"
                 )
             if typed_module.weight.ndim < 2:
                 raise ValueError(
@@ -160,7 +166,7 @@ class _PlasticityMaskMixin:
                     "a importância de entrada não corresponde à dimensão do parâmetro"
                 )
 
-        def module_factor(source: _SlowHeatModule) -> Tensor:
+        def module_factor(source: _SlowHeatSource) -> Tensor:
             if hard:
                 return (source.slow_heat <= 0.0).to(dtype=source.slow_heat.dtype)
             return source.get_lr_scales()
@@ -204,14 +210,16 @@ class _PlasticityMaskMixin:
         def bias_mask() -> Tensor:
             return module_factor(typed_module)
 
-        if input_position is None:
+        if typed_input is None:
             weight_kind = "slowheat_hard_weight" if hard else "slowheat_weight"
         else:
             prefix = "slowheat_hard" if hard else "slowheat"
-            weight_kind = (
-                f"{prefix}_weight_factorized_from_"
+            source_signature = (
                 f"{input_position[0]}_{input_position[1]}"
+                if input_position is not None
+                else f"virtual_{input_key}"
             )
+            weight_kind = f"{prefix}_weight_factorized_from_{source_signature}"
             if groups > 1:
                 weight_kind += f"_groups_{groups}"
             if input_expansion > 1:
@@ -230,13 +238,55 @@ class _PlasticityMaskMixin:
                 kind="slowheat_hard_bias" if hard else "slowheat_bias",
             )
 
+    def register_slow_heat_channel_module(
+        self,
+        module: torch.nn.Module,
+        *,
+        source_module: torch.nn.Module,
+        source_key: str,
+        hard: bool = False,
+    ) -> None:
+        """Protect affine per-channel parameters such as GroupNorm weight/bias."""
+
+        source_heat = getattr(source_module, "slow_heat", None)
+        source_strength = getattr(source_module, "slow_strength", None)
+        if not isinstance(source_heat, Tensor) or source_strength is None:
+            raise TypeError("source_module deve expor slow_heat e slow_strength")
+        source = cast(_SlowHeatSource, source_module)
+        parameters = [
+            parameter
+            for parameter in (getattr(module, "weight", None), getattr(module, "bias", None))
+            if isinstance(parameter, Parameter)
+        ]
+        if not parameters:
+            raise ValueError("módulo de canal deve ter parâmetro affine")
+        if any(parameter.ndim != 1 for parameter in parameters):
+            raise ValueError("parâmetros affine de canal devem ser vetores")
+        if any(parameter.numel() != source_heat.numel() for parameter in parameters):
+            raise ValueError("parâmetros affine não correspondem à fonte de canais")
+        if not all(self._parameter_position(parameter) is not None for parameter in parameters):
+            raise ValueError("parâmetros affine devem pertencer ao optimizer")
+
+        def channel_mask() -> Tensor:
+            if hard:
+                return (source.slow_heat <= 0.0).to(dtype=source.slow_heat.dtype)
+            return source.get_lr_scales()
+
+        prefix = "slowheat_hard" if hard else "slowheat"
+        for parameter in parameters:
+            self.register_plasticity_mask(
+                parameter,
+                channel_mask,
+                kind=f"{prefix}_channel_affine_from_{source_key}",
+            )
+
     def register_slow_heat_model(
         self,
         model: torch.nn.Module,
         *,
         hard: bool = False,
     ) -> None:
-        """Register a sequential SlowHeat model with factorized connectivity."""
+        """Register sequential or explicitly graph-connected SlowHeat models."""
 
         getter = getattr(model, "get_slow_layers", None)
         if not callable(getter):
@@ -244,7 +294,19 @@ class _PlasticityMaskMixin:
         layers = list(getter())
         if not layers:
             raise ValueError("model não contém camadas SlowHeat")
-        registrations: list[tuple[torch.nn.Module, torch.nn.Module | None, int]] = []
+        registrations: list[
+            tuple[torch.nn.Module, torch.nn.Module | None, int, str | None]
+        ] = []
+        graph_getter = getattr(model, "get_slow_connections", None)
+        if callable(graph_getter):
+            registrations = list(graph_getter())
+            destinations = [id(layer) for layer, _, _, _ in registrations]
+            if len(destinations) != len(set(destinations)):
+                raise ValueError("grafo SlowHeat registra um destino mais de uma vez")
+            if set(destinations) != {id(layer) for layer in layers}:
+                raise ValueError(
+                    "grafo SlowHeat deve registrar exatamente todas as camadas"
+                )
         for index, layer in enumerate(layers):
             weight = getattr(layer, "weight", None)
             bias = getattr(layer, "bias", None)
@@ -257,6 +319,8 @@ class _PlasticityMaskMixin:
                 raise ValueError(
                     "todos os parâmetros SlowHeat devem pertencer ao optimizer"
                 )
+            if callable(graph_getter):
+                continue
             previous = layers[index - 1] if index > 0 else None
             expansion = 1
             if previous is not None:
@@ -279,14 +343,24 @@ class _PlasticityMaskMixin:
                     raise ValueError(
                         "camadas SlowHeat não formam uma cadeia compatível"
                     )
-            registrations.append((layer, previous, expansion))
-        for layer, previous, expansion in registrations:
+            registrations.append((layer, previous, expansion, None))
+        for layer, previous, expansion, input_key in registrations:
             self.register_slow_heat_module(
                 layer,
                 input_module=previous,
                 input_expansion=expansion,
+                input_key=input_key,
                 hard=hard,
             )
+        channel_getter = getattr(model, "get_slow_channel_modules", None)
+        if callable(channel_getter):
+            for module, source, source_key in channel_getter():
+                self.register_slow_heat_channel_module(
+                    module,
+                    source_module=source,
+                    source_key=source_key,
+                    hard=hard,
+                )
 
     def clear_plasticity_masks(self) -> None:
         """Remove optimizer masks; module gradient hooks are not re-enabled."""
@@ -388,6 +462,8 @@ class _PlasticityMaskMixin:
         snapshots: list[_ResolvedMask],
     ) -> None:
         for snapshot in snapshots:
+            if torch.all(snapshot.mask == 1.0):
+                continue
             native_delta = snapshot.parameter.detach() - snapshot.parameter_before
             snapshot.parameter.copy_(
                 snapshot.parameter_before + snapshot.mask * native_delta
@@ -399,6 +475,8 @@ class _PlasticityMaskMixin:
         if self.state_policy == "native":
             return
         for snapshot in snapshots:
+            if torch.all(snapshot.mask == 1.0):
+                continue
             for key, current in self.state.get(snapshot.parameter, {}).items():
                 if (
                     not isinstance(current, Tensor)

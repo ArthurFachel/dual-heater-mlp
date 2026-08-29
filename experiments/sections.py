@@ -56,6 +56,16 @@ SECTION_SPECS = (
     ),
     SectionSpec("split-cifar10-vgg11", "split_cifar10_vgg11", default=False),
     SectionSpec(
+        "split-cifar10-vgg11-all-methods",
+        "split_cifar10_vgg11_all_methods",
+        default=False,
+    ),
+    SectionSpec(
+        "split-cifar10-resnet18-all-methods",
+        "split_cifar10_resnet18_all_methods",
+        default=False,
+    ),
+    SectionSpec(
         "split-cifar100",
         "split_cifar100",
         all_dataset_method=True,

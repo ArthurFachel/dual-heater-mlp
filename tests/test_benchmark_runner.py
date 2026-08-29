@@ -217,6 +217,34 @@ def test_vgg11_cifar_plan_declares_cifar_adaptation():
     assert section["output_dir"].endswith("split_cifar10_vgg11")
 
 
+def test_deep_cnn_all_methods_plan_declares_220_paired_runs():
+    args = run_all_tests.parse_args(
+        [
+            "--num-seeds",
+            "10",
+            "--sections",
+            "split-cifar10-vgg11-all-methods",
+            "split-cifar10-resnet18-all-methods",
+            "--dry-run",
+        ]
+    )
+    plan = run_all_tests.build_run_plan(args)
+    vgg = plan["sections"]["split-cifar10-vgg11-all-methods"]
+    resnet = plan["sections"]["split-cifar10-resnet18-all-methods"]
+
+    assert vgg["methods"] == list(CNN_VISUAL_METHODS)
+    assert resnet["methods"] == list(CNN_VISUAL_METHODS)
+    assert vgg["protocol"]["architecture"] == "vgg11"
+    assert resnet["protocol"]["architecture"] == "resnet18"
+    assert vgg["protocol"]["lpr_update_frequency"] == 300
+    assert resnet["protocol"]["lpr_update_frequency"] == 300
+    assert vgg["learner_run_count"] + resnet["learner_run_count"] == 220
+    assert vgg["output_dir"].endswith("split_cifar10_vgg11_all_methods")
+    assert resnet["output_dir"].endswith(
+        "split_cifar10_resnet18_all_methods"
+    )
+
+
 def test_all_datasets_all_methods_plan_covers_every_compatible_cross_section():
     args = run_all_tests.parse_args(
         ["--num-seeds", "10", "--all-datasets-all-methods", "--dry-run"]

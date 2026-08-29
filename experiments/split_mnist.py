@@ -281,6 +281,8 @@ class SplitMNISTConfig:
     cnn_channels: tuple[int, int] = (32, 64)
     cnn_pooled_size: tuple[int, int] = (2, 2)
     vgg_channels: tuple[int, ...] = (64, 128, 256, 256, 512, 512, 512, 512)
+    resnet_stage_channels: tuple[int, int, int, int] = (64, 128, 256, 512)
+    resnet_blocks_per_stage: tuple[int, int, int, int] = (2, 2, 2, 2)
     batch_size: int = 128
     epochs_per_task: int = 2
     train_per_class: int | None = 1_000
@@ -421,19 +423,37 @@ class SplitMNISTConfig:
                 raise ValueError(
                     "backbone CNN requer image_shape [C, H, W] compatível com input_dim"
                 )
-            if self.cnn_architecture not in {"small", "vgg11"}:
-                raise ValueError("cnn_architecture deve ser 'small' ou 'vgg11'")
+            if self.cnn_architecture not in {"small", "vgg11", "resnet18"}:
+                raise ValueError(
+                    "cnn_architecture deve ser 'small', 'vgg11' ou 'resnet18'"
+                )
             if self.cnn_architecture == "small":
                 if len(self.cnn_channels) != 2 or any(
                     width < 1 for width in self.cnn_channels
                 ):
                     raise ValueError("cnn_channels deve conter dois canais positivos")
-            elif len(self.vgg_channels) != 8 or any(
-                width < 1 for width in self.vgg_channels
-            ):
-                raise ValueError("vgg_channels deve conter oito canais positivos")
-            elif min(self.image_shape[1:]) < 32:
-                raise ValueError("VGG11 requer dimensões espaciais de pelo menos 32")
+            elif self.cnn_architecture == "vgg11":
+                if len(self.vgg_channels) != 8 or any(
+                    width < 1 for width in self.vgg_channels
+                ):
+                    raise ValueError("vgg_channels deve conter oito canais positivos")
+                if min(self.image_shape[1:]) < 32:
+                    raise ValueError(
+                        "VGG11 requer dimensões espaciais de pelo menos 32"
+                    )
+            else:
+                if len(self.resnet_stage_channels) != 4 or any(
+                    width < 1 for width in self.resnet_stage_channels
+                ):
+                    raise ValueError(
+                        "resnet_stage_channels deve conter quatro canais positivos"
+                    )
+                if len(self.resnet_blocks_per_stage) != 4 or any(
+                    count < 1 for count in self.resnet_blocks_per_stage
+                ):
+                    raise ValueError(
+                        "resnet_blocks_per_stage deve conter quatro contagens positivas"
+                    )
             if len(self.cnn_pooled_size) != 2 or any(
                 size < 1 for size in self.cnn_pooled_size
             ):
@@ -586,13 +606,23 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
             "cnn_channels",
             "cnn_pooled_size",
             "vgg_channels",
+            "resnet_stage_channels",
+            "resnet_blocks_per_stage",
         ):
             payload.pop(field)
     elif config.cnn_architecture == "small":
         payload.pop("cnn_architecture")
         payload.pop("vgg_channels")
+        payload.pop("resnet_stage_channels")
+        payload.pop("resnet_blocks_per_stage")
+    elif config.cnn_architecture == "vgg11":
+        payload.pop("cnn_channels")
+        payload.pop("resnet_stage_channels")
+        payload.pop("resnet_blocks_per_stage")
     else:
         payload.pop("cnn_channels")
+        payload.pop("cnn_pooled_size")
+        payload.pop("vgg_channels")
     if not any(
         _uses_lpr(method)
         or _uses_classifier_expander(method)
@@ -778,6 +808,11 @@ def build_paired_models(config: SplitMNISTConfig) -> dict[str, nn.Module]:
 def _slow_layers(model: nn.Module) -> list[nn.Module]:
     getter = getattr(model, "get_slow_layers", None)
     return list(getter()) if callable(getter) else []
+
+
+def _slow_states(model: nn.Module) -> list[nn.Module]:
+    getter = getattr(model, "get_slow_states", None)
+    return list(getter()) if callable(getter) else _slow_layers(model)
 
 
 def _cnn_classifier(model: nn.Module) -> nn.Module:
@@ -1740,9 +1775,10 @@ def run_split_mnist(
                     cost["optimizer_step_seconds"] += time.perf_counter() - step_started
                     cost["optimizer_steps"] += 1
                     slow_layers = _slow_layers(model)
-                    if slow_layers:
+                    slow_states = _slow_states(model)
+                    if slow_states:
                         slow_units = sum(
-                            layer.slow_heat.numel() for layer in slow_layers
+                            state.slow_heat.numel() for state in slow_states
                         )
                         cost["slowheat_hook_flops"] += 4 * slow_units * (
                             current_count + replay_count
@@ -1924,8 +1960,8 @@ def run_split_mnist(
                     si_anchors[name] = parameter.detach().clone()
                 cost["consolidation_flops"] += 4 * int(cost["model_parameters"])
 
-            slow_layers = _slow_layers(model)
-            if slow_layers and method != "slowheat_none":
+            slow_states = _slow_states(model)
+            if slow_states and method != "slowheat_none":
                 consolidation_started = time.perf_counter()
                 if method in {
                     "slowheat_adaptive",
@@ -1945,10 +1981,10 @@ def run_split_mnist(
                 cost["consolidation_flops"] += sum(
                     layer.slow_heat.numel()
                     * max(1, math.ceil(math.log2(layer.slow_heat.numel())))
-                    for layer in slow_layers
+                    for layer in slow_states
                 )
                 capacity_history.append(
-                    [layer.capacity_metrics() for layer in slow_layers]
+                    [state.capacity_metrics() for state in slow_states]
                 )
 
             if method == "slowheat_replay_hidden_beta_30_budget_0.25_calibrated":

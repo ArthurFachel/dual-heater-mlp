@@ -303,7 +303,8 @@ em blocos para evitar materializar um tensor FP32 completo do feature map.
 
 ## 8. Estado da implementação no repositório
 
-Implementado em `SlowHeatConv2d`, `SlowHeatCNN` e `SlowHeatVGG11`:
+Implementado em `SlowHeatConv2d`, `SlowHeatCNN`, `SlowHeatVGG11` e
+`SlowHeatResNet18`:
 
 - API completa da `nn.Conv2d`, incluindo tuplas, dilatação, grupos e modos de
   padding;
@@ -312,14 +313,17 @@ Implementado em `SlowHeatConv2d`, `SlowHeatCNN` e `SlowHeatVGG11`:
 - CNN sequencial com duas convoluções, pooling adaptativo e cabeça linear;
 - VGG11 adaptada para CIFAR com oito convoluções, cinco max-pools, pooling
   adaptativo `1x1` e cabeça linear, sem BatchNorm;
+- ResNet-18 adaptada para CIFAR com GroupNorm, rastreadores funcionais após
+  somas residuais e registro explícito dos ramos principal e de projeção;
 - registro automático das arestas Conv→Conv e Conv→Linear;
 - máscaras fatoradas corretas para convoluções densas, grouped e depthwise;
 - repetição dos fatores por posição no flatten NCHW;
 - mascaramento do delta final e dos estados por `SlowHeatAdamW` e
   `SlowHeatSGD`.
 
-Normalização affine, estatísticas correntes de BatchNorm e um registrador em
-grafo para residual/fan-out continuam como extensões futuras.
+Parâmetros affine do GroupNorm são protegidos pela importância do canal que os
+produz. Estatísticas correntes de BatchNorm permanecem fora do protocolo; o
+uso de GroupNorm evita estado mutável não coberto pelas máscaras.
 
 ### Plano incremental
 

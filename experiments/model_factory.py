@@ -9,7 +9,13 @@ from typing import Protocol
 import torch
 from torch import Tensor, nn
 
-from dual_heater import SlowHeatCNN, SlowHeatMLP, SlowHeatVGG11
+from dual_heater import (
+    CIFARResNet18,
+    SlowHeatCNN,
+    SlowHeatMLP,
+    SlowHeatResNet18,
+    SlowHeatVGG11,
+)
 from experiments.method_specs import MethodSpec
 
 
@@ -25,6 +31,8 @@ class ModelFactoryConfig(Protocol):
     cnn_architecture: str
     cnn_pooled_size: tuple[int, int]
     vgg_channels: tuple[int, ...]
+    resnet_stage_channels: tuple[int, int, int, int]
+    resnet_blocks_per_stage: tuple[int, int, int, int]
     slow_strength: float
     plasticity_budget: float
     partial_output_slow_strength: float
@@ -132,6 +140,13 @@ def _vanilla_model(config: ModelFactoryConfig, dims: tuple[int, ...]) -> nn.Modu
             channels=config.vgg_channels,
             pooled_size=config.cnn_pooled_size,
         )
+    if config.cnn_architecture == "resnet18":
+        return CIFARResNet18(
+            config.image_shape[0],
+            len(config.class_order),
+            stage_channels=config.resnet_stage_channels,
+            blocks_per_stage=config.resnet_blocks_per_stage,
+        )
     return _VanillaCNN(
         config.image_shape[0],
         len(config.class_order),
@@ -194,7 +209,7 @@ def build_paired_models(
                         pooled_size=config.cnn_pooled_size,
                         **common,
                     )
-                else:
+                elif config.cnn_architecture == "vgg11":
                     assert config.image_shape is not None
                     model = SlowHeatVGG11(
                         config.image_shape[0],
@@ -202,6 +217,17 @@ def build_paired_models(
                         channels=config.vgg_channels,
                         pooled_size=config.cnn_pooled_size,
                         **common,
+                    )
+                else:
+                    assert config.image_shape is not None
+                    resnet_common = dict(common)
+                    resnet_common.pop("act")
+                    model = SlowHeatResNet18(
+                        config.image_shape[0],
+                        len(config.class_order),
+                        stage_channels=config.resnet_stage_channels,
+                        blocks_per_stage=config.resnet_blocks_per_stage,
+                        **resnet_common,
                     )
             with torch.no_grad():
                 for name, parameter in model.named_parameters():

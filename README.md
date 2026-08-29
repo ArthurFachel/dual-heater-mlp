@@ -445,6 +445,24 @@ This CIFAR-sized adaptation avoids the ImageNet VGG classifier and isolates
 depth from BatchNorm running-statistics effects. Its artifacts are written to
 `results/split_mnist_protocol/split_cifar10_vgg11/`.
 
+The opt-in deep-CNN sweep runs the same eleven controls and paired auxiliary
+methods on VGG11 and CIFAR ResNet-18. ResNet-18 uses a 3x3 stride-1 stem,
+GroupNorm, stages `(64,128,256,512)` with `(2,2,2,2)` residual blocks and
+global average pooling. Exact LPR is retained with an update interval of 300
+optimizer steps to control the covariance-inversion cost:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 10 \
+  --sections split-cifar10-vgg11-all-methods split-cifar10-resnet18-all-methods \
+  --device cuda \
+  --run-unit-tests
+```
+
+This is 220 learner runs (2 architectures x 11 methods x 10 paired seeds).
+The new output directories end in `_all_methods`, so historical VGG and
+ResNet artifacts cannot be mistaken for resumable runs of this protocol.
+
 After the pilot, run the preselected CNN stability/plasticity sweep with ten
 paired seeds:
 

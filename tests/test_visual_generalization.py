@@ -23,6 +23,8 @@ def test_generalization_configs_preserve_scenario_semantics():
         "split_cifar10_cnn",
         "split_cifar10_cnn_sweep",
         "split_cifar10_vgg11",
+        "split_cifar10_vgg11_all_methods",
+        "split_cifar10_resnet18_all_methods",
         "split_cifar100",
     }
     assert configs["permuted_mnist"].scenario == "domain_incremental"
@@ -39,6 +41,20 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar10_vgg11"].cnn_architecture == "vgg11"
     assert configs["split_cifar10_vgg11"].cnn_pooled_size == (1, 1)
     assert configs["split_cifar10_vgg11"].methods == visual.VGG11_METHODS
+    assert (
+        configs["split_cifar10_vgg11_all_methods"].methods
+        == visual.DEEP_CNN_ALL_METHODS
+    )
+    assert (
+        configs["split_cifar10_resnet18_all_methods"].cnn_architecture
+        == "resnet18"
+    )
+    for name in (
+        "split_cifar10_vgg11_all_methods",
+        "split_cifar10_resnet18_all_methods",
+    ):
+        assert configs[name].methods == visual.CNN_VISUAL_METHODS
+        assert configs[name].lpr_update_frequency == 300
     assert (
         configs["split_cifar10_cnn_sweep"].methods
         == visual.CNN_SWEEP_METHODS
@@ -239,6 +255,70 @@ def test_cnn_continual_methods_run_normal_and_slowheat_pairs():
         assert result["cost"]["optimizer_steps"] > 0
         expected_history = config.task_count if method.startswith("slowheat_") else 0
         assert len(result["capacity_history"]) == expected_history
+
+
+@pytest.mark.parametrize(
+    ("architecture", "image_size", "extra"),
+    [
+        (
+            "vgg11",
+            32,
+            {"vgg_channels": (1, 1, 1, 1, 1, 1, 1, 1)},
+        ),
+        (
+            "resnet18",
+            8,
+            {
+                "resnet_stage_channels": (2, 4, 8, 16),
+                "resnet_blocks_per_stage": (1, 1, 1, 1),
+            },
+        ),
+    ],
+)
+def test_deep_cnn_backbones_run_all_eleven_methods(
+    architecture, image_size, extra
+):
+    config = SplitMNISTConfig(
+        seed=13,
+        class_order=(0, 1, 2, 3),
+        classes_per_task=2,
+        input_dim=3 * image_size * image_size,
+        hidden_dims=(1,),
+        backbone="cnn",
+        image_shape=(3, image_size, image_size),
+        cnn_architecture=architecture,
+        cnn_pooled_size=(1, 1),
+        batch_size=4,
+        epochs_per_task=1,
+        replay_per_class=1,
+        replay_batch_size=4,
+        lpr_update_frequency=300,
+        methods=visual.CNN_VISUAL_METHODS,
+        **extra,
+    )
+    generator = torch.Generator().manual_seed(117)
+    tasks = []
+    for classes in ((0, 1), (2, 3)):
+        inputs = torch.randn(
+            4, 3, image_size, image_size, generator=generator
+        )
+        targets = torch.tensor([classes[0], classes[1], classes[0], classes[1]])
+        tasks.append(
+            MNISTTask(
+                classes=classes,
+                train_x=inputs,
+                train_y=targets,
+                validation_x=inputs[:2],
+                validation_y=targets[:2],
+                test_x=inputs[:2],
+                test_y=targets[:2],
+            )
+        )
+
+    results = run_split_mnist(config, tasks)
+
+    assert tuple(results) == visual.CNN_VISUAL_METHODS
+    assert all(result["cost"]["optimizer_steps"] > 0 for result in results.values())
 
 
 def test_cnn_runner_registers_each_normal_method_as_paired_reference(
