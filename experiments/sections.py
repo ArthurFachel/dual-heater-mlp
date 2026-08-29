@@ -54,6 +54,7 @@ SECTION_SPECS = (
         "split_cifar10_cnn_sweep",
         default=False,
     ),
+    SectionSpec("split-cifar10-vgg11", "split_cifar10_vgg11", default=False),
     SectionSpec(
         "split-cifar100",
         "split_cifar100",

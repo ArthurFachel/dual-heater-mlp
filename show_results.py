@@ -1,4 +1,4 @@
-"""Show accuracy and forgetting for replay-cache experiments."""
+"""Show accuracy and forgetting for every method in experiment artifacts."""
 
 from __future__ import annotations
 
@@ -11,8 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-CACHE_ORDER = ("first", "loss", "representative", "hybrid")
-LEARNERS = {
+CACHE_ORDER = ("no_memory", "first", "loss", "representative", "hybrid")
+CACHE_ALIASES = {"none": "no_memory"}
+METHOD_LABELS = {
+    "vanilla": "Vanilla",
     "replay": "Replay",
     "slowheat_replay_hidden_beta_30_budget_0.25": "SlowHeat+Replay",
     "derpp": "DER++",
@@ -104,6 +106,17 @@ def _validate_metric_range(summary: MetricSummary, *, context: str) -> None:
         raise ResultsError(f"métrica fora de [0, 1] em {context}")
 
 
+def _normalize_cache(cache: str, *, context: str) -> str:
+    normalized = CACHE_ALIASES.get(cache, cache)
+    if normalized not in CACHE_ORDER:
+        raise ResultsError(f"cache desconhecido em {context}: {cache}")
+    return normalized
+
+
+def _method_label(method: str) -> str:
+    return METHOD_LABELS.get(method, method)
+
+
 def _rows_from_sweep_report(path: Path) -> list[ResultRow]:
     report = _read_json(path)
     summaries = report.get("summaries")
@@ -115,14 +128,20 @@ def _rows_from_sweep_report(path: Path) -> list[ResultRow]:
     for benchmark, methods in summaries.items():
         if not isinstance(benchmark, str) or not isinstance(methods, dict):
             raise ResultsError(f"estrutura de benchmark inválida em {path}")
-        for learner_key in LEARNERS:
-            selectors = methods.get(learner_key)
+        for learner_key, selectors in methods.items():
+            if not isinstance(learner_key, str):
+                raise ResultsError(f"nome de método inválido em {path}")
             if not isinstance(selectors, dict):
-                continue
-            for cache in CACHE_ORDER:
-                metrics = selectors.get(cache)
+                raise ResultsError(f"seletores inválidos para {learner_key} em {path}")
+            for raw_cache, metrics in selectors.items():
+                if not isinstance(raw_cache, str):
+                    raise ResultsError(f"nome de cache inválido para {learner_key}")
                 if not isinstance(metrics, dict):
                     continue
+                cache = _normalize_cache(
+                    raw_cache,
+                    context=f"{benchmark}/{learner_key}",
+                )
                 accuracy = _summary_from_payload(
                     metrics.get(METRICS[0]),
                     context=f"{benchmark}/{cache}/{learner_key}/{METRICS[0]}",
@@ -161,8 +180,11 @@ def _rows_from_sweep_report(path: Path) -> list[ResultRow]:
 
 
 def _infer_run_context(run_dir: Path) -> tuple[str, str]:
-    if run_dir.name in CACHE_ORDER:
-        return run_dir.parent.name, run_dir.name
+    if run_dir.name in (*CACHE_ORDER, *CACHE_ALIASES):
+        return run_dir.parent.name, _normalize_cache(
+            run_dir.name,
+            context=str(run_dir),
+        )
 
     cache = "first"
     config_candidates = [
@@ -177,11 +199,9 @@ def _infer_run_context(run_dir: Path) -> tuple[str, str]:
         base = config.get("base_config", config)
         if isinstance(base, dict):
             configured = base.get("replay_selection", "first")
-            if configured not in CACHE_ORDER:
-                raise ResultsError(
-                    f"replay_selection desconhecido em {config_path}: {configured}"
-                )
-            cache = configured
+            if not isinstance(configured, str):
+                raise ResultsError(f"replay_selection inválido em {config_path}")
+            cache = _normalize_cache(configured, context=str(config_path))
             break
     return run_dir.name, cache
 
@@ -205,10 +225,11 @@ def _rows_from_aggregate(run_dir: Path, path: Path) -> list[ResultRow]:
     benchmark, cache = _infer_run_context(run_dir)
     seed_count = _seed_count_from_run(run_dir, aggregate)
     rows = []
-    for learner_key in LEARNERS:
-        metrics = methods.get(learner_key)
+    for learner_key, metrics in methods.items():
+        if not isinstance(learner_key, str):
+            raise ResultsError(f"nome de método inválido em {path}")
         if not isinstance(metrics, dict):
-            continue
+            raise ResultsError(f"resumo inválido para {learner_key} em {path}")
         accuracy = _summary_from_payload(
             metrics.get(METRICS[0]), context=f"{path}:{learner_key}/{METRICS[0]}"
         )
@@ -245,21 +266,23 @@ def _rows_from_partial_seeds(run_dir: Path) -> list[ResultRow]:
     if not seed_paths:
         return []
     benchmark, cache = _infer_run_context(run_dir)
-    values: dict[str, dict[str, list[float]]] = {
-        learner: {metric: [] for metric in (*METRICS, *TIMING_METRICS)}
-        for learner in LEARNERS
-    }
+    values: dict[str, dict[str, list[float]]] = {}
     for seed_path in seed_paths:
         payload = _read_json(seed_path)
-        for learner_key in LEARNERS:
-            result = payload.get(learner_key)
+        for learner_key, result in payload.items():
+            if not isinstance(learner_key, str):
+                raise ResultsError(f"nome de método inválido em {seed_path}")
             if not isinstance(result, dict):
-                continue
+                raise ResultsError(f"resultado inválido para {learner_key} em {seed_path}")
             metrics = result.get("metrics")
             if not isinstance(metrics, dict):
                 raise ResultsError(f"metrics ausente para {learner_key} em {seed_path}")
+            learner_values = values.setdefault(
+                learner_key,
+                {metric: [] for metric in (*METRICS, *TIMING_METRICS)},
+            )
             for metric in METRICS:
-                values[learner_key][metric].append(
+                learner_values[metric].append(
                     _finite_number(
                         metrics.get(metric), context=f"{seed_path}:{learner_key}/{metric}"
                     )
@@ -267,13 +290,13 @@ def _rows_from_partial_seeds(run_dir: Path) -> list[ResultRow]:
             elapsed = result.get(TIMING_METRICS[0])
             selection = result.get("cost", {}).get(TIMING_METRICS[1])
             if elapsed is not None:
-                values[learner_key][TIMING_METRICS[0]].append(
+                learner_values[TIMING_METRICS[0]].append(
                     _finite_number(
                         elapsed, context=f"{seed_path}:{learner_key}/{TIMING_METRICS[0]}"
                     )
                 )
             if selection is not None:
-                values[learner_key][TIMING_METRICS[1]].append(
+                learner_values[TIMING_METRICS[1]].append(
                     _finite_number(
                         selection,
                         context=f"{seed_path}:{learner_key}/{TIMING_METRICS[1]}",
@@ -320,10 +343,7 @@ def _candidate_run_dirs(root: Path) -> list[Path]:
         candidates.add(root)
     candidates.update(path.parent for path in root.rglob("aggregate.json"))
     candidates.update(path.parent.parent for path in root.rglob("seed_*/results.json"))
-    return sorted(
-        (path for path in candidates if path.name != "no_memory"),
-        key=lambda item: item.as_posix(),
-    )
+    return sorted(candidates, key=lambda item: item.as_posix())
 
 
 def discover_rows(path: str | Path) -> list[ResultRow]:
@@ -352,7 +372,9 @@ def filter_rows(
     rows: list[ResultRow], *, benchmark: str | None, cache: str | None
 ) -> list[ResultRow]:
     available_benchmarks = sorted({row.benchmark for row in rows})
-    available_caches = [name for name in CACHE_ORDER if any(row.cache == name for row in rows)]
+    available_caches = [
+        name for name in CACHE_ORDER if any(row.cache == name for row in rows)
+    ]
     if benchmark is not None and benchmark not in available_benchmarks:
         available = ", ".join(available_benchmarks) or "nenhum"
         raise ResultsError(f"benchmark desconhecido: {benchmark}; disponíveis: {available}")
@@ -366,17 +388,15 @@ def filter_rows(
         and (cache is None or row.cache == cache)
     ]
     if not selected:
-        raise ResultsError(
-            "nenhum resultado de Replay, DER++ ou variantes SlowHeat foi encontrado"
-        )
-    learner_order = {learner: index for index, learner in enumerate(LEARNERS)}
+        raise ResultsError("nenhum resultado de método foi encontrado")
     cache_order = {name: index for index, name in enumerate(CACHE_ORDER)}
     return sorted(
         selected,
         key=lambda row: (
             row.benchmark,
             cache_order[row.cache],
-            learner_order[row.learner_key],
+            _method_label(row.learner_key).lower(),
+            row.learner_key,
         ),
     )
 
@@ -429,7 +449,7 @@ def format_table(rows: list[ResultRow]) -> str:
     headers = (
         "Benchmark",
         "Cache",
-        "Learner",
+        "Método",
         "Seeds",
         "Accuracy % (IC95%)",
         "Forgetting % (IC95%)",
@@ -440,7 +460,7 @@ def format_table(rows: list[ResultRow]) -> str:
         (
             row.benchmark,
             row.cache,
-            LEARNERS[row.learner_key],
+            _method_label(row.learner_key),
             str(row.seeds),
             _format_metric(row.accuracy),
             _format_metric(row.forgetting),
@@ -488,7 +508,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cache",
         choices=CACHE_ORDER,
-        help="filtrar por first, loss, representative ou hybrid",
+        help="filtrar por no_memory, first, loss, representative ou hybrid",
     )
     metric_group = parser.add_mutually_exclusive_group()
     metric_group.add_argument(

@@ -61,6 +61,13 @@ também executa os pares:
 - `classifier_expander` e `slowheat_classifier_expander`;
 - `scroll` e `slowheat_scroll`.
 
+A seção opt-in `split-cifar10-vgg11` executa os cinco controles centrais em uma
+VGG11 adaptada para CIFAR: oito convoluções no padrão VGG11, cinco max-pools,
+`AdaptiveAvgPool2d(1, 1)` e uma cabeça linear. BatchNorm é omitido para que
+estatísticas correntes não alterem canais protegidos. Métodos auxiliares ficam
+fora deste primeiro piloto para isolar o efeito da profundidade. Os resultados
+ficam em um diretório separado e não substituem o piloto CNN pequeno.
+
 A inicialização dos parâmetros treináveis é idêntica dentro de cada par e de
 cada seed. Os contrastes multi-seed são calculados contra `vanilla` e contra
 cada método normal, permitindo ler diretamente `método+SlowHeat - método`.

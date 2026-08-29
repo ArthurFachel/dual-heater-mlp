@@ -303,13 +303,15 @@ em blocos para evitar materializar um tensor FP32 completo do feature map.
 
 ## 8. Estado da implementação no repositório
 
-Implementado em `SlowHeatConv2d` e `SlowHeatCNN`:
+Implementado em `SlowHeatConv2d`, `SlowHeatCNN` e `SlowHeatVGG11`:
 
 - API completa da `nn.Conv2d`, incluindo tuplas, dilatação, grupos e modos de
   padding;
 - utilidade funcional por canal, máscara espacial opcional e promoção para
   FP32 antes da multiplicação em baixa precisão;
 - CNN sequencial com duas convoluções, pooling adaptativo e cabeça linear;
+- VGG11 adaptada para CIFAR com oito convoluções, cinco max-pools, pooling
+  adaptativo `1x1` e cabeça linear, sem BatchNorm;
 - registro automático das arestas Conv→Conv e Conv→Linear;
 - máscaras fatoradas corretas para convoluções densas, grouped e depthwise;
 - repetição dos fatores por posição no flatten NCHW;

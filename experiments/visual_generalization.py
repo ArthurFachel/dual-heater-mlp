@@ -18,12 +18,22 @@ from experiments.split_mnist import (
     TEST_SPLIT_SEED_MULTIPLIER,
     TRAIN_SPLIT_SEED_MULTIPLIER,
     MNISTTask,
-    ContinualExperimentConfig as SplitMNISTConfig,
-    classes_for_task as _classes_for_task,
-    normalized_images as _normalized_images,
-    select_class_indices as _select_class_indices,
-    split_train_validation_indices as _split_train_validation_indices,
     run_split_mnist_multi_seed,
+)
+from experiments.split_mnist import (
+    ContinualExperimentConfig as SplitMNISTConfig,
+)
+from experiments.split_mnist import (
+    classes_for_task as _classes_for_task,
+)
+from experiments.split_mnist import (
+    normalized_images as _normalized_images,
+)
+from experiments.split_mnist import (
+    select_class_indices as _select_class_indices,
+)
+from experiments.split_mnist import (
+    split_train_validation_indices as _split_train_validation_indices,
 )
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS
 
@@ -45,6 +55,13 @@ CNN_VISUAL_METHODS = (
     "slowheat_classifier_expander",
     "scroll",
     "slowheat_scroll",
+)
+VGG11_METHODS = (
+    "vanilla",
+    "slowheat_none",
+    "slowheat_unidirectional",
+    "slowheat",
+    "hard_freeze",
 )
 CNN_SWEEP_METHODS = (
     "vanilla",
@@ -343,6 +360,12 @@ def generalization_configs(device: str = "cpu") -> dict[str, SplitMNISTConfig]:
         configs["split_cifar10_cnn"],
         methods=CNN_SWEEP_METHODS,
     )
+    configs["split_cifar10_vgg11"] = replace(
+        configs["split_cifar10_cnn"],
+        cnn_architecture="vgg11",
+        cnn_pooled_size=(1, 1),
+        methods=VGG11_METHODS,
+    )
     return configs
 
 
@@ -364,6 +387,7 @@ def run_visual_generalization(
         "split_cifar100": load_split_cifar100,
         "split_cifar10_cnn": load_split_cifar10,
         "split_cifar10_cnn_sweep": load_split_cifar10,
+        "split_cifar10_vgg11": load_split_cifar10,
     }
     if name not in configs:
         raise ValueError(f"benchmark desconhecido: {name}")

@@ -588,6 +588,135 @@ class SlowHeatCNN(nn.Module):
         )
 
 
+class SlowHeatVGG11(nn.Module):
+    """CIFAR-sized VGG11 with channel-wise SlowHeat protection.
+
+    This keeps the eight-convolution VGG11 feature pattern but replaces the
+    ImageNet-sized fully connected stack with adaptive pooling and one linear
+    classifier. Batch normalization is intentionally omitted so protected
+    channels cannot drift through running statistics.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        *,
+        channels: tuple[int, ...] = (64, 128, 256, 256, 512, 512, 512, 512),
+        pooled_size: int | tuple[int, int] = (1, 1),
+        act: str = "relu",
+        slow_strength: float = 3.0,
+        plasticity_budget: float = 0.25,
+        importance_decay: float = 0.99,
+        importance_eps: float = 1e-8,
+        protect_output: bool = True,
+        output_slow_strength: float | None = None,
+    ) -> None:
+        super().__init__()
+        if len(channels) != 8 or any(
+            not isinstance(width, int)
+            or isinstance(width, bool)
+            or width < 1
+            for width in channels
+        ):
+            raise ValueError("channels deve conter oito inteiros positivos")
+        if isinstance(pooled_size, int):
+            pooled_shape = (pooled_size, pooled_size)
+        else:
+            pooled_shape = tuple(pooled_size)
+        if len(pooled_shape) != 2 or any(
+            not isinstance(size, int)
+            or isinstance(size, bool)
+            or size < 1
+            for size in pooled_shape
+        ):
+            raise ValueError("pooled_size deve conter dimensões positivas")
+
+        common = {
+            "slow_strength": slow_strength,
+            "plasticity_budget": plasticity_budget,
+            "importance_decay": importance_decay,
+            "importance_eps": importance_eps,
+        }
+        pool_after = {0, 1, 3, 5, 7}
+        feature_layers: list[nn.Module] = []
+        input_width = in_channels
+        for index, output_width in enumerate(channels):
+            feature_layers.extend(
+                (
+                    SlowHeatConv2d(
+                        input_width,
+                        output_width,
+                        kernel_size=3,
+                        padding=1,
+                        **common,
+                    ),
+                    activation(act),
+                )
+            )
+            if index in pool_after:
+                feature_layers.append(nn.MaxPool2d(2))
+            input_width = output_width
+        self.features = nn.Sequential(*feature_layers)
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_shape)
+        self.flatten = nn.Flatten()
+        classifier_features = channels[-1] * pooled_shape[0] * pooled_shape[1]
+        if protect_output:
+            classifier_common = dict(common)
+            if output_slow_strength is not None:
+                classifier_common["slow_strength"] = output_slow_strength
+            self.classifier: nn.Module = SlowHeatLinear(
+                classifier_features,
+                num_classes,
+                **classifier_common,
+            )
+        else:
+            self.classifier = nn.Linear(classifier_features, num_classes)
+        self.pooled_size = pooled_shape
+
+    def forward_features(self, x: Tensor) -> Tensor:
+        x = self.features(x)
+        return self.flatten(self.adaptive_pool(x))
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.classifier(self.forward_features(x))
+
+    def get_slow_layers(
+        self,
+    ) -> list[SlowHeatConv2d | SlowHeatLinear]:
+        layers: list[SlowHeatConv2d | SlowHeatLinear] = [
+            module for module in self.features if isinstance(module, SlowHeatConv2d)
+        ]
+        if isinstance(self.classifier, SlowHeatLinear):
+            layers.append(self.classifier)
+        return layers
+
+    def consolidate(self, strategy: str = "max") -> None:
+        for layer in self.get_slow_layers():
+            layer.consolidate(strategy=strategy)
+
+    def get_lr_scales(self) -> list[Tensor]:
+        return [layer.get_lr_scales() for layer in self.get_slow_layers()]
+
+    def adapt_capacity(
+        self,
+        *,
+        acquisition_score: float,
+        target_score: float,
+        adaptation_rate: float = 0.1,
+        minimum: float = 0.05,
+        maximum: float = 0.95,
+    ) -> list[float]:
+        return _adapt_capacity_for_layers(
+            self.get_slow_layers(),
+            acquisition_score=acquisition_score,
+            target_score=target_score,
+            adaptation_rate=adaptation_rate,
+            minimum=minimum,
+            maximum=maximum,
+        )
+
+
 # ─── SlowHeatMLP ────────────────────────────────
 
 class SlowHeatMLP(nn.Sequential):

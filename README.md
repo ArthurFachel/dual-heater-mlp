@@ -428,6 +428,23 @@ explicit representation bootstrap, followed by accumulated ridge-regression
 statistics and replay-only representation adaptation. This is a documented
 benchmark adaptation, not a claim of exact reproduction of pretrained SCROLL.
 
+The VGG11-CIFAR pilot uses the standard eight-convolution VGG11 feature pattern
+without BatchNorm, five max-pooling stages, adaptive `1x1` pooling and one
+linear classifier. Its first pilot runs the five core controls (`vanilla`,
+`slowheat_none`, `slowheat_unidirectional`, `slowheat` and `hard_freeze`) in a
+separate output tree:
+
+```bash
+PYTHONPATH=src:. python run_all_tests.py \
+  --num-seeds 3 \
+  --sections split-cifar10-vgg11 \
+  --device cuda
+```
+
+This CIFAR-sized adaptation avoids the ImageNet VGG classifier and isolates
+depth from BatchNorm running-statistics effects. Its artifacts are written to
+`results/split_mnist_protocol/split_cifar10_vgg11/`.
+
 After the pilot, run the preselected CNN stability/plasticity sweep with ten
 paired seeds:
 

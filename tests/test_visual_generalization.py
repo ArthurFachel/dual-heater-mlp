@@ -22,6 +22,7 @@ def test_generalization_configs_preserve_scenario_semantics():
         "split_cifar10",
         "split_cifar10_cnn",
         "split_cifar10_cnn_sweep",
+        "split_cifar10_vgg11",
         "split_cifar100",
     }
     assert configs["permuted_mnist"].scenario == "domain_incremental"
@@ -35,6 +36,9 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar10_cnn"].backbone == "cnn"
     assert configs["split_cifar10_cnn"].image_shape == (3, 32, 32)
     assert configs["split_cifar10_cnn"].methods == visual.CNN_VISUAL_METHODS
+    assert configs["split_cifar10_vgg11"].cnn_architecture == "vgg11"
+    assert configs["split_cifar10_vgg11"].cnn_pooled_size == (1, 1)
+    assert configs["split_cifar10_vgg11"].methods == visual.VGG11_METHODS
     assert (
         configs["split_cifar10_cnn_sweep"].methods
         == visual.CNN_SWEEP_METHODS
@@ -144,6 +148,30 @@ def test_cnn_backbone_runs_paired_vanilla_and_slowheat_methods():
         result["cost"]["estimated_total_flops"] > 0
         for result in results.values()
     )
+
+
+def test_vgg11_backbone_builds_byte_identical_paired_models():
+    config = SplitMNISTConfig(
+        class_order=(0, 1),
+        classes_per_task=2,
+        input_dim=3 * 32 * 32,
+        hidden_dims=(1,),
+        backbone="cnn",
+        image_shape=(3, 32, 32),
+        cnn_architecture="vgg11",
+        cnn_pooled_size=(1, 1),
+        vgg_channels=(2, 3, 4, 4, 5, 5, 5, 5),
+        methods=("vanilla", "slowheat"),
+    )
+
+    models = build_paired_models(config)
+    reference = dict(models["vanilla"].named_parameters())
+    protected = dict(models["slowheat"].named_parameters())
+
+    assert reference.keys() == protected.keys()
+    assert all(torch.equal(reference[name], protected[name]) for name in reference)
+    assert models["vanilla"](torch.randn(2, 3, 32, 32)).shape == (2, 2)
+    assert len(models["slowheat"].get_slow_layers()) == 9
 
 
 def test_cnn_continual_methods_run_normal_and_slowheat_pairs():

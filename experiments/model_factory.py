@@ -9,7 +9,7 @@ from typing import Protocol
 import torch
 from torch import Tensor, nn
 
-from dual_heater import SlowHeatCNN, SlowHeatMLP
+from dual_heater import SlowHeatCNN, SlowHeatMLP, SlowHeatVGG11
 from experiments.method_specs import MethodSpec
 
 
@@ -22,7 +22,9 @@ class ModelFactoryConfig(Protocol):
     backbone: str
     image_shape: tuple[int, int, int] | None
     cnn_channels: tuple[int, int]
+    cnn_architecture: str
     cnn_pooled_size: tuple[int, int]
+    vgg_channels: tuple[int, ...]
     slow_strength: float
     plasticity_budget: float
     partial_output_slow_strength: float
@@ -79,10 +81,57 @@ class _VanillaCNN(nn.Module):
         return self.classifier(self.forward_features(inputs))
 
 
+class _VanillaVGG11(nn.Module):
+    """Native control matching the CIFAR-sized ``SlowHeatVGG11`` topology."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        *,
+        channels: tuple[int, ...],
+        pooled_size: tuple[int, int],
+    ) -> None:
+        super().__init__()
+        pool_after = {0, 1, 3, 5, 7}
+        feature_layers: list[nn.Module] = []
+        input_width = in_channels
+        for index, output_width in enumerate(channels):
+            feature_layers.extend(
+                (
+                    nn.Conv2d(input_width, output_width, kernel_size=3, padding=1),
+                    nn.ReLU(),
+                )
+            )
+            if index in pool_after:
+                feature_layers.append(nn.MaxPool2d(2))
+            input_width = output_width
+        self.features = nn.Sequential(*feature_layers)
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_size)
+        self.flatten = nn.Flatten()
+        self.classifier = nn.Linear(
+            channels[-1] * pooled_size[0] * pooled_size[1],
+            num_classes,
+        )
+
+    def forward_features(self, inputs: Tensor) -> Tensor:
+        return self.flatten(self.adaptive_pool(self.features(inputs)))
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        return self.classifier(self.forward_features(inputs))
+
+
 def _vanilla_model(config: ModelFactoryConfig, dims: tuple[int, ...]) -> nn.Module:
     if config.backbone == "mlp":
         return _vanilla_mlp(dims)
     assert config.image_shape is not None
+    if config.cnn_architecture == "vgg11":
+        return _VanillaVGG11(
+            config.image_shape[0],
+            len(config.class_order),
+            channels=config.vgg_channels,
+            pooled_size=config.cnn_pooled_size,
+        )
     return _VanillaCNN(
         config.image_shape[0],
         len(config.class_order),
@@ -136,12 +185,21 @@ def build_paired_models(
                 }
                 if config.backbone == "mlp":
                     model = SlowHeatMLP(*dims, **common)
-                else:
+                elif config.cnn_architecture == "small":
                     assert config.image_shape is not None
                     model = SlowHeatCNN(
                         config.image_shape[0],
                         len(config.class_order),
                         channels=config.cnn_channels,
+                        pooled_size=config.cnn_pooled_size,
+                        **common,
+                    )
+                else:
+                    assert config.image_shape is not None
+                    model = SlowHeatVGG11(
+                        config.image_shape[0],
+                        len(config.class_order),
+                        channels=config.vgg_channels,
                         pooled_size=config.cnn_pooled_size,
                         **common,
                     )

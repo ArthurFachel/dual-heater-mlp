@@ -11,7 +11,11 @@ import run_all_tests
 from experiments.dualheat_pairs import METHOD_PAIRS, PAIRED_METHODS
 from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP
 from experiments.synthetic_cl import SYNTHETIC_METHODS
-from experiments.visual_generalization import CNN_SWEEP_METHODS, CNN_VISUAL_METHODS
+from experiments.visual_generalization import (
+    CNN_SWEEP_METHODS,
+    CNN_VISUAL_METHODS,
+    VGG11_METHODS,
+)
 
 
 def test_dualheat_pairs_section_is_opt_in_and_routes_to_dedicated_runner(tmp_path, monkeypatch):
@@ -170,6 +174,7 @@ def test_cnn_cifar_plan_declares_real_image_backbone():
         "class_count": 10,
         "inference_task_id": False,
         "backbone": "cnn",
+        "architecture": "small",
         "image_shape": [3, 32, 32],
         "channels": [32, 64],
         "pooled_size": [2, 2],
@@ -194,6 +199,22 @@ def test_cnn_sweep_plan_declares_preselected_grid():
     assert len(section["seeds"]) == 10
     assert section["protocol"]["backbone"] == "cnn"
     assert section["output_dir"].endswith("split_cifar10_cnn_sweep")
+
+
+def test_vgg11_cifar_plan_declares_cifar_adaptation():
+    args = run_all_tests.parse_args(
+        ["--num-seeds", "3", "--sections", "split-cifar10-vgg11", "--dry-run"]
+    )
+    section = run_all_tests.build_run_plan(args)["sections"]["split-cifar10-vgg11"]
+
+    assert section["methods"] == list(VGG11_METHODS)
+    assert section["protocol"]["backbone"] == "cnn"
+    assert section["protocol"]["architecture"] == "vgg11"
+    assert section["protocol"]["channels"] == [
+        64, 128, 256, 256, 512, 512, 512, 512,
+    ]
+    assert section["protocol"]["pooled_size"] == [1, 1]
+    assert section["output_dir"].endswith("split_cifar10_vgg11")
 
 
 def test_all_datasets_all_methods_plan_covers_every_compatible_cross_section():
@@ -329,6 +350,31 @@ def test_cnn_sweep_section_uses_its_own_output_directory(tmp_path, monkeypatch):
     assert result == {"ok": True}
     assert captured["name"] == "split_cifar10_cnn_sweep"
     assert captured["output_dir"].name == "split_cifar10_cnn_sweep"
+
+
+def test_vgg11_section_uses_visual_generalization_runner(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_run(name, **kwargs):
+        captured["name"] = name
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(run_all_tests, "run_visual_generalization", fake_run)
+    args = run_all_tests.parse_args(
+        ["--sections", "split-cifar10-vgg11", "--num-seeds", "1"]
+    )
+
+    result = run_all_tests._run_section(
+        "split-cifar10-vgg11",
+        args,
+        data_dir=tmp_path / "data",
+        output_dir=tmp_path / "results",
+    )
+
+    assert result == {"ok": True}
+    assert captured["name"] == "split_cifar10_vgg11"
+    assert captured["output_dir"].name == "split_cifar10_vgg11"
 
 
 def test_synthetic_all_methods_section_uses_secondary_seeds(tmp_path, monkeypatch):

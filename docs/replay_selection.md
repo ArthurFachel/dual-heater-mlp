@@ -64,25 +64,25 @@ estiverem disponíveis e `--fresh` para exigir uma nova árvore de resultados.
 
 ## Consultar acurácia e forgetting
 
-O utilitário `show_cache_results.py` mostra apenas métodos com memória: Replay,
-SlowHeat+Replay, DER++ e SlowHeat+DER++. A saída usa porcentagens e IC95% normal
-sobre as seeds concluídas. A tabela também apresenta `Tempo total`, medido por
-`elapsed_seconds` para a execução completa do learner, e `Tempo cache`, medido
-por `selection_seconds` durante o ranking e atualização do buffer. Ambos são
-mostrados em segundos com média e IC95%. Artefatos antigos sem esses campos são
-marcados como `N/D`.
+O utilitário `show_results.py` descobre e mostra todos os métodos presentes nos
+artefatos, incluindo controles sem memória e nomes de métodos adicionados no
+futuro. A saída usa porcentagens e IC95% normal sobre as seeds concluídas. A
+tabela também apresenta `Tempo total`, medido por `elapsed_seconds` para a
+execução completa do método, e `Tempo cache`, medido por `selection_seconds`
+durante o ranking e atualização do buffer. Ambos são mostrados em segundos com
+média e IC95%. Artefatos antigos sem esses campos são marcados como `N/D`.
 
 Todos os benchmarks e caches encontrados:
 
 ```bash
-python show_cache_results.py \
+python show_results.py \
   results/cache_all_datasets_10seeds/replay_selection_sweep
 ```
 
 Um cache em todos os benchmarks:
 
 ```bash
-python show_cache_results.py \
+python show_results.py \
   results/cache_all_datasets_10seeds/replay_selection_sweep \
   --cache hybrid
 ```
@@ -90,7 +90,7 @@ python show_cache_results.py \
 Um benchmark e cache específicos:
 
 ```bash
-python show_cache_results.py \
+python show_results.py \
   results/cache_all_datasets_10seeds/replay_selection_sweep \
   --benchmark split_cifar10_cnn \
   --cache loss
@@ -100,17 +100,17 @@ Para mostrar somente a combinação de cache e learner com maior acurácia em ca
 benchmark:
 
 ```bash
-python show_cache_results.py \
+python show_results.py \
   results/cache_all_datasets_10seeds/replay_selection_sweep \
   --accuracy --high
 ```
 
 Também estão disponíveis `--accuracy --low`, `--forget --high` e
 `--forget --low`. A métrica e a direção devem ser informadas juntas. A seleção
-compara as médias de todos os caches de Replay, SlowHeat+Replay, DER++ e
-SlowHeat+DER++ dentro de cada benchmark. Benchmarks diferentes não são
-comparados entre si. O IC95% continua aparecendo na linha selecionada, mas não
-participa do ranking.
+compara as médias de todos os métodos e caches encontrados dentro de cada
+benchmark. Benchmarks diferentes não são comparados entre si. O IC95% continua
+aparecendo na linha selecionada, mas não participa do ranking. O filtro
+`--cache no_memory` seleciona os controles que não usam memória.
 
 Também é possível passar diretamente a pasta de um benchmark ou cache. Se a
 execução ainda estiver incompleta, o utilitário agrega os `seed_*/results.json`

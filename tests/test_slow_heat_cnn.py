@@ -3,7 +3,7 @@ from copy import deepcopy
 import pytest
 import torch
 
-from dual_heater import SlowHeatCNN, SlowHeatConv2d, SlowHeatLinear
+from dual_heater import SlowHeatCNN, SlowHeatConv2d, SlowHeatLinear, SlowHeatVGG11
 from dual_heater.optim import SlowHeatAdamW, SlowHeatSGD
 
 
@@ -190,6 +190,27 @@ def test_slow_heat_cnn_registers_trains_and_consolidates_all_layers():
     assert len(optimizer._plasticity_masks) == 6
     assert all(layer.consolidated_tasks.item() == 1 for layer in model.get_slow_layers())
     assert all(layer.task_step.item() == 0 for layer in model.get_slow_layers())
+
+
+def test_slow_heat_vgg11_registers_all_sequential_connections():
+    model = SlowHeatVGG11(
+        3,
+        10,
+        channels=(2, 3, 4, 4, 5, 5, 5, 5),
+        pooled_size=1,
+    )
+    optimizer = SlowHeatAdamW(model.parameters(), lr=1e-3)
+    optimizer.register_slow_heat_model(model)
+
+    output = model(torch.randn(2, 3, 32, 32))
+    output.square().mean().backward()
+    optimizer.step()
+    model.consolidate()
+
+    assert output.shape == (2, 10)
+    assert len(model.get_slow_layers()) == 9
+    assert len(optimizer._plasticity_masks) == 18
+    assert all(layer.consolidated_tasks.item() == 1 for layer in model.get_slow_layers())
 
 
 @pytest.mark.parametrize("optimizer_type", [torch.optim.AdamW, SlowHeatAdamW])

@@ -277,8 +277,10 @@ class SplitMNISTConfig:
     hidden_dims: tuple[int, ...] = (256, 128)
     backbone: str = "mlp"
     image_shape: tuple[int, int, int] | None = None
+    cnn_architecture: str = "small"
     cnn_channels: tuple[int, int] = (32, 64)
     cnn_pooled_size: tuple[int, int] = (2, 2)
+    vgg_channels: tuple[int, ...] = (64, 128, 256, 256, 512, 512, 512, 512)
     batch_size: int = 128
     epochs_per_task: int = 2
     train_per_class: int | None = 1_000
@@ -419,10 +421,19 @@ class SplitMNISTConfig:
                 raise ValueError(
                     "backbone CNN requer image_shape [C, H, W] compatível com input_dim"
                 )
-            if len(self.cnn_channels) != 2 or any(
-                width < 1 for width in self.cnn_channels
+            if self.cnn_architecture not in {"small", "vgg11"}:
+                raise ValueError("cnn_architecture deve ser 'small' ou 'vgg11'")
+            if self.cnn_architecture == "small":
+                if len(self.cnn_channels) != 2 or any(
+                    width < 1 for width in self.cnn_channels
+                ):
+                    raise ValueError("cnn_channels deve conter dois canais positivos")
+            elif len(self.vgg_channels) != 8 or any(
+                width < 1 for width in self.vgg_channels
             ):
-                raise ValueError("cnn_channels deve conter dois canais positivos")
+                raise ValueError("vgg_channels deve conter oito canais positivos")
+            elif min(self.image_shape[1:]) < 32:
+                raise ValueError("VGG11 requer dimensões espaciais de pelo menos 32")
             if len(self.cnn_pooled_size) != 2 or any(
                 size < 1 for size in self.cnn_pooled_size
             ):
@@ -571,10 +582,17 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
         for field in (
             "backbone",
             "image_shape",
+            "cnn_architecture",
             "cnn_channels",
             "cnn_pooled_size",
+            "vgg_channels",
         ):
             payload.pop(field)
+    elif config.cnn_architecture == "small":
+        payload.pop("cnn_architecture")
+        payload.pop("vgg_channels")
+    else:
+        payload.pop("cnn_channels")
     if not any(
         _uses_lpr(method)
         or _uses_classifier_expander(method)

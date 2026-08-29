@@ -229,6 +229,9 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         "split-cifar10-cnn-sweep": list(
             visual_configs["split_cifar10_cnn_sweep"].methods
         ),
+        "split-cifar10-vgg11": list(
+            visual_configs["split_cifar10_vgg11"].methods
+        ),
         "split-cifar100": list(visual_configs["split_cifar100"].methods),
     }
 
@@ -293,6 +296,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
             "split-cifar10",
             "split-cifar10-cnn",
             "split-cifar10-cnn-sweep",
+            "split-cifar10-vgg11",
             "split-cifar100",
         }:
             config = generalization_configs(args.device)[name.replace("-", "_")]
@@ -307,8 +311,13 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 details["protocol"].update(
                     {
                         "backbone": "cnn",
+                        "architecture": config.cnn_architecture,
                         "image_shape": list(config.image_shape or ()),
-                        "channels": list(config.cnn_channels),
+                        "channels": list(
+                            config.vgg_channels
+                            if config.cnn_architecture == "vgg11"
+                            else config.cnn_channels
+                        ),
                         "pooled_size": list(config.cnn_pooled_size),
                         "epochs_per_task": config.epochs_per_task,
                     }
@@ -402,6 +411,8 @@ def _run_section(
         return run_visual_generalization("split_cifar10_cnn", **common)
     if name == "split-cifar10-cnn-sweep":
         return run_visual_generalization("split_cifar10_cnn_sweep", **common)
+    if name == "split-cifar10-vgg11":
+        return run_visual_generalization("split_cifar10_vgg11", **common)
     if name == "split-cifar100":
         return run_visual_generalization("split_cifar100", **common)
     raise ValueError(f"seção desconhecida: {name}")

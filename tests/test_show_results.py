@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import show_cache_results as cli
+import show_results as cli
 
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
 SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
@@ -78,7 +78,7 @@ def sweep_report(tmp_path: Path) -> Path:
     return root
 
 
-def test_cli_without_filters_shows_all_cache_results_only(sweep_report, capsys):
+def test_cli_without_filters_shows_every_method_and_cache(sweep_report, capsys):
     assert cli.main([str(sweep_report)]) == 0
 
     captured = capsys.readouterr()
@@ -88,7 +88,8 @@ def test_cli_without_filters_shows_all_cache_results_only(sweep_report, capsys):
     assert "SlowHeat+Replay" in captured.out
     assert "DER++" in captured.out
     assert "SlowHeat+DER++" in captured.out
-    assert "vanilla" not in captured.out.lower()
+    assert "Vanilla" in captured.out
+    assert "no_memory" in captured.out
     assert "75.00 [74.00, 76.00]" in captured.out
     assert "Tempo total s (IC95%)" in captured.out
     assert "12.00 [11.50, 12.50]" in captured.out
@@ -103,6 +104,15 @@ def test_cli_filters_cache_across_benchmarks(sweep_report, capsys):
     assert "split_cifar10" in output
     assert "split_mnist" in output
     assert "first" not in output
+
+
+def test_cli_filters_no_memory_controls(sweep_report, capsys):
+    assert cli.main([str(sweep_report), "--cache", "no_memory"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Vanilla" in output
+    assert "Replay" not in output
+    assert "no_memory" in output
 
 
 def test_cli_filters_benchmark_and_cache(sweep_report, capsys):
@@ -205,7 +215,7 @@ def test_partial_seeds_are_aggregated_with_warning(tmp_path, capsys):
         _write_json(
             run_dir / f"seed_{seed}" / "results.json",
             {
-                "replay": {
+                "ewc": {
                     "metrics": {
                         "final_average_accuracy": accuracy,
                         "average_forgetting": forgetting,
@@ -219,25 +229,43 @@ def test_partial_seeds_are_aggregated_with_warning(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "80.00 [60.40, 99.60]" in captured.out
     assert "20.00 [0.40, 39.60]" in captured.out
+    assert "ewc" in captured.out
     assert "resultados parciais" in captured.err
 
 
-@pytest.mark.parametrize("problem", ["missing", "invalid_json", "no_cache"])
+@pytest.mark.parametrize("problem", ["missing", "invalid_json"])
 def test_cli_reports_invalid_or_missing_results(tmp_path, capsys, problem):
     root = tmp_path / "results"
     if problem == "invalid_json":
         root.mkdir()
         (root / "sweep_report.json").write_text("{broken", encoding="utf-8")
-    elif problem == "no_cache":
-        _write_json(
-            root / "aggregate.json",
-            {"methods": {"vanilla": _method_summary(0.5, 0.5)}},
-        )
-
     assert cli.main([str(root)]) == 2
 
     error = capsys.readouterr().err
     assert error.startswith("erro:")
+
+
+def test_direct_aggregate_shows_all_method_keys(tmp_path, capsys):
+    root = tmp_path / "split_cifar10"
+    _write_json(
+        root / "aggregate.json",
+        {
+            "seeds": [1, 2],
+            "methods": {
+                "vanilla": _method_summary(0.50, 0.40),
+                "ewc": _method_summary(0.55, 0.35),
+                "slowheat_beta_10": _method_summary(0.60, 0.30),
+            },
+        },
+    )
+
+    assert cli.main([str(root)]) == 0
+
+    output = capsys.readouterr().out
+    assert "Vanilla" in output
+    assert "ewc" in output
+    assert "slowheat_beta_10" in output
+    assert "|     2 |" in output
 
 
 def test_unknown_benchmark_lists_available_values(sweep_report, capsys):
