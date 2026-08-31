@@ -6,14 +6,13 @@
     "10",
     "--sections",
     "split-cifar10-cnn",
-    "split-cifar10-cnn-sweep",
     "--device",
     "cuda"
   ],
   "command_path_base": "project_root",
   "git": {
     "branch": "main",
-    "commit": "7d4635162d660ee381ab79b54cd50d19aa676c8e",
+    "commit": "38618628576083433e484c99998abc6ff0e8d389",
     "dirty": true
   },
   "packages": {

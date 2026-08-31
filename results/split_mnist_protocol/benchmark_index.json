@@ -1,9 +1,9 @@
 {
-  "created_at": "2026-08-27T18:33:03.572927+00:00",
+  "created_at": "2026-08-29T20:21:59.569455+00:00",
   "data_dir": "data",
   "device": "cuda",
-  "download": true,
-  "finished_at": "2026-08-27T19:03:44.087167+00:00",
+  "download": false,
+  "finished_at": "2026-08-30T08:57:23.749557+00:00",
   "output_dir": "results/split_mnist_protocol",
   "preregistration": {
     "analysis": {
@@ -130,79 +130,108 @@
   "project_root": ".",
   "resume": true,
   "sections": {
-    "split-cifar10-cnn": {
-      "finished_at": "2026-08-27T18:37:08.408018+00:00",
+    "functional-dualheat-pilot": {
+      "finished_at": "2026-08-30T00:05:40.730329+00:00",
+      "learner_run_count": 96,
       "methods": [
-        "vanilla",
-        "slowheat_none",
-        "slowheat_unidirectional",
         "slowheat",
-        "hard_freeze",
-        "lpr",
-        "slowheat_lpr",
-        "classifier_expander",
-        "slowheat_classifier_expander",
-        "scroll",
-        "slowheat_scroll"
+        "dualheat"
       ],
-      "output_dir": "results/split_mnist_protocol/split_cifar10_cnn",
+      "output_dir": "results/split_mnist_protocol/functional_dualheat_pilot",
       "protocol": {
-        "backbone": "cnn",
-        "channels": [
-          32,
-          64
+        "architectures": [
+          "vgg11",
+          "resnet18"
         ],
-        "class_count": 10,
-        "classes_per_task": 2,
         "epochs_per_task": 5,
-        "image_shape": [
-          3,
-          32,
-          32
+        "grid": [
+          {
+            "fast_decay": 0.9,
+            "fast_eps": 1e-08,
+            "fast_strength": 0.5,
+            "fast_threshold": 0.0
+          },
+          {
+            "fast_decay": 0.9,
+            "fast_eps": 1e-08,
+            "fast_strength": 0.5,
+            "fast_threshold": 0.5
+          },
+          {
+            "fast_decay": 0.9,
+            "fast_eps": 1e-08,
+            "fast_strength": 2.0,
+            "fast_threshold": 0.0
+          },
+          {
+            "fast_decay": 0.9,
+            "fast_eps": 1e-08,
+            "fast_strength": 2.0,
+            "fast_threshold": 0.5
+          },
+          {
+            "fast_decay": 0.97,
+            "fast_eps": 1e-08,
+            "fast_strength": 0.5,
+            "fast_threshold": 0.0
+          },
+          {
+            "fast_decay": 0.97,
+            "fast_eps": 1e-08,
+            "fast_strength": 0.5,
+            "fast_threshold": 0.5
+          },
+          {
+            "fast_decay": 0.97,
+            "fast_eps": 1e-08,
+            "fast_strength": 2.0,
+            "fast_threshold": 0.0
+          },
+          {
+            "fast_decay": 0.97,
+            "fast_eps": 1e-08,
+            "fast_strength": 2.0,
+            "fast_threshold": 0.5
+          }
         ],
-        "inference_task_id": false,
-        "pooled_size": [
-          2,
-          2
-        ],
-        "scenario": "class_incremental",
-        "task_count": 5
+        "selection_data": "validation_only",
+        "selection_endpoint": "mean paired DualHeat - SlowHeat final Class-IL validation accuracy"
       },
       "seeds": [
-        2101606466,
-        1872839281,
-        637029796,
-        1357204345,
-        1758462037,
-        748737880,
-        1611510062,
-        333205446,
-        130501536,
-        492612040
+        698971273,
+        1288660088,
+        1181804493
       ],
-      "started_at": "2026-08-27T18:33:03.574049+00:00",
+      "started_at": "2026-08-29T20:21:59.662714+00:00",
       "status": "completed"
     },
-    "split-cifar10-cnn-sweep": {
-      "finished_at": "2026-08-27T19:03:44.086320+00:00",
+    "split-cifar10-resnet18-functional-dualheat": {
+      "finished_at": "2026-08-30T08:57:23.687767+00:00",
+      "learner_run_count": 130,
       "methods": [
         "vanilla",
-        "slowheat_none",
-        "slowheat_unidirectional_beta_3_budget_0.50",
-        "slowheat_unidirectional_beta_3_budget_0.75",
-        "slowheat_unidirectional_beta_10_budget_0.50",
-        "slowheat_unidirectional_beta_10_budget_0.75",
-        "slowheat_hidden_beta_3_budget_0.50",
-        "slowheat_hidden_beta_3_budget_0.75",
-        "slowheat_hidden_beta_10_budget_0.50",
-        "slowheat_hidden_beta_10_budget_0.75"
+        "fastheat",
+        "slowheat",
+        "dualheat",
+        "lpr",
+        "slowheat_lpr",
+        "dualheat_lpr",
+        "classifier_expander",
+        "slowheat_classifier_expander",
+        "dualheat_classifier_expander",
+        "scroll",
+        "slowheat_scroll",
+        "dualheat_scroll"
       ],
-      "output_dir": "results/split_mnist_protocol/split_cifar10_cnn_sweep",
+      "output_dir": "results/split_mnist_protocol/split_cifar10_resnet18_functional_dualheat",
       "protocol": {
+        "architecture": "resnet18",
         "backbone": "cnn",
         "channels": [
-          32,
-          64
+          64,
+          128,
+          256,
+          512
         ],
         "class_count": 10,
         "classes_per_task": 2,
@@ -214,8 +243,8 @@
         ],
         "inference_task_id": false,
         "pooled_size": [
-          2,
-          2
+          1,
+          1
         ],
         "scenario": "class_incremental",
         "task_count": 5
@@ -232,11 +261,74 @@
         130501536,
         492612040
       ],
-      "started_at": "2026-08-27T18:37:08.408784+00:00",
+      "started_at": "2026-08-30T02:09:20.323928+00:00",
+      "status": "completed"
+    },
+    "split-cifar10-vgg11-functional-dualheat": {
+      "finished_at": "2026-08-30T02:09:20.262111+00:00",
+      "learner_run_count": 130,
+      "methods": [
+        "vanilla",
+        "fastheat",
+        "slowheat",
+        "dualheat",
+        "lpr",
+        "slowheat_lpr",
+        "dualheat_lpr",
+        "classifier_expander",
+        "slowheat_classifier_expander",
+        "dualheat_classifier_expander",
+        "scroll",
+        "slowheat_scroll",
+        "dualheat_scroll"
+      ],
+      "output_dir": "results/split_mnist_protocol/split_cifar10_vgg11_functional_dualheat",
+      "protocol": {
+        "architecture": "vgg11",
+        "backbone": "cnn",
+        "channels": [
+          64,
+          128,
+          256,
+          256,
+          512,
+          512,
+          512,
+          512
+        ],
+        "class_count": 10,
+        "classes_per_task": 2,
+        "epochs_per_task": 5,
+        "image_shape": [
+          3,
+          32,
+          32
+        ],
+        "inference_task_id": false,
+        "pooled_size": [
+          1,
+          1
+        ],
+        "scenario": "class_incremental",
+        "task_count": 5
+      },
+      "seeds": [
+        2101606466,
+        1872839281,
+        637029796,
+        1357204345,
+        1758462037,
+        748737880,
+        1611510062,
+        333205446,
+        130501536,
+        492612040
+      ],
+      "started_at": "2026-08-30T00:05:40.797297+00:00",
       "status": "completed"
     }
   },
-  "started_at": "2026-08-27T18:33:03.573486+00:00",
+  "started_at": "2026-08-29T20:21:59.569999+00:00",
   "status": "completed",
   "unit_tests": {
     "command": [

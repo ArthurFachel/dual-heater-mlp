@@ -1,0 +1,85 @@
+{
+  "architectures": [
+    "vgg11",
+    "resnet18"
+  ],
+  "epochs_per_task": 5,
+  "grid": [
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.0
+    },
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.5
+    },
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.0
+    },
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.5
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.0
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.5
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.0
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.5
+    }
+  ],
+  "method": "Functional DualHeat = activation FastHeat + Functional SlowHeat",
+  "schema_version": 1,
+  "seeds": [
+    698971273,
+    1288660088,
+    1181804493
+  ],
+  "selected": {
+    "fast_decay": 0.9,
+    "fast_eps": 1e-08,
+    "fast_strength": 0.5,
+    "fast_threshold": 0.0,
+    "mean_paired_validation_difference": 0.0031333333333333283
+  },
+  "selection_data": "validation_only",
+  "selection_endpoint": "mean paired DualHeat - SlowHeat final Class-IL validation accuracy, equal weight per architecture and seed",
+  "slowheat": {
+    "consolidation": "max",
+    "optimizer_state_policy": "follow_update",
+    "plasticity_budget": 0.25,
+    "slow_strength": 30.0
+  },
+  "status": "frozen_before_main_benchmark",
+  "tie_break": [
+    "lower_fast_strength",
+    "lower_fast_decay",
+    "higher_fast_threshold"
+  ]
+}

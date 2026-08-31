@@ -1,0 +1,497 @@
+{
+  "candidates": [
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.0,
+      "mean_paired_validation_difference": 0.0031333333333333283,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": -0.0030000000000000027,
+          "dualheat_validation_accuracy": 0.1758,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.17880000000000001
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.0024000000000000132,
+          "dualheat_validation_accuracy": 0.1794,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.18180000000000002
+        },
+        {
+          "architecture": "vgg11",
+          "difference": 0.004599999999999993,
+          "dualheat_validation_accuracy": 0.1762,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1716
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.0474,
+          "dualheat_validation_accuracy": 0.1474,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.045799999999999993,
+          "dualheat_validation_accuracy": 0.11739999999999999,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.16319999999999998
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.017999999999999988,
+          "dualheat_validation_accuracy": 0.1442,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1262
+        }
+      ]
+    },
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.5,
+      "mean_paired_validation_difference": -0.006966666666666672,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": 0.0005999999999999894,
+          "dualheat_validation_accuracy": 0.1802,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1796
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.012800000000000006,
+          "dualheat_validation_accuracy": 0.1656,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1784
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.014400000000000024,
+          "dualheat_validation_accuracy": 0.1694,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.18380000000000002
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.016199999999999992,
+          "dualheat_validation_accuracy": 0.1504,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1666
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.010200000000000015,
+          "dualheat_validation_accuracy": 0.122,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1322
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.011200000000000015,
+          "dualheat_validation_accuracy": 0.137,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1258
+        }
+      ]
+    },
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.0,
+      "mean_paired_validation_difference": -0.0070333333333333385,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": -0.01100000000000001,
+          "dualheat_validation_accuracy": 0.1682,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1792
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.01200000000000001,
+          "dualheat_validation_accuracy": 0.1696,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1816
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.014200000000000018,
+          "dualheat_validation_accuracy": 0.1662,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1804
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.007800000000000015,
+          "dualheat_validation_accuracy": 0.12840000000000001,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1206
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.009199999999999986,
+          "dualheat_validation_accuracy": 0.1416,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.13240000000000002
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.021999999999999992,
+          "dualheat_validation_accuracy": 0.1,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.122
+        }
+      ]
+    },
+    {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.5,
+      "mean_paired_validation_difference": -0.018199999999999997,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": -0.028200000000000003,
+          "dualheat_validation_accuracy": 0.1478,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.176
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.010000000000000009,
+          "dualheat_validation_accuracy": 0.1742,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1842
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.04319999999999999,
+          "dualheat_validation_accuracy": 0.13720000000000002,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1804
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.020800000000000013,
+          "dualheat_validation_accuracy": 0.1308,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1516
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.009600000000000025,
+          "dualheat_validation_accuracy": 0.13640000000000002,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1268
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.016600000000000004,
+          "dualheat_validation_accuracy": 0.1258,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1424
+        }
+      ]
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.0,
+      "mean_paired_validation_difference": -0.00946666666666667,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": 0.003599999999999992,
+          "dualheat_validation_accuracy": 0.1804,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1768
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.014000000000000012,
+          "dualheat_validation_accuracy": 0.1664,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1804
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.008000000000000007,
+          "dualheat_validation_accuracy": 0.1752,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1832
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.007000000000000006,
+          "dualheat_validation_accuracy": 0.1404,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1474
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.011399999999999993,
+          "dualheat_validation_accuracy": 0.127,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1384
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.01999999999999999,
+          "dualheat_validation_accuracy": 0.10300000000000001,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.123
+        }
+      ]
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.5,
+      "mean_paired_validation_difference": 0.001133333333333338,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": 0.0014000000000000123,
+          "dualheat_validation_accuracy": 0.1816,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1802
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.003799999999999998,
+          "dualheat_validation_accuracy": 0.1796,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1834
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.002599999999999991,
+          "dualheat_validation_accuracy": 0.1764,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.179
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.010399999999999993,
+          "dualheat_validation_accuracy": 0.1454,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.135
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.014000000000000012,
+          "dualheat_validation_accuracy": 0.1416,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1276
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.0126,
+          "dualheat_validation_accuracy": 0.127,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1396
+        }
+      ]
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.0,
+      "mean_paired_validation_difference": -0.01576666666666667,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": -0.014600000000000002,
+          "dualheat_validation_accuracy": 0.1658,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1804
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.014800000000000008,
+          "dualheat_validation_accuracy": 0.1668,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1816
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.021199999999999997,
+          "dualheat_validation_accuracy": 0.155,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1762
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.0228,
+          "dualheat_validation_accuracy": 0.1206,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.1434
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.031200000000000006,
+          "dualheat_validation_accuracy": 0.1,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1312
+        },
+        {
+          "architecture": "resnet18",
+          "difference": 0.010000000000000009,
+          "dualheat_validation_accuracy": 0.1494,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.1394
+        }
+      ]
+    },
+    {
+      "fast_decay": 0.97,
+      "fast_eps": 1e-08,
+      "fast_strength": 2.0,
+      "fast_threshold": 0.5,
+      "mean_paired_validation_difference": -0.02083333333333334,
+      "paired_differences": [
+        {
+          "architecture": "vgg11",
+          "difference": -0.0028000000000000247,
+          "dualheat_validation_accuracy": 0.178,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.18080000000000002
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.010000000000000009,
+          "dualheat_validation_accuracy": 0.1644,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.1744
+        },
+        {
+          "architecture": "vgg11",
+          "difference": -0.025399999999999978,
+          "dualheat_validation_accuracy": 0.15360000000000001,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.179
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.029200000000000004,
+          "dualheat_validation_accuracy": 0.11379999999999998,
+          "seed": 698971273,
+          "slowheat_validation_accuracy": 0.143
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.04559999999999999,
+          "dualheat_validation_accuracy": 0.1012,
+          "seed": 1288660088,
+          "slowheat_validation_accuracy": 0.14679999999999999
+        },
+        {
+          "architecture": "resnet18",
+          "difference": -0.012000000000000025,
+          "dualheat_validation_accuracy": 0.11739999999999999,
+          "seed": 1181804493,
+          "slowheat_validation_accuracy": 0.12940000000000002
+        }
+      ]
+    }
+  ],
+  "manifest": {
+    "architectures": [
+      "vgg11",
+      "resnet18"
+    ],
+    "epochs_per_task": 5,
+    "grid": [
+      {
+        "fast_decay": 0.9,
+        "fast_eps": 1e-08,
+        "fast_strength": 0.5,
+        "fast_threshold": 0.0
+      },
+      {
+        "fast_decay": 0.9,
+        "fast_eps": 1e-08,
+        "fast_strength": 0.5,
+        "fast_threshold": 0.5
+      },
+      {
+        "fast_decay": 0.9,
+        "fast_eps": 1e-08,
+        "fast_strength": 2.0,
+        "fast_threshold": 0.0
+      },
+      {
+        "fast_decay": 0.9,
+        "fast_eps": 1e-08,
+        "fast_strength": 2.0,
+        "fast_threshold": 0.5
+      },
+      {
+        "fast_decay": 0.97,
+        "fast_eps": 1e-08,
+        "fast_strength": 0.5,
+        "fast_threshold": 0.0
+      },
+      {
+        "fast_decay": 0.97,
+        "fast_eps": 1e-08,
+        "fast_strength": 0.5,
+        "fast_threshold": 0.5
+      },
+      {
+        "fast_decay": 0.97,
+        "fast_eps": 1e-08,
+        "fast_strength": 2.0,
+        "fast_threshold": 0.0
+      },
+      {
+        "fast_decay": 0.97,
+        "fast_eps": 1e-08,
+        "fast_strength": 2.0,
+        "fast_threshold": 0.5
+      }
+    ],
+    "method": "Functional DualHeat = activation FastHeat + Functional SlowHeat",
+    "schema_version": 1,
+    "seeds": [
+      698971273,
+      1288660088,
+      1181804493
+    ],
+    "selected": {
+      "fast_decay": 0.9,
+      "fast_eps": 1e-08,
+      "fast_strength": 0.5,
+      "fast_threshold": 0.0,
+      "mean_paired_validation_difference": 0.0031333333333333283
+    },
+    "selection_data": "validation_only",
+    "selection_endpoint": "mean paired DualHeat - SlowHeat final Class-IL validation accuracy, equal weight per architecture and seed",
+    "slowheat": {
+      "consolidation": "max",
+      "optimizer_state_policy": "follow_update",
+      "plasticity_budget": 0.25,
+      "slow_strength": 30.0
+    },
+    "status": "frozen_before_main_benchmark",
+    "tie_break": [
+      "lower_fast_strength",
+      "lower_fast_decay",
+      "higher_fast_threshold"
+    ]
+  }
+}
