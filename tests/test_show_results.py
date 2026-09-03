@@ -39,6 +39,40 @@ def _method_summary(
     }
 
 
+def _result_row(method: str) -> cli.ResultRow:
+    summary = cli.MetricSummary(mean=0.5, ci95_half_width=0.01)
+    return cli.ResultRow(
+        benchmark="split_cifar10",
+        cache="first",
+        learner_key=method,
+        seeds=2,
+        accuracy=summary,
+        forgetting=summary,
+    )
+
+
+def test_methods_are_grouped_by_family_with_base_slowheat_then_dualheat():
+    rows = [
+        _result_row("dualheat_scroll"),
+        _result_row("slowheat_lpr"),
+        _result_row("dualheat_lpr"),
+        _result_row("scroll"),
+        _result_row("lpr"),
+        _result_row("slowheat_scroll"),
+    ]
+
+    ordered = cli.filter_rows(rows, benchmark=None, cache=None)
+
+    assert [row.learner_key for row in ordered] == [
+        "lpr",
+        "slowheat_lpr",
+        "dualheat_lpr",
+        "scroll",
+        "slowheat_scroll",
+        "dualheat_scroll",
+    ]
+
+
 @pytest.fixture
 def sweep_report(tmp_path: Path) -> Path:
     root = tmp_path / "sweep"

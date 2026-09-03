@@ -20,6 +20,15 @@ METHOD_LABELS = {
     "derpp": "DER++",
     "slowheat_derpp_hidden_beta_30_budget_0.25": "SlowHeat+DER++",
 }
+COMPOSABLE_METHOD_FAMILIES = (
+    "classifier_expander",
+    "distillation",
+    "derpp",
+    "er_ace",
+    "lpr",
+    "replay",
+    "scroll",
+)
 METRICS = ("final_average_accuracy", "average_forgetting")
 TIMING_METRICS = ("elapsed_seconds", "selection_seconds")
 
@@ -115,6 +124,56 @@ def _normalize_cache(cache: str, *, context: str) -> str:
 
 def _method_label(method: str) -> str:
     return METHOD_LABELS.get(method, method)
+
+
+def _method_sort_key(method: str) -> tuple[str, int, str, str]:
+    """Group method families and order base, SlowHeat, then DualHeat variants."""
+
+    if method == "vanilla":
+        return (_method_label("vanilla").casefold(), 0, "", method)
+    if method == "slowheat":
+        return (_method_label("vanilla").casefold(), 1, "", method)
+    if method == "dualheat":
+        return (_method_label("vanilla").casefold(), 2, "", method)
+    if method == "fastheat":
+        return (_method_label("vanilla").casefold(), 3, "", method)
+    if method == "hard_freeze":
+        return (_method_label("vanilla").casefold(), 4, "", method)
+
+    remainder = method
+    variant_rank = 0
+    if method.startswith("slowheat_"):
+        remainder = method.removeprefix("slowheat_")
+        variant_rank = 1
+    elif method.startswith("dualheat_"):
+        remainder = method.removeprefix("dualheat_")
+        variant_rank = 2
+
+    for family in COMPOSABLE_METHOD_FAMILIES:
+        if remainder == family or remainder.startswith(f"{family}_"):
+            rank = variant_rank
+            if variant_rank == 0 and remainder != family:
+                rank = 3
+            return (
+                _method_label(family).casefold(),
+                rank,
+                _method_label(method).casefold(),
+                method,
+            )
+
+    if variant_rank:
+        return (
+            _method_label("vanilla").casefold(),
+            variant_rank,
+            _method_label(method).casefold(),
+            method,
+        )
+    return (
+        _method_label(method).casefold(),
+        0,
+        _method_label(method).casefold(),
+        method,
+    )
 
 
 def _rows_from_sweep_report(path: Path) -> list[ResultRow]:
@@ -395,8 +454,7 @@ def filter_rows(
         key=lambda row: (
             row.benchmark,
             cache_order[row.cache],
-            _method_label(row.learner_key).lower(),
-            row.learner_key,
+            _method_sort_key(row.learner_key),
         ),
     )
 

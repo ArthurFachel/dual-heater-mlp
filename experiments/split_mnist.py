@@ -35,6 +35,7 @@ from experiments.confirmatory_statistics import (
     paired_confirmatory_summary,
 )
 from experiments.contracts import ContinualTask
+from experiments.evaluation import evaluating
 from experiments.lpr import LPRPreconditioner
 from experiments.method_specs import (
     MethodSpec,
@@ -930,11 +931,11 @@ def _fit_scroll_ridge(
 ) -> tuple[Tensor, Tensor, int]:
     """Accumulate SCROLL sufficient statistics and solve ridge regression."""
 
-    reference.eval()
     feature_parts: list[Tensor] = []
-    for start in range(0, len(task.train_x), EVALUATION_BATCH_SIZE):
-        inputs = task.train_x[start : start + EVALUATION_BATCH_SIZE].to(device)
-        feature_parts.append(_cnn_features(reference, inputs))
+    with evaluating(reference):
+        for start in range(0, len(task.train_x), EVALUATION_BATCH_SIZE):
+            inputs = task.train_x[start : start + EVALUATION_BATCH_SIZE].to(device)
+            feature_parts.append(_cnn_features(reference, inputs))
     features = torch.cat(feature_parts)
     features = torch.cat((features, torch.ones_like(features[:, :1])), dim=1)
     targets = F.one_hot(task.train_y.to(device), num_classes=class_count).to(
@@ -1077,17 +1078,18 @@ def _accuracy(
     device: str,
     logit_bias: Tensor | None = None,
 ) -> float:
-    model.eval()
     correct = 0
-    for start in range(0, len(inputs), EVALUATION_BATCH_SIZE):
-        batch_x = inputs[start : start + EVALUATION_BATCH_SIZE].to(device)
-        batch_y = targets[start : start + EVALUATION_BATCH_SIZE].to(device)
-        logits = model(batch_x)
-        if logit_bias is not None:
-            logits = logits + logit_bias.to(device)
-        logits = _mask_unseen_logits(logits, seen_classes)
-        predictions = logits.argmax(dim=-1)
-        correct += int((predictions == batch_y).sum().item())
+    device_bias = None if logit_bias is None else logit_bias.to(device)
+    with evaluating(model):
+        for start in range(0, len(inputs), EVALUATION_BATCH_SIZE):
+            batch_x = inputs[start : start + EVALUATION_BATCH_SIZE].to(device)
+            batch_y = targets[start : start + EVALUATION_BATCH_SIZE].to(device)
+            logits = model(batch_x)
+            if device_bias is not None:
+                logits = logits + device_bias
+            logits = _mask_unseen_logits(logits, seen_classes)
+            predictions = logits.argmax(dim=-1)
+            correct += int((predictions == batch_y).sum().item())
     return correct / len(inputs)
 
 
@@ -1101,19 +1103,63 @@ def _task_aware_accuracy(
 ) -> float:
     """Evaluate within-task discrimination with the task classes supplied."""
 
-    model.eval()
     classes = torch.tensor(task.classes, device=device)
     correct = 0
-    for start in range(0, len(task.test_x), EVALUATION_BATCH_SIZE):
-        batch_x = task.test_x[start : start + EVALUATION_BATCH_SIZE].to(device)
-        batch_y = task.test_y[start : start + EVALUATION_BATCH_SIZE].to(device)
-        logits = model(batch_x)
-        if logit_bias is not None:
-            logits = logits + logit_bias.to(device)
-        local = logits.index_select(-1, classes).argmax(dim=-1)
-        predictions = classes[local]
-        correct += int((predictions == batch_y).sum().item())
+    device_bias = None if logit_bias is None else logit_bias.to(device)
+    with evaluating(model):
+        for start in range(0, len(task.test_x), EVALUATION_BATCH_SIZE):
+            batch_x = task.test_x[start : start + EVALUATION_BATCH_SIZE].to(device)
+            batch_y = task.test_y[start : start + EVALUATION_BATCH_SIZE].to(device)
+            logits = model(batch_x)
+            if device_bias is not None:
+                logits = logits + device_bias
+            local = logits.index_select(-1, classes).argmax(dim=-1)
+            predictions = classes[local]
+            correct += int((predictions == batch_y).sum().item())
     return correct / len(task.test_x)
+
+
+@torch.no_grad()
+def _evaluate_task(
+    model: nn.Module,
+    task: MNISTTask,
+    *,
+    seen_classes: tuple[int, ...],
+    device: str,
+    logit_bias: Tensor | None = None,
+) -> tuple[float, float]:
+    """Compute class-IL and task-aware accuracy from the same forward passes."""
+
+    classes = torch.tensor(task.classes, device=device)
+    device_bias = None if logit_bias is None else logit_bias.to(device)
+    class_il_correct = 0
+    task_aware_correct = 0
+    with evaluating(model):
+        for start in range(0, len(task.test_x), EVALUATION_BATCH_SIZE):
+            batch_x = task.test_x[start : start + EVALUATION_BATCH_SIZE].to(device)
+            batch_y = task.test_y[start : start + EVALUATION_BATCH_SIZE].to(device)
+            logits = model(batch_x)
+            if device_bias is not None:
+                logits = logits + device_bias
+
+            class_il_predictions = _mask_unseen_logits(
+                logits, seen_classes
+            ).argmax(dim=-1)
+            class_il_correct += int(
+                (class_il_predictions == batch_y).sum().item()
+            )
+
+            local = logits.index_select(-1, classes).argmax(dim=-1)
+            task_aware_predictions = classes[local]
+            task_aware_correct += int(
+                (task_aware_predictions == batch_y).sum().item()
+            )
+
+    sample_count = len(task.test_x)
+    return (
+        class_il_correct / sample_count,
+        task_aware_correct / sample_count,
+    )
 
 
 def _stage_curves(matrix: np.ndarray) -> tuple[list[float], list[float]]:
@@ -1486,7 +1532,6 @@ def run_split_mnist(
     config.validate()
     if len(tasks) != config.task_count:
         raise ValueError("quantidade de tasks incompatível com a configuração")
-    contains_fastheat = any(_is_fastheat(method) for method in config.methods)
     data_sha256 = (
         task_data_fingerprint(tasks)
         if output_dir is not None
@@ -1671,12 +1716,6 @@ def run_split_mnist(
             stop_stage = False
 
             for epoch_index in range(epoch_budget):
-                # Evaluation freezes FastHeat by switching the model to eval().
-                # New paired sweeps restore every learner together so only
-                # optimization forwards advance FastHeat, while legacy sweeps
-                # without FastHeat preserve their historical execution path.
-                if contains_fastheat:
-                    model.train()
                 epoch_start = epoch_index * steps_per_epoch
                 epoch_end = epoch_start + steps_per_epoch
                 for step_index in range(epoch_start, epoch_end):
@@ -2115,20 +2154,15 @@ def run_split_mnist(
                 )
 
             for task_index in range(stage + 1):
-                matrix[stage, task_index] = _accuracy(
+                class_il, task_aware = _evaluate_task(
                     model,
-                    tasks[task_index].test_x,
-                    tasks[task_index].test_y,
+                    tasks[task_index],
                     seen_classes=seen_classes,
                     device=config.device,
                     logit_bias=logit_bias,
                 )
-                task_aware_matrix[stage, task_index] = _task_aware_accuracy(
-                    model,
-                    tasks[task_index],
-                    device=config.device,
-                    logit_bias=logit_bias,
-                )
+                matrix[stage, task_index] = class_il
+                task_aware_matrix[stage, task_index] = task_aware
 
             if _uses_distillation(method) or _uses_classifier_expander(method):
                 teacher = deepcopy(model).eval()

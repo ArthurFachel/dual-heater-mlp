@@ -18,7 +18,9 @@ from experiments.dualheat_pairs import (
 from experiments.split_mnist import (
     MNISTTask,
     SplitMNISTConfig,
+    _accuracy,
     _classes_for_task,
+    _evaluate_task,
     _select_class_indices,
     build_paired_models,
     config_payload,
@@ -71,6 +73,98 @@ def _tiny_tasks(config: SplitMNISTConfig) -> list[MNISTTask]:
             )
         )
     return tasks
+
+
+def test_accuracy_restores_the_previous_model_mode():
+    model = torch.nn.Linear(2, 2)
+    inputs = torch.eye(2)
+    targets = torch.tensor([0, 1])
+
+    model.train()
+    _accuracy(model, inputs, targets, seen_classes=(0, 1), device="cpu")
+    assert model.training
+
+    model.eval()
+    _accuracy(model, inputs, targets, seen_classes=(0, 1), device="cpu")
+    assert not model.training
+
+
+def test_method_result_does_not_depend_on_fastheat_elsewhere_in_the_sweep():
+    candidate = "slowheat_replay_hidden_beta_30_budget_0.25"
+    config = SplitMNISTConfig(
+        seed=2,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=3,
+        replay_per_class=1,
+        replay_batch_size=2,
+        methods=(candidate,),
+    )
+    tasks = _tiny_tasks(config)
+
+    alone = run_split_mnist(config, tasks)[candidate]
+    with_fastheat = run_split_mnist(
+        replace(config, methods=(candidate, "dualheat")), tasks
+    )[candidate]
+
+    assert alone["training_losses"] == with_fastheat["training_losses"]
+    assert alone["accuracy_matrix"] == with_fastheat["accuracy_matrix"]
+
+
+def test_slowheat_none_matches_vanilla_exactly():
+    config = SplitMNISTConfig(
+        seed=4,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=2,
+        methods=("vanilla", "slowheat_none"),
+    )
+
+    results = run_split_mnist(config, _tiny_tasks(config))
+    vanilla = results["vanilla"]
+    control = results["slowheat_none"]
+
+    assert control["training_losses"] == vanilla["training_losses"]
+    assert control["accuracy_matrix"] == vanilla["accuracy_matrix"]
+    assert control["task_aware_accuracy_matrix"] == vanilla[
+        "task_aware_accuracy_matrix"
+    ]
+
+
+def test_evaluate_task_reuses_each_forward_for_both_metrics(monkeypatch):
+    class CountingLinear(torch.nn.Linear):
+        forward_calls = 0
+
+        def forward(self, inputs):
+            self.forward_calls += 1
+            return super().forward(inputs)
+
+    model = CountingLinear(2, 3, bias=False)
+    with torch.no_grad():
+        model.weight.copy_(
+            torch.tensor([[1.0, 0.0], [0.0, 1.0], [0.5, 0.5]])
+        )
+    inputs = torch.tensor([[2.0, 0.0], [0.0, 2.0]])
+    task = MNISTTask(
+        classes=(0, 2),
+        train_x=inputs,
+        train_y=torch.tensor([0, 2]),
+        validation_x=inputs,
+        validation_y=torch.tensor([0, 2]),
+        test_x=inputs,
+        test_y=torch.tensor([0, 2]),
+    )
+    monkeypatch.setattr("experiments.split_mnist.EVALUATION_BATCH_SIZE", 1)
+    model.train()
+
+    class_il, task_aware = _evaluate_task(
+        model, task, seen_classes=(0, 1, 2), device="cpu"
+    )
+
+    assert class_il == 0.5
+    assert task_aware == 1.0
+    assert model.forward_calls == 2
+    assert model.training
 
 
 @pytest.fixture

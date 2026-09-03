@@ -2,6 +2,28 @@
 
 Status: implementado; nenhum artefato confirmatório está versionado.
 
+## Correção de implementação de 2026-09-02
+
+Uma auditoria do runner encontrou que as avaliações realizadas ao fim de cada
+época chamavam `model.eval()` sem restaurar o modo anterior. Como os hooks de
+importância funcional só acumulam em modo de treino, execuções SlowHeat sem um
+método FastHeat na mesma lista acumulavam importância apenas na primeira época
+de cada estágio. A presença de FastHeat ativava uma restauração global no início
+das épocas seguintes e, portanto, fazia o resultado de um método depender dos
+outros métodos incluídos no sweep.
+
+O protocolo confirmatório congelado usa dez épocas e somente `replay` e
+`slowheat_replay_hidden_beta_30_budget_0.25`; logo, qualquer execução dele feita
+antes dessa correção foi afetada e não deve ser usada como resultado
+confirmatório. Seeds, hiperparâmetros, endpoint e plano de análise permanecem
+inalterados. A correção apenas restaura a semântica pretendida do treinamento e
+é protegida por testes de independência da composição do sweep.
+
+Uma execução confirmatória posterior à correção deve usar um diretório novo. O
+`source_fingerprint` impede que checkpoints ou seeds produzidos pelo código
+anterior sejam retomados como se pertencessem à implementação corrigida. O
+repositório continua sem artefatos confirmatórios versionados.
+
 ## Separação entre confirmação e exploração
 
 A confirmação independente contém apenas replay e o candidato congelado. Seu
