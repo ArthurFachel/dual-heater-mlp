@@ -11,10 +11,11 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import random
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from experiments.artifacts import write_json_atomic
 from experiments.confirmatory_split_mnist import CONFIRMATORY_SEEDS
@@ -25,7 +26,9 @@ from experiments.confirmatory_statistics import (
 from experiments.provenance import relative_path
 from experiments.split_mnist import (
     AGGREGATE_METRICS,
+    OPTIONAL_AGGREGATE_METRICS,
     SplitMNISTConfig,
+    _optional_result_metric,
     _result_metric,
     config_payload,
     run_split_mnist_multi_seed,
@@ -59,6 +62,7 @@ METHOD_PAIRS = (
     MethodPair("DER++", "derpp", SLOWHEAT_DERPP),
     MethodPair("ER-ACE", "er_ace", SLOWHEAT_ER_ACE),
 )
+DERPP_PAIR = MethodPair("DER++", "derpp", SLOWHEAT_DERPP)
 PAIRED_METHODS = tuple(
     method for pair in METHOD_PAIRS for method in (pair.reference, pair.candidate)
 )
@@ -155,14 +159,25 @@ def _holm_adjust(p_values: list[float]) -> list[float]:
 
 
 def summarize_pair_results(
-    source_dir: str | Path, *, output_dir: str | Path
+    source_dir: str | Path,
+    *,
+    output_dir: str | Path,
+    pairs: Sequence[MethodPair] = METHOD_PAIRS,
 ) -> dict[str, Any]:
-    """Recompute only the four matched contrasts from complete per-seed files.
+    """Recompute selected matched contrasts from complete per-seed files.
 
     Historical all-method runs are allowed, but incomplete seeds, mismatched
     configurations or unequal within-pair training resources are rejected.
     Source artifacts are read-only; no marginal CI is used to infer a difference.
     """
+    selected_pairs = tuple(pairs)
+    if not selected_pairs:
+        raise ValueError("ao menos um par deve ser selecionado")
+    required_methods = {
+        method
+        for pair in selected_pairs
+        for method in (pair.reference, pair.candidate)
+    }
     source = Path(source_dir)
     fingerprints: dict[str, str] = {}
 
@@ -177,11 +192,12 @@ def summarize_pair_results(
     base = manifest["base_config"]
     if base.get("backbone", "mlp") != "mlp":
         raise ValueError("este relatório avalia apenas MLPs")
-    if not set(PAIRED_METHODS).issubset(base["methods"]):
-        raise ValueError("os resultados não contêm os quatro pares completos")
+    if not required_methods.issubset(base["methods"]):
+        missing = sorted(required_methods - set(base["methods"]))
+        raise ValueError(f"os resultados não contêm os métodos requeridos: {missing}")
     if base.get("optimizer_state_policy") != "follow_update":
         raise ValueError(
-            "os quatro pares requerem optimizer_state_policy=follow_update"
+            "os pares requerem optimizer_state_policy=follow_update"
         )
     raw = {}
     for seed in seeds:
@@ -189,7 +205,7 @@ def summarize_pair_results(
         if saved_config != {**base, "seed": seed}:
             raise ValueError(f"configuração incompatível na seed {seed}")
         raw[seed] = read(f"seed_{seed}/results.json")
-        for pair in METHOD_PAIRS:
+        for pair in selected_pairs:
             if pair.reference not in raw[seed] or pair.candidate not in raw[seed]:
                 raise ValueError(f"par incompleto: {pair.label}, seed {seed}")
             reference, candidate = raw[seed][pair.reference], raw[seed][pair.candidate]
@@ -203,7 +219,7 @@ def summarize_pair_results(
 
     comparisons = []
     seed_rows = []
-    for pair in METHOD_PAIRS:
+    for pair in selected_pairs:
         metrics = {}
         for metric in AGGREGATE_METRICS:
             reference = [
@@ -212,6 +228,8 @@ def summarize_pair_results(
             candidate = [
                 _result_metric(raw[seed][pair.candidate], metric) for seed in seeds
             ]
+            if not all(math.isfinite(value) for value in (*reference, *candidate)):
+                raise ValueError(f"métrica não finita: {pair.label}, {metric}")
             differences = [c - r for r, c in zip(reference, candidate, strict=True)]
             summary = (
                 paired_confirmatory_summary(
@@ -243,9 +261,72 @@ def summarize_pair_results(
                 }
                 for seed, r, c in zip(seeds, reference, candidate, strict=True)
             )
+        for metric in OPTIONAL_AGGREGATE_METRICS:
+            reference_optional = [
+                _optional_result_metric(raw[seed][pair.reference], metric)
+                for seed in seeds
+            ]
+            candidate_optional = [
+                _optional_result_metric(raw[seed][pair.candidate], metric)
+                for seed in seeds
+            ]
+            if any(
+                value is None
+                for value in (*reference_optional, *candidate_optional)
+            ):
+                metrics[metric] = {
+                    "available": False,
+                    "reason": "not_measured_for_every_seed",
+                }
+                continue
+            reference_values = [
+                value for value in reference_optional if value is not None
+            ]
+            candidate_values = [
+                value for value in candidate_optional if value is not None
+            ]
+            differences = [
+                candidate - reference
+                for reference, candidate in zip(
+                    reference_values, candidate_values, strict=True
+                )
+            ]
+            summary = (
+                paired_confirmatory_summary(
+                    differences,
+                    bootstrap_resamples=base.get("bootstrap_resamples", 10_000),
+                    bootstrap_seed=base.get("bootstrap_seed", 20_260_815),
+                )
+                if len(seeds) >= 2
+                else {
+                    "n_pairs": 1,
+                    "mean_difference": differences[0],
+                    "inference_unavailable": "requires_at_least_two_paired_seeds",
+                }
+            )
+            metrics[metric] = {
+                "available": True,
+                "reference_mean": sum(reference_values) / len(seeds),
+                "candidate_mean": sum(candidate_values) / len(seeds),
+                **summary,
+            }
+            seed_rows.extend(
+                {
+                    "reference": pair.reference,
+                    "candidate": pair.candidate,
+                    "metric": metric,
+                    "seed": seed,
+                    "reference_value": reference,
+                    "candidate_value": candidate,
+                    "difference": candidate - reference,
+                }
+                for seed, reference, candidate in zip(
+                    seeds, reference_values, candidate_values, strict=True
+                )
+            )
         comparisons.append({**asdict(pair), "metrics": metrics})
 
-    if len(seeds) >= 2:
+    if len(seeds) >= 2 and selected_pairs == METHOD_PAIRS:
         adjusted = _holm_adjust(
             [
                 comparison["metrics"][PRIMARY_ENDPOINT]["student_t"]["two_sided_p"]
@@ -256,6 +337,14 @@ def summarize_pair_results(
             comparison["metrics"][PRIMARY_ENDPOINT]["holm_adjusted_p"] = p_value
 
     report = {
+        "schema_version": 2,
+        "analysis_scope": (
+            "historical_four_pairs"
+            if selected_pairs == METHOD_PAIRS
+            else "slowheat_derpp_only"
+            if selected_pairs == (DERPP_PAIR,)
+            else "selected_pairs"
+        ),
         "status": "exploratory_reanalysis"
         if not (source / "pair_protocol.json").exists()
         else "exploratory_paired_suite",
@@ -267,11 +356,25 @@ def summarize_pair_results(
         "config": base,
         "seeds": seeds,
         "primary_endpoint": PRIMARY_ENDPOINT,
+        "secondary_endpoints": [
+            "average_forgetting",
+            "task_aware_final_accuracy",
+            "task_aware_forgetting",
+            "classifier_gap",
+        ],
+        "inference_regimes": {
+            "final_average_accuracy": "class_incremental_no_task_id",
+            "task_aware_final_accuracy": "oracle_task_identity_class_mask",
+        },
         "difference_direction": "candidate_minus_reference",
         "inference_note": (
             "Student-t and paired bootstrap intervals are pointwise, not simultaneous. "
-            "Accuracy p-values use Holm across four contrasts within this dataset only. "
-            "Secondary metrics and cross-dataset conclusions remain exploratory."
+            + (
+                "Accuracy p-values use Holm across four contrasts within this dataset only. "
+                if selected_pairs == METHOD_PAIRS
+                else "The selected exploratory scope contains one prespecified pair; no four-pair multiplicity claim applies. "
+            )
+            + "Secondary metrics and cross-dataset conclusions remain exploratory."
         ),
         "pairs": comparisons,
     }
@@ -306,12 +409,19 @@ def _write_pair_report(
             "Delta = com componente − sem componente. Acurácia e forgetting em pontos "
             "percentuais; esquecer menos só é útil se a aquisição for preservada.\n"
         ),
+        "\n## Primário: acurácia média final Class-IL\n",
         "| Método | Sem (%) | Com (%) | Delta (pp) | IC95% t (pp) | Delta forgetting (pp) | Tempo com/sem |",
         "|---|---:|---:|---:|---|---:|---:|",
     ]
     for comparison in report["pairs"]:
         metrics = comparison["metrics"]
         accuracy = metrics[PRIMARY_ENDPOINT]
+        task_aware_accuracy = metrics["task_aware_final_accuracy"]
+        task_aware_forgetting = metrics["task_aware_forgetting"]
+        classifier_gap = metrics["classifier_gap"]
+        peak_memory = metrics["peak_memory_bytes"]
+        peak_memory_delta = metrics["peak_memory_delta_bytes"]
+        peak_reserved = metrics["peak_cuda_reserved_bytes"]
         elapsed = metrics["elapsed_seconds"]
         ratio = (
             elapsed["candidate_mean"] / elapsed["reference_mean"]
@@ -319,6 +429,9 @@ def _write_pair_report(
             else None
         )
         ci = accuracy.get("student_t", {}).get("ci95", [None, None])
+        task_aware_ci = task_aware_accuracy.get("student_t", {}).get(
+            "ci95", [None, None]
+        )
         row = {
             "reference": comparison["reference"],
             "candidate": comparison["candidate"],
@@ -331,6 +444,36 @@ def _write_pair_report(
             "accuracy_p_holm": accuracy.get("holm_adjusted_p"),
             "forgetting_delta_pp": 100
             * metrics["average_forgetting"]["mean_difference"],
+            "task_aware_accuracy_reference_percent": 100
+            * task_aware_accuracy["reference_mean"],
+            "task_aware_accuracy_candidate_percent": 100
+            * task_aware_accuracy["candidate_mean"],
+            "task_aware_accuracy_delta_pp": 100
+            * task_aware_accuracy["mean_difference"],
+            "task_aware_accuracy_ci95_t_low_pp": (
+                None if task_aware_ci[0] is None else 100 * task_aware_ci[0]
+            ),
+            "task_aware_accuracy_ci95_t_high_pp": (
+                None if task_aware_ci[1] is None else 100 * task_aware_ci[1]
+            ),
+            "task_aware_forgetting_delta_pp": 100
+            * task_aware_forgetting["mean_difference"],
+            "classifier_gap_delta_pp": 100 * classifier_gap["mean_difference"],
+            "peak_memory_delta_bytes": (
+                peak_memory.get("mean_difference")
+                if peak_memory.get("available")
+                else None
+            ),
+            "peak_memory_growth_delta_bytes": (
+                peak_memory_delta.get("mean_difference")
+                if peak_memory_delta.get("available")
+                else None
+            ),
+            "peak_cuda_reserved_delta_bytes": (
+                peak_reserved.get("mean_difference")
+                if peak_reserved.get("available")
+                else None
+            ),
             "elapsed_ratio_of_means": ratio,
             "estimated_flops_delta": metrics["estimated_total_flops"][
                 "mean_difference"
@@ -350,10 +493,30 @@ def _write_pair_report(
         )
     lines.extend(
         [
+            "\n## Diagnósticos secundários task-aware\n",
+            (
+                "Task-aware fornece a identidade oráculo da tarefa e mascara logits fora "
+                "das classes da tarefa; não é o endpoint Class-IL congelado.\n"
+            ),
+            "| Método | Task-aware sem (%) | Task-aware com (%) | Delta task-aware (pp) | Delta forgetting task-aware (pp) | Delta classifier gap (pp) |",
+            "|---|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for comparison, row in zip(report["pairs"], rows, strict=True):
+        lines.append(
+            f"| {comparison['label']} "
+            f"| {row['task_aware_accuracy_reference_percent']:.3f} "
+            f"| {row['task_aware_accuracy_candidate_percent']:.3f} "
+            f"| {row['task_aware_accuracy_delta_pp']:+.3f} "
+            f"| {row['task_aware_forgetting_delta_pp']:+.3f} "
+            f"| {row['classifier_gap_delta_pp']:+.3f} |"
+        )
+    lines.extend(
+        [
             "\n## Interpretação e limites\n",
             (
-                "- ICs são pontuais; o JSON/CSV inclui p de acurácia ajustado por Holm "
-                "para os quatro pares deste dataset. Não há correção entre datasets."
+                "- ICs são pontuais. O ajuste de Holm é aplicado somente no relatório "
+                "histórico completo de quatro pares; relatórios focados não alegam essa família."
             ),
             "- Ganhos negativos e empates permanecem no relatório. Não se assume benefício universal.",
             (
@@ -364,7 +527,11 @@ def _write_pair_report(
                 "- Tempo observado é descritivo, sem medição isolada com aquecimento; "
                 "a ordem dos métodos é fixa. FLOPs são estimativas."
             ),
-            "- Bytes de replay/logits não são memória total. Pico de memória não foi medido.",
+            (
+                "- Memória de pico aparece apenas quando medida em todas as seeds. "
+                "CPU usa RSS amostrado do processo; CUDA usa pico do allocator PyTorch. "
+                "Bytes de replay/logits permanecem métricas de estado separadas."
+            ),
             (
                 "- Fronteiras de tarefa conhecidas; inferência sem task ID. "
                 "Baselines usam defaults, sem ajuste individual nesta suíte."
@@ -386,6 +553,20 @@ def _write_pair_report(
             writer.writerows(records)
     (destination / "pair_report.md").write_text(
         "\n".join(lines) + "\n", encoding="utf-8"
+    )
+
+
+def summarize_slowheat_derpp_results(
+    source_dir: str | Path,
+    *,
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    """Create a focused exploratory report for DER++ versus SlowHeat+DER++."""
+
+    return summarize_pair_results(
+        source_dir,
+        output_dir=output_dir,
+        pairs=(DERPP_PAIR,),
     )
 
 
@@ -453,11 +634,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--summarize-from", type=Path, help="reanalisar artefatos sem treinar"
     )
+    parser.add_argument(
+        "--pair",
+        choices=("all", "derpp"),
+        default="all",
+        help="escopo do relatório usado com --summarize-from",
+    )
     args = parser.parse_args(argv)
     if args.summarize_from:
         if args.dry_run:
             parser.error("--dry-run não pode ser combinado com --summarize-from")
-        summarize_pair_results(args.summarize_from, output_dir=args.output_dir)
+        summarize = (
+            summarize_slowheat_derpp_results
+            if args.pair == "derpp"
+            else summarize_pair_results
+        )
+        summarize(args.summarize_from, output_dir=args.output_dir)
         report_path = relative_path(args.output_dir / "pair_report.md", base=Path.cwd())
         print(f"Relatório exploratório: {report_path}")
         return 0

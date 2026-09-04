@@ -10,6 +10,26 @@ The repository now distinguishes **Functional SlowHeat**, the new
 **Functional DualHeat** (activation FastHeat + Functional SlowHeat), and the
 historical `DualHeatLinear`/`DualHeatMLP` API.
 
+Ten-seed exploratory Split-CIFAR-10 benchmarks are now available for VGG11 and
+ResNet18. Functional DualHeat did not produce a multiplicity-adjusted gain in
+the primary final-average-accuracy contrasts. On VGG11, DualHeat minus SlowHeat
+was `-0.00483`, while DualHeat+LPR minus SlowHeat+LPR was `+0.01430`; both had
+Holm-adjusted `p = 0.0803`. All four ResNet18 contrasts were close to zero and
+had Holm-adjusted `p = 1.0`. The VGG11 DualHeat comparison reduced average
+forgetting by `0.02488` while reducing final accuracy, so the evidence supports
+a stability-plasticity trade-off rather than superiority. These results are
+exploratory, and all recorded paired fairness checks passed.
+
+A runner audit on 2026-09-02 found that epoch-end evaluation entered eval mode
+without restoring the learner's previous mode. SlowHeat sweeps without any
+FastHeat method consequently accumulated functional importance only during the
+first epoch of each stage. Any frozen Split-MNIST confirmation executed before
+the correction is invalid and must not be reported. The correction preserves
+the preregistered seeds, hyperparameters, endpoint and analysis; a valid
+confirmation must use the corrected source and a new output directory. See
+[`docs/confirmatory_protocol.md`](docs/confirmatory_protocol.md) and the
+[experiment log](docs/split_mnist_experiment_log.md).
+
 ### Method versus method + DualHeat
 
 The older dedicated MLP comparison is retained under its historical artifact

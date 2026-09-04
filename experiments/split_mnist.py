@@ -43,6 +43,7 @@ from experiments.method_specs import (
     structured_method_match,
 )
 from experiments.model_factory import build_paired_models as _build_paired_models
+from experiments.peak_memory import PeakMemoryTracker
 from experiments.provenance import write_environment_manifest
 from experiments.replay_memory import (
     REPLAY_SELECTION_STRATEGIES,
@@ -62,12 +63,14 @@ TRAIN_SPLIT_SEED_MULTIPLIER = 1_003
 TEST_SPLIT_SEED_MULTIPLIER = 2_003
 REPLAY_SCHEDULE_SEED_OFFSET = 10_000
 CALIBRATION_OFFSETS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
-STAGE_CHECKPOINT_SCHEMA_VERSION = 1
+STAGE_CHECKPOINT_SCHEMA_VERSION = 2
 STAGE_RESUMABLE_METHODS = {
     "fastheat",
     "dualheat",
     "replay",
+    "replay_calibrated",
     "slowheat_replay_hidden_beta_30_budget_0.25",
+    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
     "derpp",
     "slowheat_derpp_hidden_beta_30_budget_0.25",
 }
@@ -87,6 +90,7 @@ _METHOD_SPECS = {
     "slowheat_none": MethodSpec(slowheat=True),
     "hard_freeze": MethodSpec(slowheat=True),
     "replay": MethodSpec(replay=True),
+    "replay_calibrated": MethodSpec(replay=True, calibrated=True),
     "distillation": MethodSpec(distillation=True),
     "slowheat_replay": MethodSpec(slowheat=True, replay=True),
     "slowheat_distillation": MethodSpec(slowheat=True, distillation=True),
@@ -202,6 +206,7 @@ _METHOD_SPECS = {
     "slowheat_replay_hidden_beta_30_budget_0.25_calibrated": MethodSpec(
         slowheat=True,
         replay=True,
+        calibrated=True,
         strength=30.0,
         budget=0.25,
         protect_output=False,
@@ -258,6 +263,11 @@ def _is_fastheat(method: str) -> bool:
 def _uses_replay(method: str) -> bool:
     spec = _method_spec(method)
     return spec is not None and spec.replay
+
+
+def _uses_calibration(method: str) -> bool:
+    spec = _method_spec(method)
+    return spec is not None and spec.calibrated
 
 
 def _uses_derpp(method: str) -> bool:
@@ -1387,10 +1397,75 @@ def _calibrate_old_class_bias(
     return bias
 
 
+def _unavailable_peak_memory() -> dict[str, Any]:
+    return {
+        "peak_memory_available": False,
+        "peak_memory_backend": None,
+        "peak_memory_bytes": None,
+        "peak_memory_baseline_bytes": None,
+        "peak_memory_delta_bytes": None,
+        "peak_memory_max_segment_delta_bytes": None,
+        "peak_cuda_reserved_bytes": None,
+        "peak_memory_sampling_interval_seconds": None,
+    }
+
+
+def _merge_peak_memory(cost: dict[str, Any], observed: dict[str, Any]) -> None:
+    """Merge fresh or resumed segments without mixing measurement backends.
+
+    The (baseline, peak, delta) triple from whichever segment had the larger
+    absolute peak is kept together so the merged record stays internally
+    consistent (delta == peak - baseline). Segment growth is also tracked
+    as a separate max-growth field so a smaller-peak segment with larger
+    growth is not silently discarded.
+    """
+
+    if not observed.get("peak_memory_available"):
+        for key, value in _unavailable_peak_memory().items():
+            cost.setdefault(key, value)
+        cost.setdefault("peak_memory_max_segment_delta_bytes", None)
+        return
+    previous_backend = cost.get("peak_memory_backend")
+    observed_backend = observed["peak_memory_backend"]
+    if cost.get("peak_memory_available") and previous_backend != observed_backend:
+        raise RuntimeError(
+            f"incompatible peak-memory backends: {previous_backend} vs {observed_backend}"
+        )
+    observed_peak = observed.get("peak_memory_bytes")
+    previous_peak = cost.get("peak_memory_bytes")
+    take_observed = previous_peak is None or (
+        observed_peak is not None and int(observed_peak) > int(previous_peak)
+    )
+    cost["peak_memory_available"] = True
+    cost["peak_memory_backend"] = observed_backend
+    if take_observed:
+        cost["peak_memory_bytes"] = observed_peak
+        cost["peak_memory_baseline_bytes"] = observed.get("peak_memory_baseline_bytes")
+        cost["peak_memory_delta_bytes"] = observed.get("peak_memory_delta_bytes")
+    cost["peak_cuda_reserved_bytes"] = _max_optional(
+        cost.get("peak_cuda_reserved_bytes"), observed.get("peak_cuda_reserved_bytes")
+    )
+    cost["peak_memory_max_segment_delta_bytes"] = _max_optional(
+        cost.get("peak_memory_max_segment_delta_bytes"),
+        observed.get("peak_memory_delta_bytes"),
+    )
+    cost["peak_memory_sampling_interval_seconds"] = observed.get(
+        "peak_memory_sampling_interval_seconds"
+    )
+
+
+def _max_optional(a: int | None, b: int | None) -> int | None:
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return max(int(a), int(b))
+
+
 def _new_cost_record(
     model: nn.Module,
     sample_input: Tensor | None = None,
-) -> dict[str, float | int]:
+) -> dict[str, Any]:
     forward_flops = (
         _linear_forward_flops(model)
         if sample_input is None
@@ -1426,12 +1501,13 @@ def _new_cost_record(
         "fastheat_state_bytes": fastheat_state_bytes,
         "slowheat_state_bytes": slowheat_state_bytes,
         "method_state_bytes": fastheat_state_bytes + slowheat_state_bytes,
+        **_unavailable_peak_memory(),
         "model_parameters": sum(parameter.numel() for parameter in model.parameters()),
         "forward_flops_per_example": forward_flops,
     }
 
 
-def _finalize_cost(model: nn.Module, cost: dict[str, float | int]) -> dict[str, Any]:
+def _finalize_cost(model: nn.Module, cost: dict[str, Any]) -> dict[str, Any]:
     forward_flops = int(
         cost.get("forward_flops_per_example", _linear_forward_flops(model))
     )
@@ -1514,6 +1590,8 @@ def _backfill_cost_metadata(
         "method_state_bytes",
         int(cost["fastheat_state_bytes"]) + int(cost["slowheat_state_bytes"]),
     )
+    for key, value in _unavailable_peak_memory().items():
+        cost.setdefault(key, value)
 
 
 def run_split_mnist(
@@ -1564,6 +1642,7 @@ def run_split_mnist(
     results: dict[str, dict[str, Any]] = {}
 
     for method in config.methods:
+        memory_tracker = PeakMemoryTracker(config.device).start()
         method_spec = _method_spec(method)
         assert method_spec is not None
         method_config = replace(config, methods=(method,))
@@ -2144,7 +2223,7 @@ def run_split_mnist(
                     [state.capacity_metrics() for state in slow_states]
                 )
 
-            if method == "slowheat_replay_hidden_beta_30_budget_0.25_calibrated":
+            if _uses_calibration(method):
                 calibration_started = time.perf_counter()
                 logit_bias = _calibrate_old_class_bias(
                     model, tasks, stage=stage, config=config
@@ -2171,6 +2250,7 @@ def run_split_mnist(
 
             if checkpoint_path is not None:
                 assert data_sha256 is not None
+                _merge_peak_memory(cost, memory_tracker.snapshot())
                 write_torch_atomic(
                     checkpoint_path,
                     {
@@ -2208,6 +2288,7 @@ def run_split_mnist(
                 )
 
         elapsed = elapsed_before + time.perf_counter() - started
+        _merge_peak_memory(cost, memory_tracker.stop())
         metrics = compute_cl_metrics(
             matrix,
             pretrain_scores=pretrain_scores,
@@ -2284,6 +2365,13 @@ def run_split_mnist(
                 "replay_memory_bytes",
                 "stored_logits_bytes",
                 "replay_metadata_bytes",
+                "peak_memory_available",
+                "peak_memory_backend",
+                "peak_memory_bytes",
+                "peak_memory_baseline_bytes",
+                "peak_memory_delta_bytes",
+                "peak_cuda_reserved_bytes",
+                "peak_memory_sampling_interval_seconds",
                 "selector_forward_examples",
                 "selection_seconds",
             ]
@@ -2344,6 +2432,25 @@ def run_split_mnist(
                         "replay_metadata_bytes": result["cost"][
                             "replay_metadata_bytes"
                         ],
+                        "peak_memory_available": result["cost"][
+                            "peak_memory_available"
+                        ],
+                        "peak_memory_backend": result["cost"][
+                            "peak_memory_backend"
+                        ],
+                        "peak_memory_bytes": result["cost"]["peak_memory_bytes"],
+                        "peak_memory_baseline_bytes": result["cost"][
+                            "peak_memory_baseline_bytes"
+                        ],
+                        "peak_memory_delta_bytes": result["cost"][
+                            "peak_memory_delta_bytes"
+                        ],
+                        "peak_cuda_reserved_bytes": result["cost"][
+                            "peak_cuda_reserved_bytes"
+                        ],
+                        "peak_memory_sampling_interval_seconds": result["cost"][
+                            "peak_memory_sampling_interval_seconds"
+                        ],
                         "selector_forward_examples": result["cost"][
                             "selector_forward_examples"
                         ],
@@ -2378,6 +2485,11 @@ AGGREGATE_METRICS = {
     "selector_forward_examples": ("cost", "selector_forward_examples"),
     "selection_seconds": ("cost", "selection_seconds"),
 }
+OPTIONAL_AGGREGATE_METRICS = {
+    "peak_memory_bytes": ("cost", "peak_memory_bytes"),
+    "peak_memory_delta_bytes": ("cost", "peak_memory_delta_bytes"),
+    "peak_cuda_reserved_bytes": ("cost", "peak_cuda_reserved_bytes"),
+}
 
 
 def _aggregate_summary(values: list[float]) -> dict[str, float]:
@@ -2390,6 +2502,17 @@ def _result_metric(result: dict[str, Any], metric: str) -> float:
     if value is None:
         raise ValueError(f"métrica {metric} não está disponível")
     return float(value)
+
+
+def _optional_result_metric(result: dict[str, Any], metric: str) -> float | None:
+    section, key = OPTIONAL_AGGREGATE_METRICS[metric]
+    value = result.get(key) if section is None else result.get(section, {}).get(key)
+    if value is None:
+        return None
+    converted = float(value)
+    if not math.isfinite(converted):
+        raise ValueError(f"métrica opcional {metric} não é finita")
+    return converted
 
 
 def run_split_mnist_multi_seed(
@@ -2528,6 +2651,36 @@ def run_split_mnist_multi_seed(
             row[f"{metric}_mean"] = summary["mean"]
             row[f"{metric}_std"] = summary["std"]
             row[f"{metric}_ci95"] = summary["ci95_normal_half_width"]
+        for metric in OPTIONAL_AGGREGATE_METRICS:
+            optional_values = [
+                _optional_result_metric(raw[seed][method], metric) for seed in seeds
+            ]
+            if any(value is None for value in optional_values):
+                aggregate["methods"][method][metric] = {
+                    "available": False,
+                    "reason": "not_measured_for_every_seed",
+                }
+                row[f"{metric}_mean"] = None
+                row[f"{metric}_std"] = None
+                row[f"{metric}_ci95"] = None
+            else:
+                values = [float(value) for value in optional_values if value is not None]
+                summary = {"available": True, **_aggregate_summary(values)}
+                aggregate["methods"][method][metric] = summary
+                row[f"{metric}_mean"] = summary["mean"]
+                row[f"{metric}_std"] = summary["std"]
+                row[f"{metric}_ci95"] = summary["ci95_normal_half_width"]
+        backends = {
+            raw[seed][method].get("cost", {}).get("peak_memory_backend")
+            for seed in seeds
+            if raw[seed][method].get("cost", {}).get("peak_memory_backend") is not None
+        }
+        aggregate["methods"][method]["peak_memory_backend"] = (
+            next(iter(backends)) if len(backends) == 1 else None
+        )
+        row["peak_memory_backend"] = aggregate["methods"][method][
+            "peak_memory_backend"
+        ]
         csv_rows.append(row)
 
     for reference in paired_references:
@@ -2567,6 +2720,65 @@ def run_split_mnist_multi_seed(
                 aggregate[comparison_key][method][metric]["confirmatory"] = (
                     confirmatory
                 )
+                paired_rows.extend(
+                    {
+                        "reference": reference,
+                        "method": method,
+                        "metric": metric,
+                        "seed": seed,
+                        "difference": difference,
+                    }
+                    for seed, difference in zip(seeds, differences, strict=True)
+                )
+            for metric in OPTIONAL_AGGREGATE_METRICS:
+                method_values = [
+                    _optional_result_metric(raw[seed][method], metric) for seed in seeds
+                ]
+                reference_values = [
+                    _optional_result_metric(raw[seed][reference], metric)
+                    for seed in seeds
+                ]
+                if any(
+                    value is None for value in (*method_values, *reference_values)
+                ):
+                    aggregate[comparison_key][method][metric] = {
+                        "available": False,
+                        "reason": "not_measured_for_every_seed",
+                    }
+                    continue
+                measured_method_values = [
+                    value for value in method_values if value is not None
+                ]
+                measured_reference_values = [
+                    value for value in reference_values if value is not None
+                ]
+                differences = [
+                    candidate - baseline
+                    for baseline, candidate in zip(
+                        measured_reference_values,
+                        measured_method_values,
+                        strict=True,
+                    )
+                ]
+                summary = {"available": True, **_aggregate_summary(differences)}
+                summary["paired_values"] = [
+                    {"seed": seed, "difference": difference}
+                    for seed, difference in zip(seeds, differences, strict=True)
+                ]
+                summary["confirmatory"] = (
+                    paired_confirmatory_summary(
+                        differences,
+                        bootstrap_resamples=base_config.bootstrap_resamples,
+                        bootstrap_seed=base_config.bootstrap_seed,
+                    )
+                    if len(differences) >= 2
+                    else {
+                        "available": False,
+                        "n_pairs": len(differences),
+                        "reason": "requires_at_least_two_paired_seeds",
+                    }
+                )
+                aggregate[comparison_key][method][metric] = summary
                 paired_rows.extend(
                     {
                         "reference": reference,
@@ -2645,6 +2857,11 @@ def run_split_mnist_epoch_sweep(
                 row[f"{metric}_mean"] = summary["mean"]
                 row[f"{metric}_std"] = summary["std"]
                 row[f"{metric}_ci95"] = summary["ci95_normal_half_width"]
+            for metric in OPTIONAL_AGGREGATE_METRICS:
+                summary = aggregate["methods"][method][metric]
+                row[f"{metric}_mean"] = summary.get("mean")
+                row[f"{metric}_std"] = summary.get("std")
+                row[f"{metric}_ci95"] = summary.get("ci95_normal_half_width")
             rows.append(row)
 
     write_json_atomic(output_path / "epoch_sweep.json", sweep)

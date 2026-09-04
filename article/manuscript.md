@@ -6,12 +6,14 @@ Technical manuscript draft. The current implementation is validated by unit
 and integration tests. Exploratory Split-MNIST comparisons against Replay,
 DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented and their raw
 per-seed artifacts are versioned, but the frozen independent confirmation has
-no versioned execution artifacts. Split-CIFAR-10/100 support is implemented;
-only partial, non-aggregate Split-CIFAR-10 diagnostics are versioned. The
-three-seed pilot in Section 5 predates the
-functional-importance, factorized-protection, capacity-budget and
-optimizer-state changes; it is retained only as historical motivation and
-must not be reported as evidence for the current method.
+no valid versioned execution artifacts. Ten-seed exploratory Split-CIFAR-10
+benchmarks with VGG11 and ResNet18 are versioned; they do not establish a
+multiplicity-adjusted final-accuracy advantage for Functional DualHeat.
+Split-CIFAR-100 support is implemented but has no completed aggregate result.
+The three-seed pilot in Section 5 predates the functional-importance,
+factorized-protection, capacity-budget and optimizer-state changes; it is
+retained only as historical motivation and must not be reported as evidence for
+the current method.
 
 ## Abstract
 
@@ -24,9 +26,12 @@ derives protection under an explicit plastic-capacity budget and applies a
 factorized mask to both incoming rows and downstream columns. Optimizer-aware
 AdamW and SGD wrappers apply the mask to the final parameter delta and, under
 the default policy, to tensor-valued optimizer-state deltas. The method is
-implemented and covered by falsification tests. Exploratory Split-MNIST
-comparisons exist, but independent confirmation and harder visual evaluation
-remain outstanding. No general efficacy or state-of-the-art claim is made.
+implemented and covered by falsification tests. Exploratory Split-MNIST and
+ten-seed Split-CIFAR-10 comparisons exist, but the frozen independent
+confirmation and a completed Split-CIFAR-100 evaluation remain outstanding.
+The Split-CIFAR-10 comparisons do not show a multiplicity-adjusted
+final-accuracy advantage for Functional DualHeat. No general efficacy or
+state-of-the-art claim is made.
 
 ## 1. Motivation
 
@@ -178,6 +183,25 @@ F_k = max_{l=k,...,T-1} A[l,k] - A[T-1,k]
 Average forgetting excludes the final task because it has no subsequent task over which to forget.
 
 Backward transfer compares final performance with performance immediately after learning each old task. Forward transfer uses performance immediately before training a future task minus a separately measured random-initialization baseline. Accuracy after training the new task is not forward transfer.
+
+### 4.4 Evaluation-mode restoration correction
+
+An audit on 2026-09-02 found that epoch-end accuracy evaluation called
+`model.eval()` without restoring the learner's previous mode. Functional
+importance hooks accumulate only while the model is in training mode. In a
+SlowHeat sweep containing no FastHeat method, importance was therefore
+accumulated only during the first epoch of each stage. Sweeps containing a
+FastHeat method happened to restore all learners at the next epoch and exposed
+an invalid dependence on sweep composition.
+
+Evaluation now uses a side-effect-free context that restores the previous mode,
+and class-incremental and task-aware accuracy share the same forward passes.
+Regression tests verify mode restoration, independence from the presence of a
+FastHeat method and exact agreement between vanilla and the no-consolidation
+SlowHeat control. The frozen Split-MNIST confirmation contains only Replay and
+SlowHeat+Replay, so any run made before this correction is invalid. Its frozen
+seeds, hyperparameters, endpoint and analysis remain unchanged; a valid run
+must use the corrected source and a new output directory.
 
 ## 5. Historical Diagnostic Pilot (Superseded Method)
 

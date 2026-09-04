@@ -33,6 +33,7 @@ class MethodSpec:
     epoch_budget_policy: str = "default"
     disable_capacity_budget: bool = False
     partial_output_protection: bool = False
+    calibrated: bool = False
 
 
 def structured_method_match(method: str) -> re.Match[str] | None:

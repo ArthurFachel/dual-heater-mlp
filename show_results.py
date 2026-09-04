@@ -16,7 +16,9 @@ CACHE_ALIASES = {"none": "no_memory"}
 METHOD_LABELS = {
     "vanilla": "Vanilla",
     "replay": "Replay",
+    "replay_calibrated": "Replay+calibration",
     "slowheat_replay_hidden_beta_30_budget_0.25": "SlowHeat+Replay",
+    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated": "SlowHeat+Replay+calibration",
     "derpp": "DER++",
     "slowheat_derpp_hidden_beta_30_budget_0.25": "SlowHeat+DER++",
 }
@@ -53,6 +55,8 @@ class ResultRow:
     forgetting: MetricSummary
     elapsed: MetricSummary | None = None
     selection_time: MetricSummary | None = None
+    peak_memory: MetricSummary | None = None
+    peak_memory_backend: str | None = None
     partial: bool = False
 
 
@@ -97,6 +101,17 @@ def _optional_summary_from_payload(
     summary = _summary_from_payload(payload, context=context)
     if summary.mean < 0.0:
         raise ResultsError(f"tempo negativo em {context}")
+    return summary
+
+
+def _optional_memory_summary_from_payload(
+    payload: Any, *, context: str
+) -> MetricSummary | None:
+    if not isinstance(payload, dict) or payload.get("available") is not True:
+        return None
+    summary = _summary_from_payload(payload, context=context)
+    if summary.mean < 0.0:
+        raise ResultsError(f"memória negativa em {context}")
     return summary
 
 
@@ -303,6 +318,13 @@ def _rows_from_aggregate(run_dir: Path, path: Path) -> list[ResultRow]:
             metrics.get(TIMING_METRICS[1]),
             context=f"{path}:{learner_key}/{TIMING_METRICS[1]}",
         )
+        peak_memory = _optional_memory_summary_from_payload(
+            metrics.get("peak_memory_bytes"),
+            context=f"{path}:{learner_key}/peak_memory_bytes",
+        )
+        peak_memory_backend = metrics.get("peak_memory_backend")
+        if peak_memory_backend is not None and not isinstance(peak_memory_backend, str):
+            raise ResultsError(f"backend de memória inválido para {learner_key} em {path}")
         _validate_metric_range(accuracy, context=f"{path}:accuracy")
         _validate_metric_range(forgetting, context=f"{path}:forgetting")
         rows.append(
@@ -315,6 +337,8 @@ def _rows_from_aggregate(run_dir: Path, path: Path) -> list[ResultRow]:
                 forgetting=forgetting,
                 elapsed=elapsed,
                 selection_time=selection_time,
+                peak_memory=peak_memory,
+                peak_memory_backend=peak_memory_backend,
             )
         )
     return rows
@@ -503,6 +527,27 @@ def _format_seconds(summary: MetricSummary | None) -> str:
     )
 
 
+def _format_memory(
+    summary: MetricSummary | None,
+    backend: str | None,
+) -> str:
+    if summary is None or backend is None:
+        return "N/D"
+    mean_mib = summary.mean / 1_048_576
+    half_width_mib = summary.ci95_half_width / 1_048_576
+    backend_label = (
+        "CUDA alloc"
+        if backend == "cuda_allocator_allocated"
+        else "RSS proc."
+        if backend == "process_rss_sampled"
+        else backend
+    )
+    return (
+        f"{mean_mib:.2f} [{mean_mib - half_width_mib:.2f}, "
+        f"{mean_mib + half_width_mib:.2f}] {backend_label}"
+    )
+
+
 def format_table(rows: list[ResultRow]) -> str:
     headers = (
         "Benchmark",
@@ -513,6 +558,7 @@ def format_table(rows: list[ResultRow]) -> str:
         "Forgetting % (IC95%)",
         "Tempo total s (IC95%)",
         "Tempo cache s (IC95%)",
+        "Pico memória MiB (IC95%)",
     )
     body = [
         (
@@ -524,6 +570,7 @@ def format_table(rows: list[ResultRow]) -> str:
             _format_metric(row.forgetting),
             _format_seconds(row.elapsed),
             _format_seconds(row.selection_time),
+            _format_memory(row.peak_memory, row.peak_memory_backend),
         )
         for row in rows
     ]

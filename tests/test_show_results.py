@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -223,6 +224,32 @@ def test_benchmark_and_cache_directories_are_inferred(tmp_path, capsys):
     cache_output = capsys.readouterr().out
     assert "split_cifar10_cnn" in cache_output
     assert "loss" in cache_output
+
+
+def test_direct_aggregate_shows_peak_memory_and_legacy_as_unavailable(tmp_path, capsys):
+    measured = tmp_path / "measured"
+    measured_summary: dict[str, Any] = _method_summary(0.55, 0.35)
+    measured_summary["peak_memory_bytes"] = {
+        "available": True,
+        **_summary(64 * 1_048_576, half_width=2 * 1_048_576),
+    }
+    measured_summary["peak_memory_backend"] = "cuda_allocator_allocated"
+    _write_json(measured / "aggregate.json", {"methods": {"replay": measured_summary}})
+    _write_json(measured / "multi_seed_config.json", {"seeds": [7, 9]})
+
+    assert cli.main([str(measured)]) == 0
+    output = capsys.readouterr().out
+    assert "64.00 [62.00, 66.00] CUDA alloc" in output
+
+    legacy = tmp_path / "legacy"
+    _write_json(
+        legacy / "aggregate.json",
+        {"methods": {"replay": _method_summary(0.55, 0.35)}},
+    )
+    _write_json(legacy / "multi_seed_config.json", {"seeds": [7, 9]})
+
+    assert cli.main([str(legacy)]) == 0
+    assert "N/D" in capsys.readouterr().out
 
 
 def test_direct_aggregate_defaults_to_first_cache(tmp_path, capsys):

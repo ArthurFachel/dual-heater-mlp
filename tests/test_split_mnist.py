@@ -8,12 +8,14 @@ import pytest
 import torch
 
 from experiments.dualheat_pairs import (
+    DERPP_PAIR,
     METHOD_PAIRS,
     _holm_adjust,
     pair_protocol,
     paired_config,
     run_dualheat_pairs,
     summarize_pair_results,
+    summarize_slowheat_derpp_results,
 )
 from experiments.split_mnist import (
     MNISTTask,
@@ -231,6 +233,93 @@ def test_dualheat_pair_suite_trains_and_reports_only_matched_contrasts(dualheat_
         assert (output / name).is_file()
 
 
+def test_derpp_only_reanalysis_does_not_require_unrelated_pairs(dualheat_pair_run):
+    _, output, _ = dualheat_pair_run
+    manifest_path = output / "multi_seed_config.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["base_config"]["methods"] = [DERPP_PAIR.reference, DERPP_PAIR.candidate]
+    manifest_path.write_text(json.dumps(manifest))
+    for seed in manifest["seeds"]:
+        result_path = output / f"seed_{seed}/results.json"
+        raw = json.loads(result_path.read_text())
+        result_path.write_text(
+            json.dumps({method: raw[method] for method in manifest["base_config"]["methods"]})
+        )
+        config_path = output / f"seed_{seed}/config.json"
+        config = json.loads(config_path.read_text())
+        config["methods"] = manifest["base_config"]["methods"]
+        config_path.write_text(json.dumps(config))
+
+    report_dir = output / "derpp_only"
+    report = summarize_slowheat_derpp_results(output, output_dir=report_dir)
+
+    assert report["analysis_scope"] == "slowheat_derpp_only"
+    assert report["primary_endpoint"] == "final_average_accuracy"
+    assert len(report["pairs"]) == 1
+    assert "holm_adjusted_p" not in report["pairs"][0]["metrics"][
+        "final_average_accuracy"
+    ]
+    summary_header = (report_dir / "pair_summary.csv").read_text().splitlines()[0]
+    assert "task_aware_accuracy_delta_pp" in summary_header
+    assert "classifier_gap_delta_pp" in summary_header
+    markdown = (report_dir / "pair_report.md").read_text()
+    assert "Primário: acurácia média final Class-IL" in markdown
+    assert "identidade oráculo da tarefa" in markdown
+
+
+def test_calibrated_replay_is_replay_without_slowheat():
+    from experiments.split_mnist import _method_spec
+
+    spec = _method_spec("replay_calibrated")
+    assert spec is not None
+    assert spec.replay
+    assert spec.calibrated
+    assert not spec.slowheat
+
+
+def test_replay_and_slowheat_calibrated_share_validation_calibrator(monkeypatch):
+    import experiments.split_mnist as split
+
+    methods = (
+        "replay",
+        "replay_calibrated",
+        "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
+    )
+    config = SplitMNISTConfig(
+        seed=17,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        replay_per_class=1,
+        replay_batch_size=2,
+        methods=methods,
+    )
+    calls = []
+
+    def fake_calibrator(model, tasks, *, stage, config):
+        del model, tasks
+        calls.append(stage)
+        return torch.full(
+            (len(config.class_order),),
+            0.25,
+            device=config.device,
+        )
+
+    monkeypatch.setattr(split, "_calibrate_old_class_bias", fake_calibrator)
+    results = run_split_mnist(config, _tiny_tasks(config))
+
+    assert calls == list(range(config.task_count)) * 2
+    assert results["replay"]["final_logit_bias"] == [0.0] * 10
+    assert results["replay_calibrated"]["final_logit_bias"] == [0.25] * 10
+    assert results[
+        "slowheat_replay_hidden_beta_30_budget_0.25_calibrated"
+    ]["final_logit_bias"] == [0.25] * 10
+    assert (
+        results["replay"]["training_losses"]
+        == results["replay_calibrated"]["training_losses"]
+    )
+
+
 def test_dualheat_report_still_locates_raw_results_after_moving_tree(dualheat_pair_run):
     _, source, original = dualheat_pair_run
     tree = source.parent / "portable tree"
@@ -400,6 +489,12 @@ def test_tiny_split_mnist_run_produces_curves_and_artifacts(tmp_path):
         assert len(result["stage_average_accuracy"]) == 5
         assert len(result["stage_average_forgetting"]) == 5
         assert np.isfinite(result["classifier_gap"])
+        assert result["cost"]["peak_memory_available"] is True
+        assert result["cost"]["peak_memory_backend"] == "process_rss_sampled"
+        assert result["cost"]["peak_memory_bytes"] >= result["cost"][
+            "peak_memory_baseline_bytes"
+        ]
+        assert result["cost"]["peak_memory_delta_bytes"] >= 0
     assert len(results["hard_freeze"]["capacity_history"]) == 5
     assert (tmp_path / "summary.csv").is_file()
     saved = json.loads((tmp_path / "results.json").read_text())

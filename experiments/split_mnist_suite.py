@@ -14,6 +14,8 @@ from experiments.split_mnist import (
 )
 
 CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25"
+REPLAY_CALIBRATED = "replay_calibrated"
+CALIBRATED_CANDIDATE = "slowheat_replay_hidden_beta_30_budget_0.25_calibrated"
 SLOWHEAT_DERPP = "slowheat_derpp_hidden_beta_30_budget_0.25"
 SLOWHEAT_ER_ACE = "slowheat_er_ace_hidden_beta_30_budget_0.25"
 REPLAY_MEMORY_SIZES = (5, 10, 20, 50, 100)
@@ -46,7 +48,8 @@ ABLATION_METHODS = (
     "slowheat_hidden_beta_30_budget_0.25",
     "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
     "slowheat_replay_partial_output_beta_30_budget_0.25",
-    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
+    REPLAY_CALIBRATED,
+    CALIBRATED_CANDIDATE,
     "replay_global_lr_reduction",
 )
 
@@ -92,7 +95,8 @@ ALL_VISUAL_METHODS = (
     "slowheat_hidden_beta_30_budget_0.25",
     "slowheat_replay_hidden_adaptive_beta_30_budget_0.25",
     "slowheat_replay_partial_output_beta_30_budget_0.25",
-    "slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
+    REPLAY_CALIBRATED,
+    CALIBRATED_CANDIDATE,
 )
 
 def baseline_config(*, device: str = "cpu") -> SplitMNISTConfig:
@@ -258,7 +262,7 @@ def run_ablation_matrix(
             output_dir=root / "methods",
             download=download,
             verbose=verbose,
-            paired_references=("replay", "er_ace"),
+            paired_references=("replay", REPLAY_CALIBRATED, "er_ace"),
             resume=resume,
         ),
         "memory_sizes": {},

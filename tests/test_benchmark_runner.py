@@ -9,13 +9,28 @@ import pytest
 
 import run_all_tests
 from experiments.dualheat_pairs import METHOD_PAIRS, PAIRED_METHODS
-from experiments.split_mnist_suite import ALL_VISUAL_METHODS, SLOWHEAT_DERPP
+from experiments.split_mnist_suite import (
+    ABLATION_METHODS,
+    ALL_VISUAL_METHODS,
+    CALIBRATED_CANDIDATE,
+    REPLAY_CALIBRATED,
+    SLOWHEAT_DERPP,
+)
 from experiments.synthetic_cl import SYNTHETIC_METHODS
 from experiments.visual_generalization import (
     CNN_SWEEP_METHODS,
     CNN_VISUAL_METHODS,
     VGG11_METHODS,
 )
+
+
+def test_ablation_methods_include_matched_calibration_control():
+    assert REPLAY_CALIBRATED in ABLATION_METHODS
+    assert CALIBRATED_CANDIDATE in ABLATION_METHODS
+    assert ABLATION_METHODS.index(REPLAY_CALIBRATED) < ABLATION_METHODS.index(
+        CALIBRATED_CANDIDATE
+    )
+    assert REPLAY_CALIBRATED in ALL_VISUAL_METHODS
 
 
 def test_dualheat_pairs_section_is_opt_in_and_routes_to_dedicated_runner(tmp_path, monkeypatch):

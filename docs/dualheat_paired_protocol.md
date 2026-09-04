@@ -119,6 +119,20 @@ O comando lê `multi_seed_config.json` e os arquivos `config.json` e
 `results.json` de cada seed declarada. Não usa ICs marginais para inferir
 diferenças, não descarta seeds ausentes e não altera arquivos brutos. Um
 diretório histórico pode conter outros métodos além dos oito necessários.
+Para extrair somente DER++ versus SlowHeat+DER++, sem exigir os outros três
+pares, use:
+
+```bash
+python run_dualheat_pairs.py \
+  --summarize-from results/secondary_post_eval_fix_d5b22ad/slowheat_derpp_exploratory \
+  --pair derpp \
+  --output-dir analysis/slowheat_derpp_post_eval_fix_d5b22ad
+```
+
+Nesse escopo único não se declara a correção de Holm da família histórica de
+quatro contrastes. O endpoint principal continua sendo
+`final_average_accuracy`; task-aware, forgetting e classifier gap permanecem
+diagnósticos secundários/exploratórios.
 A análise registra hashes SHA-256 das entradas; isso identifica os arquivos,
 mas não recupera proveniência ausente nem comprova que nunca foram observados.
 
@@ -143,8 +157,9 @@ Relatórios históricos não são alterados automaticamente: execute novamente
 
 ## Saídas e análise
 
-- `pair_summary.csv`: uma linha por par, com acurácias, diferença em pontos
-  percentuais, IC95% t pareado, p ajustado, forgetting e razão dos tempos médios.
+- `pair_summary.csv`: uma linha por par, com acurácias Class-IL e task-aware,
+  diferenças em pontos percentuais, IC95% t pareado, forgetting, classifier gap,
+  razão dos tempos médios e memória de pico quando disponível.
 - `pair_differences.csv`: valores sem/com e diferenças de cada métrica por seed.
 - `pair_report.json`: estatística completa, bootstrap pareado, sinais
   positivos/negativos/empates, configurações e hashes de origem.
@@ -158,10 +173,19 @@ Mesmo com várias seeds, significância não equivale a relevância prática ou
 generalização: as seeds não são amostras de todos os possíveis problemas.
 
 O tempo é o observado pelo runner, com ordem fixa, sem benchmark isolado com
-aquecimento e sem garantia de sincronização explícita para medições CUDA.
-FLOPs são estimativas. Memória de replay/logits **não** mede o estado adicional
-do componente, as cópias temporárias ou o pico de memória; esse pico não é
-medido aqui. Não apresentar esses números como prova de eficiência geral.
+aquecimento. FLOPs são estimativas. Memória de replay/logits não equivale a
+pico de memória. Execuções novas registram separadamente:
+
+- `cuda_allocator_allocated`: pico de tensors vivos segundo o allocator do
+  PyTorch, não VRAM total da placa;
+- pico reservado pelo allocator CUDA, como diagnóstico separado;
+- `process_rss_sampled`: RSS do processo em CPU, sujeito ao intervalo de
+  amostragem e à retenção de páginas por Python/PyTorch.
+
+Artefatos antigos permanecem legíveis e registram memória de pico como
+indisponível, nunca como zero. CPU RSS e CUDA allocated não são grandezas
+intercambiáveis. Para comparação CPU mais forte, execute cada método/seed em
+processo isolado.
 
 ## Critério para ampliar o artigo
 

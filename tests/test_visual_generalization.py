@@ -62,7 +62,7 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["permuted_mnist"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar10"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar100"].methods == ALL_VISUAL_METHODS
-    assert len(ALL_VISUAL_METHODS) == len(set(ALL_VISUAL_METHODS)) == 32
+    assert len(ALL_VISUAL_METHODS) == len(set(ALL_VISUAL_METHODS)) == 33
     assert SUPPORTED_METHODS <= set(ALL_VISUAL_METHODS) | set(
         visual.CNN_VISUAL_METHODS
     )
