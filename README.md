@@ -217,6 +217,27 @@ For GPUs near 12 GB, start BERT-Mini with batches of 8+8 and BERT-base with
 2+2; the runner explicitly releases model hooks and the CUDA cache between
 methods.
 
+Enable the local read-only live dashboard by adding telemetry to the training
+command:
+
+```bash
+python -m experiments.split_clinc150 --device cuda \
+  --seeds 11 --batch-size 4 --replay-batch-size 4 \
+  --methods replay slowheat_replay --telemetry --telemetry-every 10 \
+  --output-dir results/bert_mini_live
+```
+
+In a second terminal, serve the recorded run on localhost:
+
+```bash
+python -m experiments.live_dashboard \
+  --run-dir results/bert_mini_live --port 8765
+```
+
+Then open `http://127.0.0.1:8765`. The viewer can be started before, during or
+after training and never sends commands back to the experiment. See
+[`docs/live_dashboard.md`](docs/live_dashboard.md).
+
 After each task:
 
 ```python
@@ -407,6 +428,9 @@ src/dual_heater/
 experiments/
   functional_dualheat.py        pilot, frozen manifest and 13-method reports
   split_clinc150.py              BERT/CLINC150 calibration and paired benchmark
+  live_telemetry.py              append-only events and full Heat snapshots
+  live_dashboard.py              localhost-only read-only telemetry server
+  live_dashboard.html            responsive browser dashboard
   lpr.py                         LPR covariance preconditioner
   split_mnist.py                 shared benchmark and baseline engine
   split_mnist_suite.py           fairness, ablations and orchestration
@@ -427,6 +451,7 @@ Documentation entry points:
 - `docs/functional_slowheat.md`: method contract;
 - `docs/functional_slowheat_transformers.md`: BERT placement, exact LoRA and
   future Transformer extensions;
+- `docs/live_dashboard.md`: real-time BERT/SlowHeat telemetry and local viewer;
 - `docs/optimizer_semantics.md`: masking and checkpoint semantics;
 - `docs/confirmatory_protocol.md`: frozen confirmation and baseline suite;
 - `docs/split_cifar.md`: exact Split-CIFAR-10/100 protocol;

@@ -3,6 +3,9 @@ import torch
 
 transformers = pytest.importorskip("transformers")
 
+from experiments import split_clinc150 as clinc_module
+from experiments.artifacts import read_torch_checkpoint
+from experiments.live_telemetry import read_events
 from experiments.split_clinc150 import (
     BERT_BASE_MODEL,
     CLINC150_DOMAINS,
@@ -166,9 +169,75 @@ def test_tiny_clinc_runner_is_paired_and_stage_resumable(monkeypatch, tmp_path):
         methods=("replay", "slowheat_replay"),
     )
 
-    first = run_split_clinc150(config, tasks, output_dir=tmp_path)
-    resumed = run_split_clinc150(config, tasks, output_dir=tmp_path, resume=True)
+    reference_dir = tmp_path / "reference"
+    live_dir = tmp_path / "live"
+    reference = run_split_clinc150(config, tasks, output_dir=reference_dir)
+    first = run_split_clinc150(
+        config,
+        tasks,
+        output_dir=live_dir,
+        telemetry=True,
+        telemetry_every=2,
+    )
+    resumed = run_split_clinc150(
+        config,
+        tasks,
+        output_dir=live_dir,
+        resume=True,
+        telemetry=True,
+        telemetry_every=2,
+    )
 
     assert first["replay"]["accuracy_matrix"] == resumed["replay"]["accuracy_matrix"]
+    assert first["replay"]["accuracy_matrix"] == reference["replay"]["accuracy_matrix"]
+    assert first["slowheat_replay"]["training_losses"] == reference[
+        "slowheat_replay"
+    ]["training_losses"]
+    for method in config.methods:
+        reference_model = read_torch_checkpoint(
+            reference_dir / method / "checkpoint.pt"
+        )["model"]
+        live_model = read_torch_checkpoint(live_dir / method / "checkpoint.pt")[
+            "model"
+        ]
+        assert reference_model.keys() == live_model.keys()
+        assert all(
+            torch.equal(reference_model[name], live_model[name])
+            for name in reference_model
+        )
     assert len(first["slowheat_replay"]["capacity_history"]) == 10
     assert first["replay"]["replay_memory_bytes"] > 0
+    events = read_events(live_dir / "telemetry/events.jsonl")
+    event_types = {event["event"] for event in events}
+    assert {
+        "batch",
+        "checkpoint",
+        "consolidation",
+        "epoch_end",
+        "evaluation_end",
+        "method_end",
+        "run_end",
+        "task_end",
+    } <= event_types
+    assert len([event for event in events if event["event"] == "batch"]) == 10
+    assert len([event for event in events if event["event"] == "session_start"]) == 2
+    method_ends = [event for event in events if event["event"] == "method_end"]
+    assert all(event["telemetry_overhead_seconds"] >= 0.0 for event in method_ends)
+    assert all(event["telemetry_overhead_ratio"] >= 0.0 for event in method_ends)
+    assert len(list((live_dir / "telemetry/heat").glob("*.json"))) == 10
+
+    def fail_model_build(*args, **kwargs):
+        raise RuntimeError("falha de treino simulada")
+
+    monkeypatch.setattr(clinc_module, "_build_model", fail_model_build)
+    failed_output = tmp_path / "failed"
+    with pytest.raises(RuntimeError, match="falha de treino simulada"):
+        run_split_clinc150(
+            config,
+            tasks,
+            output_dir=failed_output,
+            telemetry=True,
+        )
+    failure_events = read_events(failed_output / "telemetry/events.jsonl")
+    assert failure_events[-2]["event"] == "run_error"
+    assert failure_events[-1]["event"] == "session_error"

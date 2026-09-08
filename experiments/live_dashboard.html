@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BERT × SlowHeat Live</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: light-dark(#f4f1eb, #101210);
+      --surface: light-dark(#fffdf8, #191c19);
+      --surface-2: light-dark(#ece8df, #242824);
+      --ink: light-dark(#1c201c, #f0f2ed);
+      --muted: light-dark(#606860, #aab2aa);
+      --border: light-dark(#d5d0c6, #353a35);
+      --heat: light-dark(#d8562a, #ff8156);
+      --cool: light-dark(#297968, #55bba2);
+      --warn: light-dark(#a96c00, #e9b44c);
+      --bad: light-dark(#b33d3d, #ef7777);
+      --shadow: light-dark(rgba(30, 35, 30, .08), rgba(0, 0, 0, .24));
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); }
+    button, select { font: inherit; }
+    .shell { max-width: 1440px; margin: 0 auto; padding: 24px; }
+    .masthead { display: flex; justify-content: space-between; gap: 24px; align-items: flex-end; margin-bottom: 18px; }
+    .eyebrow { color: var(--heat); letter-spacing: .12em; text-transform: uppercase; font-size: .75rem; font-weight: 700; }
+    h1 { font-size: clamp(1.7rem, 4vw, 2.7rem); line-height: 1; margin: 7px 0; letter-spacing: -.04em; }
+    .subtitle { margin: 0; color: var(--muted); }
+    .run-picker { min-width: min(100%, 290px); }
+    label { display: block; color: var(--muted); font-size: .78rem; margin-bottom: 6px; }
+    select { width: 100%; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 34px 9px 11px; }
+    .hero { background: var(--surface); border: 1px solid var(--border); box-shadow: 0 14px 34px var(--shadow); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+    .status-line { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+    .status-dot.live { background: var(--cool); box-shadow: 0 0 0 5px color-mix(in srgb, var(--cool) 18%, transparent); }
+    .status-dot.done { background: var(--cool); }
+    .status-dot.failed { background: var(--bad); }
+    .status-text { font-weight: 700; }
+    .context { color: var(--muted); }
+    .progress-track { height: 9px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin: 15px 0 10px; }
+    .progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--cool), var(--heat)); transition: width .25s ease; }
+    .metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .metric { background: var(--surface); padding: 12px; min-width: 0; }
+    .metric span { display: block; color: var(--muted); font-size: .73rem; text-transform: uppercase; letter-spacing: .06em; }
+    .metric strong { display: block; margin-top: 5px; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, .8fr); gap: 16px; align-items: start; }
+    .stack { display: grid; gap: 16px; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 13px; }
+    h2 { font-size: 1rem; margin: 0; letter-spacing: -.015em; }
+    .hint { color: var(--muted); font-size: .78rem; }
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .chart-block h3 { font-size: .8rem; font-weight: 600; color: var(--muted); margin: 0 0 7px; }
+    canvas { display: block; width: 100%; height: 210px; background: var(--surface-2); border-radius: 8px; }
+    #ffnCanvas { height: 230px; }
+    .gpu-row { display: grid; grid-template-columns: 82px 1fr 68px; gap: 8px; align-items: center; margin: 9px 0; font-size: .82rem; }
+    .bar { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+    .bar > i { display: block; height: 100%; background: var(--cool); width: 0; }
+    .heat-controls { display: flex; gap: 10px; flex-wrap: wrap; }
+    .heat-controls > div { min-width: 160px; flex: 1; }
+    .attention-grid { display: grid; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
+    .attention-row { display: grid; grid-template-columns: 72px repeat(var(--heads), minmax(36px, 1fr)); gap: 4px; min-width: max-content; align-items: center; }
+    .layer-name { color: var(--muted); font-size: .75rem; }
+    .heat-cell { min-width: 36px; padding: 8px 5px; border-radius: 5px; text-align: center; font-size: .69rem; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--heat) var(--level), var(--surface-2)); color: var(--ink); }
+    .capacity-list { display: grid; gap: 8px; margin-top: 12px; }
+    .capacity { display: grid; grid-template-columns: 90px 1fr 50px; gap: 8px; align-items: center; font-size: .76rem; }
+    .capacity i { background: var(--heat); }
+    .timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; max-height: 420px; overflow: auto; }
+    .timeline li { display: grid; grid-template-columns: 13px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .timeline li:last-child { border-bottom: 0; }
+    .timeline-marker { width: 9px; height: 9px; border-radius: 50%; margin-top: 4px; background: var(--muted); }
+    .timeline-marker.consolidation { background: var(--heat); }
+    .timeline-marker.evaluation_end, .timeline-marker.method_end, .timeline-marker.run_end { background: var(--cool); }
+    .timeline-marker.run_error, .timeline-marker.session_error { background: var(--bad); }
+    .timeline strong { display: block; font-size: .8rem; }
+    .timeline small { color: var(--muted); }
+    .matrix-wrap { overflow-x: auto; }
+    .matrix { display: grid; gap: 3px; min-width: 480px; }
+    .matrix-row { display: grid; grid-template-columns: 48px repeat(10, minmax(36px, 1fr)); gap: 3px; }
+    .matrix-label { color: var(--muted); font-size: .7rem; display: grid; place-items: center; }
+    .matrix-cell { min-height: 31px; display: grid; place-items: center; border-radius: 4px; font-size: .67rem; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--cool) var(--level), var(--surface-2)); }
+    .empty { color: var(--muted); min-height: 120px; display: grid; place-items: center; text-align: center; }
+    .footer { color: var(--muted); font-size: .75rem; text-align: center; padding: 18px 0 4px; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 620px) {
+      .shell { padding: 14px; }
+      .masthead { align-items: stretch; flex-direction: column; }
+      .run-picker { min-width: 0; }
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .metric:last-child { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <div class="eyebrow">Continual learning monitor</div>
+        <h1>BERT × SlowHeat Live</h1>
+        <p class="subtitle">Treinamento, retenção e plasticidade em uma única leitura.</p>
+      </div>
+      <div class="run-picker">
+        <label for="runSelect">Execução monitorada</label>
+        <select id="runSelect" aria-label="Execução monitorada"></select>
+      </div>
+    </header>
+
+    <section class="hero" aria-labelledby="statusText">
+      <div class="status-line">
+        <i id="statusDot" class="status-dot"></i>
+        <span id="statusText" class="status-text">Procurando telemetria…</span>
+        <span id="context" class="context"></span>
+      </div>
+      <div class="progress-track" aria-label="Progresso do método"><div id="progress" class="progress-fill"></div></div>
+      <div class="metrics">
+        <div class="metric"><span>Perda</span><strong id="lossValue">—</strong></div>
+        <div class="metric"><span>Learning rate</span><strong id="lrValue">—</strong></div>
+        <div class="metric"><span>Velocidade</span><strong id="speedValue">—</strong></div>
+        <div class="metric"><span>Tempo restante</span><strong id="etaValue">—</strong></div>
+        <div class="metric"><span>Tokens</span><strong id="tokensValue">—</strong></div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head"><h2>Dinâmica do treinamento</h2><span class="hint">Comparação acumulada entre métodos</span></div>
+          <div class="chart-grid">
+            <div class="chart-block"><h3>Perda média móvel</h3><canvas id="lossCanvas" role="img" aria-label="Curva de perda por método"></canvas></div>
+            <div class="chart-block"><h3>Learning rate</h3><canvas id="lrCanvas" role="img" aria-label="Curva de learning rate por método"></canvas></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Heat funcional</h2>
+            <div class="heat-controls">
+              <div><label for="heatMetric">Sinal</label><select id="heatMetric"><option value="task_importance">Importância atual</option><option value="consolidated_importance">Memória consolidada</option><option value="heat">Heat aplicado</option><option value="plasticity">Plasticidade</option></select></div>
+              <div><label for="ffnLayer">Camada FFN</label><select id="ffnLayer"></select></div>
+            </div>
+          </div>
+          <div class="chart-block"><h3>Cabeças de atenção por camada</h3><div id="attentionGrid" class="attention-grid"></div></div>
+          <div class="chart-block" style="margin-top:16px"><h3>Neurônios da camada FFN selecionada</h3><canvas id="ffnCanvas" role="img" aria-label="Mapa de Heat dos neurônios FFN"></canvas></div>
+          <div id="capacityList" class="capacity-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2>Matriz tarefa × estágio</h2><span id="matrixKind" class="hint">Aguardando avaliação</span></div>
+          <div id="accuracyMatrix" class="matrix-wrap"></div>
+        </section>
+      </div>
+
+      <aside class="stack">
+        <section class="panel">
+          <div class="panel-head"><h2>Memória da GPU</h2><span id="gpuPeak" class="hint">—</span></div>
+          <div class="gpu-row"><span>Alocada</span><div class="bar"><i id="gpuAllocatedBar"></i></div><strong id="gpuAllocated">—</strong></div>
+          <div class="gpu-row"><span>Reservada</span><div class="bar"><i id="gpuReservedBar"></i></div><strong id="gpuReserved">—</strong></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Linha do tempo</h2><span class="hint">Eventos recentes</span></div>
+          <ol id="timeline" class="timeline"></ol>
+        </section>
+      </aside>
+    </div>
+    <p class="footer">Painel local e somente leitura · nenhuma entrada textual é registrada</p>
+  </main>
+
+  <script>
+    const state = { runs: [], run: '', events: [], sequence: 0, heat: null, tick: 0 };
+    const $ = id => document.getElementById(id);
+    const eventLabels = {
+      session_start: 'Sessão iniciada', run_start: 'Execução iniciada', method_start: 'Método iniciado',
+      task_start: 'Tarefa iniciada', epoch_start: 'Época iniciada', epoch_end: 'Época concluída',
+      consolidation: 'Heat consolidado', evaluation_start: 'Avaliação iniciada', evaluation_end: 'Avaliação concluída',
+      checkpoint: 'Checkpoint salvo', task_end: 'Tarefa concluída', method_end: 'Método concluído',
+      run_end: 'Execução concluída', run_error: 'Falha na execução', session_error: 'Sessão interrompida', session_end: 'Sessão encerrada'
+    };
+    const fmt = (value, digits = 3) => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(digits);
+    const compact = value => value == null ? '—' : new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+    const duration = seconds => {
+      if (seconds == null || !Number.isFinite(Number(seconds))) return '—';
+      const total = Math.max(0, Math.round(seconds));
+      const h = Math.floor(total / 3600), m = Math.floor(total % 3600 / 60), s = total % 60;
+      return h ? `${h}h ${m}min` : m ? `${m}min ${s}s` : `${s}s`;
+    };
+    const bytes = value => {
+      if (value == null) return '—';
+      const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']; let n = Number(value), unit = 0;
+      while (n >= 1024 && unit < units.length - 1) { n /= 1024; unit++; }
+      return `${n.toFixed(unit ? 1 : 0)} ${units[unit]}`;
+    };
+    async function getJSON(url) {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+    function latestWith(field) {
+      for (let i = state.events.length - 1; i >= 0; i--) if (state.events[i][field] != null) return state.events[i];
+      return null;
+    }
+    async function loadRuns() {
+      const payload = await getJSON('/api/runs'); state.runs = payload.runs || [];
+      const select = $('runSelect'); const previous = state.run;
+      select.innerHTML = '';
+      state.runs.forEach(run => {
+        const option = document.createElement('option'); option.value = run.id;
+        option.textContent = `${run.id} · seed ${run.seed ?? '—'}`; select.appendChild(option);
+      });
+      if (!state.runs.length) { state.run = ''; render(); return; }
+      state.run = state.runs.some(run => run.id === previous) ? previous : state.runs[0].id;
+      select.value = state.run;
+    }
+    async function loadEvents() {
+      if (!state.run) return;
+      const payload = await getJSON(`/api/events?run=${encodeURIComponent(state.run)}&after=${state.sequence}&limit=10000`);
+      const incoming = payload.events || [];
+      incoming.forEach(event => {
+        if (event.event === 'method_start' && event.resumed && Number.isFinite(Number(event.method_step))) {
+          const checkpointStep = Number(event.method_step);
+          state.events = state.events.filter(previous => !(
+            previous.event === 'batch' &&
+            previous.method === event.method &&
+            Number(previous.method_step) > checkpointStep
+          ));
+        }
+        state.events.push(event);
+      });
+      if (incoming.length) state.sequence = incoming[incoming.length - 1].sequence;
+    }
+    async function loadHeat() {
+      if (!state.run) return;
+      const payload = await getJSON(`/api/heat?run=${encodeURIComponent(state.run)}`); state.heat = payload.heat;
+    }
+    function statusInfo() {
+      if (!state.events.length) return ['Aguardando eventos', '', ''];
+      const last = state.events[state.events.length - 1];
+      if (['run_error', 'session_error'].includes(last.event)) return ['Treinamento interrompido', 'failed', last.error_message || ''];
+      if (['run_end', 'session_end'].includes(last.event) && last.status !== 'failed') return ['Execução concluída', 'done', ''];
+      if (last.event.startsWith('evaluation')) return ['Avaliando retenção', 'live', ''];
+      if (last.event === 'consolidation') return ['Consolidando Heat', 'live', ''];
+      return ['Treinamento em andamento', 'live', ''];
+    }
+    function renderHero() {
+      const current = latestWith('method_step') || state.events[state.events.length - 1] || {};
+      const batch = latestWith('loss') || {};
+      const [label, statusClass, detail] = statusInfo();
+      $('statusText').textContent = label; $('statusDot').className = `status-dot ${statusClass}`;
+      $('context').textContent = detail || [current.method, current.domain, current.epoch != null ? `época ${current.epoch + 1}` : ''].filter(Boolean).join(' · ');
+      const progress = Number(current.progress ?? (current.total_steps ? current.method_step / current.total_steps : 0));
+      $('progress').style.width = `${Math.max(0, Math.min(1, progress || 0)) * 100}%`;
+      $('lossValue').textContent = fmt(batch.rolling_loss ?? batch.loss, 4);
+      $('lrValue').textContent = batch.learning_rate == null ? '—' : Number(batch.learning_rate).toExponential(2);
+      $('speedValue').textContent = batch.tokens_per_second == null ? '—' : `${compact(batch.tokens_per_second)} tok/s`;
+      $('etaValue').textContent = duration(batch.eta_seconds);
+      $('tokensValue').textContent = compact(current.tokens_processed ?? batch.tokens_processed);
+    }
+    const colorCache = {};
+    function css(name) {
+      if (colorCache[name]) return colorCache[name];
+      const probe = document.createElement('span'); probe.style.color = `var(${name})`; document.body.appendChild(probe);
+      colorCache[name] = getComputedStyle(probe).color; probe.remove(); return colorCache[name];
+    }
+    function mixColor(first, second, amount) {
+      const parse = color => (color.match(/[\d.]+/g) || [0, 0, 0]).slice(0, 3).map(Number);
+      const a = parse(first), b = parse(second), t = Math.max(0, Math.min(1, amount));
+      return `rgb(${a.map((value, i) => Math.round(value + (b[i] - value) * t)).join(',')})`;
+    }
+    function drawSeries(canvas, field) {
+      const points = state.events.filter(event => event.event === 'batch' && event[field] != null);
+      const rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(rect.width * dpr)); canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr); const w = rect.width, h = rect.height;
+      ctx.clearRect(0, 0, w, h); const pad = { l: 42, r: 12, t: 12, b: 25 };
+      if (!points.length) { ctx.fillStyle = css('--muted'); ctx.textAlign = 'center'; ctx.fillText('Aguardando lotes', w / 2, h / 2); return; }
+      const values = points.map(p => Number(p[field])); let min = Math.min(...values), max = Math.max(...values);
+      if (min === max) { min -= Math.abs(min || 1) * .05; max += Math.abs(max || 1) * .05; }
+      ctx.strokeStyle = css('--border'); ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) { const y = pad.t + (h - pad.t - pad.b) * i / 3; ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke(); }
+      ctx.fillStyle = css('--muted'); ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText(fmt(max, field === 'learning_rate' ? 5 : 3), pad.l - 6, pad.t + 4); ctx.fillText(fmt(min, field === 'learning_rate' ? 5 : 3), pad.l - 6, h - pad.b);
+      const methods = [...new Set(points.map(p => p.method))]; const colors = [css('--heat'), css('--cool'), css('--warn'), css('--bad'), css('--ink')];
+      methods.forEach((method, index) => {
+        const series = points.filter(p => p.method === method); const maxStep = Math.max(...series.map(p => p.total_steps || p.method_step));
+        ctx.strokeStyle = colors[index % colors.length]; ctx.lineWidth = 2; ctx.beginPath();
+        series.forEach((p, i) => { const x = pad.l + (w - pad.l - pad.r) * p.method_step / maxStep; const y = pad.t + (h - pad.t - pad.b) * (1 - (Number(p[field]) - min) / (max - min)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        ctx.stroke();
+      });
+      ctx.textAlign = 'left'; methods.forEach((method, index) => { ctx.fillStyle = colors[index % colors.length]; ctx.fillText(method, pad.l + index * Math.max(68, (w - pad.l) / methods.length), h - 7); });
+    }
+    function renderGPU() {
+      const current = latestWith('gpu_allocated_bytes') || {};
+      const allocated = current.gpu_allocated_bytes, reserved = current.gpu_reserved_bytes, peak = current.gpu_peak_bytes;
+      const ceiling = Math.max(Number(reserved || 0), Number(peak || 0), 1);
+      $('gpuAllocated').textContent = bytes(allocated); $('gpuReserved').textContent = bytes(reserved); $('gpuPeak').textContent = `pico ${bytes(peak)}`;
+      $('gpuAllocatedBar').style.width = `${100 * Number(allocated || 0) / ceiling}%`; $('gpuReservedBar').style.width = `${100 * Number(reserved || 0) / ceiling}%`;
+    }
+    function heatLevel(value, all) {
+      const finite = all.filter(Number.isFinite); if (!finite.length) return 0;
+      const min = Math.min(...finite), max = Math.max(...finite); return max === min ? (max ? 70 : 8) : 8 + 82 * (value - min) / (max - min);
+    }
+    function renderHeat() {
+      const snapshot = state.heat, metric = $('heatMetric').value;
+      const attention = snapshot?.available ? snapshot.attention || [] : [];
+      const grid = $('attentionGrid'); grid.innerHTML = '';
+      if (!attention.length) grid.innerHTML = '<div class="empty">Este método não possui Heat de atenção.</div>';
+      else {
+        const all = attention.flatMap(layer => layer[metric] || []); const heads = Math.max(...attention.map(layer => layer.units));
+        attention.forEach(layer => {
+          const row = document.createElement('div'); row.className = 'attention-row'; row.style.setProperty('--heads', heads);
+          const name = document.createElement('span'); name.className = 'layer-name'; name.textContent = `Camada ${layer.layer + 1}`; row.appendChild(name);
+          (layer[metric] || []).forEach((value, index) => { const cell = document.createElement('span'); cell.className = 'heat-cell'; cell.style.setProperty('--level', `${heatLevel(Number(value), all)}%`); cell.textContent = fmt(value, 2); cell.title = `Cabeça ${index + 1}: ${Number(value).toPrecision(5)}`; row.appendChild(cell); });
+          grid.appendChild(row);
+        });
+      }
+      const ffn = snapshot?.available ? snapshot.ffn || [] : []; const selector = $('ffnLayer'); const old = selector.value;
+      selector.innerHTML = ''; ffn.forEach(layer => { const option = document.createElement('option'); option.value = layer.layer; option.textContent = `Camada ${layer.layer + 1} · ${layer.units} neurônios`; selector.appendChild(option); });
+      if (ffn.some(layer => String(layer.layer) === old)) selector.value = old;
+      drawFFN(ffn.find(layer => String(layer.layer) === selector.value) || ffn[0], metric);
+      const capacity = $('capacityList'); capacity.innerHTML = '';
+      [...attention.map(x => ['Atenção', x]), ...ffn.map(x => ['FFN', x])].forEach(([family, layer]) => {
+        const row = document.createElement('div'); row.className = 'capacity';
+        const name = document.createElement('span'); name.textContent = `${family} · C${Number(layer.layer) + 1}`;
+        const bar = document.createElement('div'); bar.className = 'bar'; const fill = document.createElement('i'); fill.style.width = `${100 * Number(layer.protected_fraction)}%`; bar.appendChild(fill);
+        const value = document.createElement('strong'); value.textContent = `${fmt(100 * Number(layer.protected_fraction), 1)}%`;
+        row.append(name, bar, value); capacity.appendChild(row);
+      });
+    }
+    function drawFFN(layer, metric) {
+      const canvas = $('ffnCanvas'), rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(rect.width * dpr)); canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!layer) { ctx.fillStyle = css('--muted'); ctx.textAlign = 'center'; ctx.fillText('Este método não possui Heat FFN.', rect.width / 2, rect.height / 2); return; }
+      const values = layer[metric] || [], cols = Math.max(8, Math.ceil(Math.sqrt(values.length * rect.width / rect.height))), rows = Math.ceil(values.length / cols), gap = 1;
+      const cellW = rect.width / cols, cellH = rect.height / rows, all = values.map(Number);
+      values.forEach((value, index) => { const level = heatLevel(Number(value), all); ctx.fillStyle = mixColor(css('--surface-2'), css('--heat'), level / 100); const x = index % cols * cellW, y = Math.floor(index / cols) * cellH; ctx.fillRect(x, y, Math.max(1, cellW - gap), Math.max(1, cellH - gap)); });
+    }
+    function renderMatrix() {
+      const evaluations = state.events.filter(e => e.event === 'evaluation_end'); const target = evaluations[evaluations.length - 1]; const host = $('accuracyMatrix'); host.innerHTML = '';
+      if (!target) { host.innerHTML = '<div class="empty">A matriz aparecerá depois da primeira avaliação.</div>'; return; }
+      const matrix = target.accuracy_matrix || target.validation_accuracy_matrix; $('matrixKind').textContent = target.accuracy_matrix ? 'Acurácia class-incremental' : 'Acurácia de validação';
+      const grid = document.createElement('div'); grid.className = 'matrix'; const values = matrix.flat().filter(v => v != null).map(Number);
+      const header = document.createElement('div'); header.className = 'matrix-row'; header.innerHTML = '<span></span>' + Array.from({length: 10}, (_, i) => `<span class="matrix-label">T${i + 1}</span>`).join(''); grid.appendChild(header);
+      matrix.forEach((rowValues, rowIndex) => { const row = document.createElement('div'); row.className = 'matrix-row'; row.innerHTML = `<span class="matrix-label">E${rowIndex + 1}</span>`; rowValues.forEach((value, colIndex) => { const cell = document.createElement('span'); cell.className = 'matrix-cell'; if (value == null) { cell.textContent = '·'; cell.style.setProperty('--level', '0%'); } else { cell.textContent = fmt(100 * value, 0); cell.style.setProperty('--level', `${heatLevel(Number(value), values)}%`); cell.title = `Estágio ${rowIndex + 1}, tarefa ${colIndex + 1}: ${fmt(100 * value, 2)}%`; } row.appendChild(cell); }); grid.appendChild(row); });
+      host.appendChild(grid);
+    }
+    function renderTimeline() {
+      const host = $('timeline'); host.innerHTML = ''; const relevant = state.events.filter(e => e.event !== 'batch').slice(-18).reverse();
+      relevant.forEach(event => {
+        const li = document.createElement('li'); const marker = document.createElement('i'); marker.className = `timeline-marker ${String(event.event).replace(/[^a-z_]/g, '')}`;
+        const content = document.createElement('div'); const title = document.createElement('strong'); title.textContent = eventLabels[event.event] || event.event;
+        const detail = document.createElement('small'); detail.textContent = [event.method, event.domain, event.stage != null ? `tarefa ${event.stage + 1}` : '', new Date(event.timestamp).toLocaleTimeString('pt-BR')].filter(Boolean).join(' · ');
+        content.append(title, detail); li.append(marker, content); host.appendChild(li);
+      });
+      if (!relevant.length) host.innerHTML = '<li><div></div><div class="hint">Aguardando eventos.</div></li>';
+    }
+    function render() {
+      if (!state.runs.length) { $('statusText').textContent = 'Nenhuma telemetria encontrada'; $('context').textContent = 'Inicie o treino com --telemetry'; return; }
+      renderHero(); drawSeries($('lossCanvas'), 'rolling_loss'); drawSeries($('lrCanvas'), 'learning_rate'); renderGPU(); renderHeat(); renderMatrix(); renderTimeline();
+    }
+    $('runSelect').addEventListener('change', async event => { state.run = event.target.value; state.events = []; state.sequence = 0; state.heat = null; await refresh(true); });
+    $('heatMetric').addEventListener('change', renderHeat); $('ffnLayer').addEventListener('change', renderHeat);
+    async function refresh(forceRuns = false) {
+      try { if (forceRuns || state.tick++ % 5 === 0) await loadRuns(); await Promise.all([loadEvents(), loadHeat()]); render(); }
+      catch (error) { $('statusText').textContent = 'Painel aguardando o treinamento'; $('context').textContent = error.message; }
+    }
+    new ResizeObserver(() => { drawSeries($('lossCanvas'), 'rolling_loss'); drawSeries($('lrCanvas'), 'learning_rate'); renderHeat(); }).observe(document.querySelector('.shell'));
+    refresh(true); setInterval(refresh, 1000);
+  </script>
+</body>
+</html>

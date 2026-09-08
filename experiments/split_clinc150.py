@@ -15,6 +15,8 @@ import json
 import math
 import random
 import time
+from collections import deque
+from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -42,6 +44,11 @@ from experiments.artifacts import (
 from experiments.confirmatory_statistics import (
     exact_two_sided_sign_test,
     normal_summary,
+)
+from experiments.live_telemetry import (
+    TelemetryWriter,
+    cuda_memory_payload,
+    finite_or_none,
 )
 from experiments.peak_memory import PeakMemoryTracker
 from experiments.provenance import write_environment_manifest
@@ -677,13 +684,16 @@ def _checkpoint_identity(
     }
 
 
-def run_split_clinc150(
+def _run_split_clinc150(
     config: SplitCLINC150Config,
     tasks: list[CLINC150Task],
     *,
     metadata: dict[str, Any] | None = None,
     output_dir: str | Path | None = None,
     resume: bool = False,
+    telemetry: bool = False,
+    telemetry_every: int = 10,
+    _telemetry_holder: list[TelemetryWriter] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Run all configured methods with paired initialization and schedules."""
 
@@ -716,14 +726,44 @@ def run_split_clinc150(
     identity = _checkpoint_identity(config, metadata, data_sha256)
     if destination is not None:
         write_json_atomic(destination / "protocol.json", identity)
-    steps_per_epoch = sum(
-        math.ceil(len(task.train.labels) / config.batch_size) for task in tasks
+    if telemetry and destination is None:
+        raise ValueError("telemetria requer output_dir")
+    telemetry_writer = (
+        TelemetryWriter(
+            destination,
+            identity=identity,
+            every=telemetry_every,
+            resumed=resume,
+        )
+        if telemetry and destination is not None
+        else None
     )
-    total_steps = steps_per_epoch * config.epochs_per_task
+    if telemetry_writer is not None:
+        if _telemetry_holder is not None:
+            _telemetry_holder.append(telemetry_writer)
+        telemetry_writer.emit(
+            "run_start",
+            seed=config.seed,
+            methods=list(config.methods),
+            task_count=len(tasks),
+            model_name=config.model_name,
+            device=config.device,
+        )
+    task_steps = [
+        math.ceil(len(task.train.labels) / config.batch_size)
+        * config.epochs_per_task
+        for task in tasks
+    ]
+    total_steps = sum(task_steps)
     results: dict[str, dict[str, Any]] = {}
 
     for method in config.methods:
         method_started = time.perf_counter()
+        telemetry_overhead_start = (
+            telemetry_writer.overhead_seconds
+            if telemetry_writer is not None
+            else 0.0
+        )
         model = _build_model(method, config, model_config, initial_state).to(config.device)
         optimizer, scheduler = _build_optimizer_and_scheduler(
             model, method, config, total_steps
@@ -763,13 +803,60 @@ def run_split_clinc150(
             tokens_processed = int(checkpoint["tokens_processed"])
             next_stage = int(checkpoint["next_stage"])
 
+        slow_model = _find_slowheat_model(model)
+        method_step = sum(task_steps[:next_stage])
+        session_start_step = method_step
+        session_start_tokens = tokens_processed
+        telemetry_method_started = time.perf_counter()
+        recent_losses: deque[float] = deque(
+            (
+                value
+                for task_loss in training_losses[-2:]
+                for value in task_loss[-50:]
+            ),
+            maxlen=50,
+        )
+        if telemetry_writer is not None:
+            telemetry_writer.emit(
+                "method_start",
+                seed=config.seed,
+                method=method,
+                resumed=next_stage > 0,
+                next_stage=next_stage,
+                total_stages=len(tasks),
+                method_step=method_step,
+                total_steps=total_steps,
+                tokens_processed=tokens_processed,
+            )
+            telemetry_writer.publish_heat(
+                slow_model,
+                context={
+                    "seed": config.seed,
+                    "method": method,
+                    "stage": max(0, next_stage - 1),
+                    "phase": "method_start",
+                },
+            )
         memory_tracker = PeakMemoryTracker(config.device).start()
         for stage in range(next_stage, len(tasks)):
             task = tasks[stage]
             seen = _seen_classes(tasks, stage)
             stage_losses: list[float] = []
+            if telemetry_writer is not None:
+                telemetry_writer.emit(
+                    "task_start",
+                    seed=config.seed,
+                    method=method,
+                    stage=stage,
+                    domain=task.domain,
+                    total_stages=len(tasks),
+                    seen_class_count=len(seen),
+                    method_step=method_step,
+                    total_steps=total_steps,
+                )
             model.train()
             for epoch in range(config.epochs_per_task):
+                epoch_loss_start = len(stage_losses)
                 generator = torch.Generator().manual_seed(
                     config.seed * 1_000_003 + stage * 10_007 + epoch
                 )
@@ -780,6 +867,20 @@ def run_split_clinc150(
                     else torch.empty(0, dtype=torch.long)
                 )
                 replay_cursor = 0
+                batches_in_epoch = math.ceil(len(order) / config.batch_size)
+                if telemetry_writer is not None:
+                    telemetry_writer.emit(
+                        "epoch_start",
+                        seed=config.seed,
+                        method=method,
+                        stage=stage,
+                        domain=task.domain,
+                        epoch=epoch,
+                        total_epochs=config.epochs_per_task,
+                        batches_in_epoch=batches_in_epoch,
+                        method_step=method_step,
+                        total_steps=total_steps,
+                    )
                 for start in range(0, len(order), config.batch_size):
                     current = order[start : start + config.batch_size]
                     input_ids = task.train.input_ids[current]
@@ -814,8 +915,75 @@ def run_split_clinc150(
                     )
                     optimizer.step()
                     scheduler.step()
-                    stage_losses.append(float(loss.detach()))
+                    loss_value = float(loss.detach())
+                    stage_losses.append(loss_value)
+                    recent_losses.append(loss_value)
                     tokens_processed += int(batch["attention_mask"].sum())
+                    method_step += 1
+                    if (
+                        telemetry_writer is not None
+                        and telemetry_writer.should_publish_batch(method_step)
+                    ):
+                        elapsed = max(
+                            time.perf_counter() - telemetry_method_started,
+                            1e-12,
+                        )
+                        completed_in_session = method_step - session_start_step
+                        steps_per_second = completed_in_session / elapsed
+                        tokens_per_second = (
+                            tokens_processed - session_start_tokens
+                        ) / elapsed
+                        eta = (
+                            (total_steps - method_step) / steps_per_second
+                            if steps_per_second > 0.0
+                            else math.nan
+                        )
+                        context = {
+                            "seed": config.seed,
+                            "method": method,
+                            "stage": stage,
+                            "domain": task.domain,
+                            "epoch": epoch,
+                            "batch": start // config.batch_size + 1,
+                            "batches_in_epoch": batches_in_epoch,
+                            "method_step": method_step,
+                            "total_steps": total_steps,
+                            "progress": method_step / total_steps,
+                            "tokens_processed": tokens_processed,
+                        }
+                        telemetry_writer.emit(
+                            "batch",
+                            **context,
+                            loss=loss_value,
+                            rolling_loss=sum(recent_losses) / len(recent_losses),
+                            learning_rate=float(optimizer.param_groups[0]["lr"]),
+                            tokens_per_second=tokens_per_second,
+                            steps_per_second=steps_per_second,
+                            eta_seconds=finite_or_none(eta),
+                            **cuda_memory_payload(config.device),
+                        )
+                        telemetry_writer.publish_heat(
+                            slow_model,
+                            context={**context, "phase": "training"},
+                        )
+                if telemetry_writer is not None:
+                    epoch_losses = stage_losses[epoch_loss_start:]
+                    telemetry_writer.emit(
+                        "epoch_end",
+                        seed=config.seed,
+                        method=method,
+                        stage=stage,
+                        domain=task.domain,
+                        epoch=epoch,
+                        total_epochs=config.epochs_per_task,
+                        mean_loss=(
+                            sum(epoch_losses) / len(epoch_losses)
+                            if epoch_losses
+                            else None
+                        ),
+                        method_step=method_step,
+                        total_steps=total_steps,
+                    )
             training_losses.append(stage_losses)
 
             if method in REPLAY_METHODS:
@@ -828,6 +996,39 @@ def run_split_clinc150(
                 assert slow_model is not None
                 slow_model.consolidate(strategy="max")
                 capacity_history.append(slow_model.capacity_metrics())
+                if telemetry_writer is not None:
+                    telemetry_writer.emit(
+                        "consolidation",
+                        seed=config.seed,
+                        method=method,
+                        stage=stage,
+                        domain=task.domain,
+                        strategy="max",
+                        capacity=capacity_history[-1],
+                    )
+
+            if telemetry_writer is not None:
+                telemetry_writer.publish_heat(
+                    slow_model,
+                    context={
+                        "seed": config.seed,
+                        "method": method,
+                        "stage": stage,
+                        "domain": task.domain,
+                        "phase": "task_boundary",
+                        "method_step": method_step,
+                        "total_steps": total_steps,
+                    },
+                    stage_snapshot=True,
+                )
+                telemetry_writer.emit(
+                    "evaluation_start",
+                    seed=config.seed,
+                    method=method,
+                    stage=stage,
+                    domain=task.domain,
+                    evaluated_tasks=stage + 1,
+                )
 
             for task_index in range(stage + 1):
                 validation_class_il, _, _ = _evaluate(
@@ -852,6 +1053,25 @@ def run_split_clinc150(
                     task_aware[stage, task_index] = aware
                     macro_f1[stage, task_index] = f1
 
+            if telemetry_writer is not None:
+                telemetry_writer.emit(
+                    "evaluation_end",
+                    seed=config.seed,
+                    method=method,
+                    stage=stage,
+                    domain=task.domain,
+                    validation_accuracy_matrix=_json_matrix(validation_accuracy),
+                    accuracy_matrix=(
+                        _json_matrix(accuracy) if config.evaluate_test else None
+                    ),
+                    task_aware_accuracy_matrix=(
+                        _json_matrix(task_aware) if config.evaluate_test else None
+                    ),
+                    macro_f1_matrix=(
+                        _json_matrix(macro_f1) if config.evaluate_test else None
+                    ),
+                )
+
             if checkpoint_path is not None:
                 write_torch_atomic(
                     checkpoint_path,
@@ -873,6 +1093,31 @@ def run_split_clinc150(
                         "capacity_history": capacity_history,
                         "tokens_processed": tokens_processed,
                     },
+                )
+                if telemetry_writer is not None:
+                    telemetry_writer.emit(
+                        "checkpoint",
+                        seed=config.seed,
+                        method=method,
+                        stage=stage,
+                        domain=task.domain,
+                        next_stage=stage + 1,
+                        method_step=method_step,
+                    )
+            if telemetry_writer is not None:
+                telemetry_writer.emit(
+                    "task_end",
+                    seed=config.seed,
+                    method=method,
+                    stage=stage,
+                    domain=task.domain,
+                    method_step=method_step,
+                    total_steps=total_steps,
+                    mean_loss=(
+                        sum(stage_losses) / len(stage_losses)
+                        if stage_losses
+                        else None
+                    ),
                 )
 
         memory = memory_tracker.stop()
@@ -916,6 +1161,29 @@ def run_split_clinc150(
         results[method] = result
         if destination is not None:
             write_json_atomic(destination / method / "results.json", result)
+        if telemetry_writer is not None:
+            telemetry_overhead = (
+                telemetry_writer.overhead_seconds - telemetry_overhead_start
+            )
+            telemetry_writer.emit(
+                "method_end",
+                seed=config.seed,
+                method=method,
+                status="complete",
+                method_step=method_step,
+                total_steps=total_steps,
+                tokens_processed=tokens_processed,
+                elapsed_seconds=result["elapsed_seconds"],
+                telemetry_overhead_seconds=telemetry_overhead,
+                telemetry_overhead_ratio=(
+                    telemetry_overhead / result["elapsed_seconds"]
+                    if result["elapsed_seconds"] > 0.0
+                    else 0.0
+                ),
+                validation_metrics=validation_metrics,
+                metrics=metrics,
+                peak_memory=memory,
+            )
         slow_model = _find_slowheat_model(model)
         if slow_model is not None:
             slow_model.remove_slowheat_instrumentation()
@@ -923,7 +1191,59 @@ def run_split_clinc150(
         gc.collect()
         if torch.device(config.device).type == "cuda":
             torch.cuda.empty_cache()
+    if telemetry_writer is not None:
+        telemetry_writer.emit(
+            "run_end",
+            seed=config.seed,
+            status="complete",
+            completed_methods=list(results),
+        )
+        telemetry_writer.close()
     return results
+
+
+def run_split_clinc150(
+    config: SplitCLINC150Config,
+    tasks: list[CLINC150Task],
+    *,
+    metadata: dict[str, Any] | None = None,
+    output_dir: str | Path | None = None,
+    resume: bool = False,
+    telemetry: bool = False,
+    telemetry_every: int = 10,
+) -> dict[str, dict[str, Any]]:
+    """Run paired methods and optionally publish read-only live telemetry."""
+
+    holder: list[TelemetryWriter] = []
+    try:
+        return _run_split_clinc150(
+            config,
+            tasks,
+            metadata=metadata,
+            output_dir=output_dir,
+            resume=resume,
+            telemetry=telemetry,
+            telemetry_every=telemetry_every,
+            _telemetry_holder=holder,
+        )
+    except BaseException as error:
+        if holder and not holder[-1].is_closed:
+            writer = holder[-1]
+            memory_payload = {}
+            with suppress(Exception):
+                memory_payload = cuda_memory_payload(config.device)
+            with suppress(Exception):
+                writer.emit(
+                    "run_error",
+                    seed=config.seed,
+                    status="failed",
+                    error_type=type(error).__name__,
+                    error_message=str(error)[:2_000],
+                    **memory_payload,
+                )
+            with suppress(Exception):
+                writer.close(error=error)
+        raise
 
 
 def run_split_clinc150_multi_seed(
@@ -934,6 +1254,8 @@ def run_split_clinc150_multi_seed(
     metadata: dict[str, Any],
     output_dir: str | Path,
     resume: bool = False,
+    telemetry: bool = False,
+    telemetry_every: int = 10,
 ) -> dict[str, Any]:
     if not seeds or len(set(seeds)) != len(seeds):
         raise ValueError("seeds deve ser não vazio e sem duplicatas")
@@ -953,6 +1275,8 @@ def run_split_clinc150_multi_seed(
             metadata=metadata,
             output_dir=destination / f"seed_{seed}",
             resume=resume,
+            telemetry=telemetry,
+            telemetry_every=telemetry_every,
         )
     aggregate: dict[str, Any] = {
         "seeds": seeds,
@@ -1003,6 +1327,8 @@ def calibrate_bert_mini_slowheat(
     candidates: tuple[dict[str, float], ...] = DEFAULT_CALIBRATION_GRID,
     output_dir: str | Path,
     resume: bool = False,
+    telemetry: bool = False,
+    telemetry_every: int = 10,
 ) -> dict[str, Any]:
     """Select SlowHeat hyperparameters using validation matrices only."""
 
@@ -1039,6 +1365,8 @@ def calibrate_bert_mini_slowheat(
                     destination / f"candidate_{candidate_index}" / f"seed_{seed}"
                 ),
                 resume=resume,
+                telemetry=telemetry,
+                telemetry_every=telemetry_every,
             )
             reference = float(
                 result["replay"]["validation_metrics"]["final_average_accuracy"]
@@ -1148,6 +1476,8 @@ def main() -> None:
     parser.add_argument("--frozen-manifest")
     parser.add_argument("--bert-base", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--telemetry", action="store_true")
+    parser.add_argument("--telemetry-every", type=int, default=10)
     args = parser.parse_args()
     config = SplitCLINC150Config(
         model_name=args.model_name,
@@ -1173,6 +1503,8 @@ def main() -> None:
             seeds=tuple(args.seeds),
             output_dir=args.output_dir,
             resume=args.resume,
+            telemetry=args.telemetry,
+            telemetry_every=args.telemetry_every,
         )
         return
     if args.bert_base and not args.frozen_manifest:
@@ -1196,6 +1528,8 @@ def main() -> None:
         metadata=metadata,
         output_dir=args.output_dir,
         resume=args.resume,
+        telemetry=args.telemetry,
+        telemetry_every=args.telemetry_every,
     )
 
 
