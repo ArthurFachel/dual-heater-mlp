@@ -167,6 +167,15 @@ def test_huggingface_from_pretrained_loads_native_bert_checkpoint(tmp_path):
     assert torch.equal(model.classifier.weight, native.classifier.weight)
 
 
+def test_slowheat_hooks_can_be_removed_before_releasing_a_gpu_model():
+    model = SlowHeatBertForSequenceClassification(_bert_config())
+
+    assert model._slowheat_hook_handles
+    model.remove_slowheat_instrumentation()
+
+    assert not model._slowheat_hook_handles
+
+
 def test_exact_lora_freezes_a_and_hard_masks_protected_b_rows():
     pytest.importorskip("peft")
     torch.manual_seed(21)

@@ -8,6 +8,7 @@ identifier to the model.
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import itertools
 import json
@@ -915,7 +916,13 @@ def run_split_clinc150(
         results[method] = result
         if destination is not None:
             write_json_atomic(destination / method / "results.json", result)
+        slow_model = _find_slowheat_model(model)
+        if slow_model is not None:
+            slow_model.remove_slowheat_instrumentation()
         del model, optimizer, scheduler
+        gc.collect()
+        if torch.device(config.device).type == "cuda":
+            torch.cuda.empty_cache()
     return results
 
 
@@ -1121,6 +1128,22 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int, default=[11, 22, 33])
     parser.add_argument("--methods", nargs="+", choices=SUPPORTED_METHODS)
     parser.add_argument("--model-name", default=SplitCLINC150Config.model_name)
+    parser.add_argument(
+        "--batch-size", type=int, default=SplitCLINC150Config.batch_size
+    )
+    parser.add_argument(
+        "--replay-batch-size",
+        type=int,
+        default=SplitCLINC150Config.replay_batch_size,
+    )
+    parser.add_argument(
+        "--max-length", type=int, default=SplitCLINC150Config.max_length
+    )
+    parser.add_argument(
+        "--epochs-per-task",
+        type=int,
+        default=SplitCLINC150Config.epochs_per_task,
+    )
     parser.add_argument("--calibrate", action="store_true")
     parser.add_argument("--frozen-manifest")
     parser.add_argument("--bert-base", action="store_true")
@@ -1134,6 +1157,10 @@ def main() -> None:
             else SplitCLINC150Config.methods
         ),
         device=args.device,
+        batch_size=args.batch_size,
+        replay_batch_size=args.replay_batch_size,
+        max_length=args.max_length,
+        epochs_per_task=args.epochs_per_task,
     )
     tasks, metadata = load_clinc150_tasks(config)
     if args.calibrate:

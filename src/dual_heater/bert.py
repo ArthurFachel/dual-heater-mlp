@@ -274,10 +274,15 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
     def reinstall_slowheat_instrumentation(self) -> None:
         """Rebind hooks after wrappers such as PEFT replace Linear modules."""
 
+        self.remove_slowheat_instrumentation()
+        self._install_slowheat_instrumentation()
+
+    def remove_slowheat_instrumentation(self) -> None:
+        """Remove hooks explicitly so discarded GPU models cannot form cycles."""
+
         for handle in self._slowheat_hook_handles:
             handle.remove()
         self._slowheat_hook_handles.clear()
-        self._install_slowheat_instrumentation()
 
     def forward(
         self,

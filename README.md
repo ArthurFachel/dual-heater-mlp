@@ -203,6 +203,7 @@ python -m experiments.split_clinc150 --calibrate --device cuda \
 
 python -m experiments.split_clinc150 --device cuda \
   --frozen-manifest results/bert_clinc150_pilot/frozen_slowheat_manifest.json \
+  --batch-size 8 --replay-batch-size 8 \
   --methods replay slowheat_replay \
   --output-dir results/bert_clinc150_mini
 ```
@@ -212,6 +213,9 @@ hyperparameters to BERT-base. Exact LoRA controls are selected with
 `--methods lora_replay slowheat_lora_replay`. These are executable protocols,
 not completed efficacy results. See
 [`docs/functional_slowheat_transformers.md`](docs/functional_slowheat_transformers.md).
+For GPUs near 12 GB, start BERT-Mini with batches of 8+8 and BERT-base with
+2+2; the runner explicitly releases model hooks and the CUDA cache between
+methods.
 
 After each task:
 
