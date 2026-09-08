@@ -10,13 +10,16 @@ m_i = 1 / (1 + beta * slow_heat_i)
 
 For plain SGD, multiplying a gradient by `m_i` scales the update directly. Adam and AdamW normalize gradients using first and second moments, so a persistent multiplicative factor can largely cancel. Decoupled weight decay can also move a supposedly protected parameter independently of its gradient.
 
-`SlowHeatAdamW` and `SlowHeatSGD` therefore:
+`SlowHeatAdamW` and `SlowHeatSGD` therefore preserve the following semantics:
 
-1. let the native optimizer compute its complete update;
-2. measure the resulting parameter delta;
-3. multiply that final delta by the registered plasticity mask;
-4. apply the masked delta;
-5. optionally apply the same mask to tensor-valued optimizer-state deltas.
+1. compute the native complete parameter and state updates;
+2. multiply the resulting deltas by the registered plasticity mask;
+3. apply the masked parameter delta;
+4. optionally apply the same mask to tensor-valued optimizer-state deltas.
+
+`SlowHeatAdamW` implements this algebra directly per parameter, without retaining
+parameter/state snapshots. `SlowHeatSGD` keeps the generic native-step and
+delta-interpolation reference path.
 
 The mask affects gradients, momentum/preconditioning and weight decay together. Mask `1` preserves the native update. Mask `0` blocks it.
 
@@ -67,12 +70,11 @@ metadata remain loadable but cannot supply a fail-closed mask expectation.
 
 ## Trade-offs
 
-The implementation clones each registered parameter once per optimizer step to
-recover the native delta. Under `follow_update`, it also snapshots tensor-valued
-state. Peak temporary memory is therefore proportional to protected parameter
-and state size. This is intentional for semantic clarity and must be measured
-before claiming scalability.
+The AdamW path uses short-lived native-moment temporaries, but no longer retains
+a parameter copy plus every moment copy until the end of the step. The generic
+SGD path still snapshots registered parameters and matching tensor state.
 
-The update rule is explicit but is not yet a fused optimizer kernel. It can
-introduce graph breaks under `torch.compile`, and distributed/fused optimizer
-compatibility has not been established.
+The AdamW update is not a fused optimizer kernel and explicitly rejects
+`fused`, `capturable`, `differentiable`, complex parameters and GradScaler while
+masks are active. It can introduce graph breaks under `torch.compile`, and
+distributed optimizer compatibility has not been established.

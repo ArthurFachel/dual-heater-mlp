@@ -353,3 +353,72 @@ def test_checkpoint_rejects_different_optimizer_state_policy():
 
     with pytest.raises(ValueError, match="state_policy"):
         restored.load_state_dict(state)
+
+
+@pytest.mark.parametrize("state_policy", ["follow_update", "native"])
+@pytest.mark.parametrize("amsgrad", [False, True])
+def test_pointwise_adamw_matches_snapshot_semantics_over_multiple_steps(
+    state_policy, amsgrad
+):
+    mask = torch.tensor([0.0, 0.3, 1.0])
+    expected_parameter = torch.nn.Parameter(torch.tensor([1.0, -2.0, 0.5]))
+    actual_parameter = torch.nn.Parameter(expected_parameter.detach().clone())
+    expected = torch.optim.AdamW(
+        [expected_parameter], lr=0.03, weight_decay=0.2, amsgrad=amsgrad
+    )
+    actual = SlowHeatAdamW(
+        [actual_parameter],
+        lr=0.03,
+        weight_decay=0.2,
+        amsgrad=amsgrad,
+        state_policy=state_policy,
+    )
+    actual.register_plasticity_mask(actual_parameter, mask)
+
+    for gradient in (
+        torch.tensor([2.0, -1.0, 0.5]),
+        torch.tensor([-0.5, 3.0, 1.0]),
+        torch.tensor([1.5, 0.25, -2.0]),
+    ):
+        parameter_before = expected_parameter.detach().clone()
+        state_before = {
+            key: value.detach().clone()
+            for key, value in expected.state[expected_parameter].items()
+            if isinstance(value, torch.Tensor)
+            and value.shape == expected_parameter.shape
+        }
+        expected_parameter.grad = gradient.clone()
+        actual_parameter.grad = gradient.clone()
+        expected.step()
+        with torch.no_grad():
+            expected_parameter.copy_(
+                parameter_before + mask * (expected_parameter - parameter_before)
+            )
+        if state_policy == "follow_update":
+            for key, current in expected.state[expected_parameter].items():
+                if not isinstance(current, torch.Tensor) or current.shape != mask.shape:
+                    continue
+                previous = state_before.get(key, torch.zeros_like(current))
+                current.copy_(previous + mask * (current - previous))
+        actual.step()
+
+        assert torch.allclose(actual_parameter, expected_parameter)
+        for key in ("exp_avg", "exp_avg_sq", "max_exp_avg_sq"):
+            if key in expected.state[expected_parameter]:
+                assert torch.allclose(
+                    actual.state[actual_parameter][key],
+                    expected.state[expected_parameter][key],
+                )
+
+
+def test_pointwise_adamw_does_not_use_snapshot_resolution():
+    parameter = torch.nn.Parameter(torch.ones(2))
+    optimizer = SlowHeatAdamW([parameter], lr=0.1)
+    optimizer.register_plasticity_mask(parameter, torch.tensor([0.0, 1.0]))
+
+    def fail_if_called():
+        raise AssertionError("snapshot path must not run")
+
+    optimizer._resolved_masks = fail_if_called
+    parameter.grad = torch.ones_like(parameter)
+    optimizer.step()

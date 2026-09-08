@@ -169,6 +169,50 @@ optimizer = SlowHeatAdamW(model.parameters(), lr=1e-3)
 optimizer.register_slow_heat_model(model)
 ```
 
+For BERT sequence classification, install the optional NLP dependencies and
+instrument a pretrained classifier without replacing its attention kernel:
+
+```bash
+pip install -e '.[nlp]'
+```
+
+```python
+from dual_heater import (
+    BertSlowHeatConfig,
+    SlowHeatAdamW,
+    SlowHeatBertForSequenceClassification,
+)
+
+model = SlowHeatBertForSequenceClassification.from_pretrained(
+    "google/bert_uncased_L-4_H-256_A-4",
+    num_labels=150,
+    ignore_mismatched_sizes=True,
+    slowheat_config=BertSlowHeatConfig(),
+)
+optimizer = SlowHeatAdamW(model.parameters(), lr=5e-5, weight_decay=1e-2)
+model.register_plasticity_masks(optimizer)
+```
+
+The CLINC150 runner uses ten domain tasks, a fixed 150-way head, unseen-logit
+masking, class-balanced replay and stage checkpoints. Calibration writes no
+test metrics and freezes its selection before the final run:
+
+```bash
+python -m experiments.split_clinc150 --calibrate --device cuda \
+  --output-dir results/bert_clinc150_pilot
+
+python -m experiments.split_clinc150 --device cuda \
+  --frozen-manifest results/bert_clinc150_pilot/frozen_slowheat_manifest.json \
+  --methods replay slowheat_replay \
+  --output-dir results/bert_clinc150_mini
+```
+
+Add `--bert-base` to the second command to apply the same frozen
+hyperparameters to BERT-base. Exact LoRA controls are selected with
+`--methods lora_replay slowheat_lora_replay`. These are executable protocols,
+not completed efficacy results. See
+[`docs/functional_slowheat_transformers.md`](docs/functional_slowheat_transformers.md).
+
 After each task:
 
 ```python
@@ -207,9 +251,10 @@ That directly scales an update only for simple SGD-like cases. Adam and AdamW no
 
 The corrected optimizers:
 
-1. compute the native optimizer update;
-2. measure the resulting parameter delta;
-3. apply the plasticity mask to that final delta, including weight decay.
+1. compute the native optimizer-update semantics;
+2. apply the plasticity mask to the final parameter delta, including weight
+   decay;
+3. make tensor-valued moment updates follow the same mask when configured.
 
 Mask `1` preserves the native update. Mask `0` blocks it.
 
@@ -303,11 +348,14 @@ See `docs/synthetic_ablation_pilot.md`.
   `results/` remain versioned as historical evidence, while new generated
   results are ignored. Current runners write `environment.json` with package,
   Python, platform and Git provenance alongside new outputs.
-- LoRA output masking does not guarantee independent protection of every output because `lora_A` is shared across outputs.
+- Generic LoRA output masking does not guarantee independent protection of every
+  output because `lora_A` is shared across outputs. The exact BERT variant avoids
+  this ambiguity by freezing `A`, adapting producer projections only and masking
+  rows of `B`.
 - The forward inhibition mechanism is a train-only regularizer; evaluation uses the uninhibited function.
 - Runtime and memory scalability have not been established. Persistent
-  importance state is per unit, but parameter and optimizer-state snapshots
-  require temporary parameter-scale memory.
+  importance state is per unit; masked AdamW removed retained snapshots but
+  still creates short-lived parameter-scale moment temporaries.
 - The adaptive capacity API requires a held-out validation signal; the
   synthetic runner currently uses a fixed predeclared budget to avoid test
   leakage.
@@ -344,6 +392,8 @@ src/dual_heater/
   dual_heat.py       legacy DualHeat mechanism
   fast_heat.py       normalized activation gate and online FastHeat state
   slow_heat.py       SlowHeat linear/conv layers and consolidation
+  transformer.py     FFN and per-head functional-importance trackers
+  bert.py            optional BERT instrumentation and exact LoRA integration
   resnet.py          CIFAR ResNet18 controls and Functional DualHeat variant
   lora.py            experimental LoRA adaptation
   optim.py           optimizer-aware update masking
@@ -352,6 +402,7 @@ src/dual_heater/
 
 experiments/
   functional_dualheat.py        pilot, frozen manifest and 13-method reports
+  split_clinc150.py              BERT/CLINC150 calibration and paired benchmark
   lpr.py                         LPR covariance preconditioner
   split_mnist.py                 shared benchmark and baseline engine
   split_mnist_suite.py           fairness, ablations and orchestration
@@ -370,6 +421,8 @@ article/manuscript.md technical manuscript draft
 Documentation entry points:
 
 - `docs/functional_slowheat.md`: method contract;
+- `docs/functional_slowheat_transformers.md`: BERT placement, exact LoRA and
+  future Transformer extensions;
 - `docs/optimizer_semantics.md`: masking and checkpoint semantics;
 - `docs/confirmatory_protocol.md`: frozen confirmation and baseline suite;
 - `docs/split_cifar.md`: exact Split-CIFAR-10/100 protocol;

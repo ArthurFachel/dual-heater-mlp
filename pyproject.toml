@@ -24,6 +24,11 @@ research = [
     "torchvision>=0.16,<0.26",
     "PyYAML>=6.0",
 ]
+nlp = [
+    "transformers>=4.46,<6",
+    "datasets>=3,<6",
+    "peft>=0.13,<1",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.9",

@@ -1,9 +1,22 @@
 # Functional SlowHeat em Transformers e LLMs
 
-Este documento descreve uma adaptação do Functional SlowHeat para blocos de
-atenção e feed-forward de Transformers. A implementação deve começar em um
-Transformer pequeno e só avançar para LLMs depois que o otimizador mascarado
-deixar de depender de snapshots completos dos parâmetros e momentos.
+Este documento descreve a adaptação do Functional SlowHeat para blocos de
+atenção e feed-forward de Transformers. A primeira implementação está
+disponível para `BertForSequenceClassification`, com trackers de FFN e atenção,
+LoRA produtor-only e benchmark CLINC150. SwiGLU, QKV fundido, GQA, treino
+distribuído e LLMs continuam como extensões futuras.
+
+## Estado da implementação BERT
+
+- `SlowHeatFFNTracker` observa a saída pós-GELU e exclui padding;
+- `SlowHeatAttentionTracker` combina Q/K/V/saída por cabeça sem observar
+  probabilidades `[T,T]`;
+- `SlowHeatBertForSequenceClassification` instala hooks sobre o BERT da
+  Hugging Face e registra máscaras estruturais no otimizador;
+- `build_exact_slowheat_lora` congela A e deixa treináveis somente B e o
+  classificador;
+- `experiments.split_clinc150` implementa dez tarefas por domínio, replay
+  pareado, calibração sem teste, manifesto congelado e retomada por estágio.
 
 ## 1. Escolha das unidades funcionais
 
@@ -444,10 +457,12 @@ Começar com `A` congelado e `B` mascarado. Depois comparar com LoRA agrupado po
 cabeça. Bancos expansíveis devem ser avaliados somente quando houver uma
 política explícita de crescimento máximo de rank.
 
-## 13. Otimizador em bilhões de parâmetros
+## 13. Otimizador e escala
 
-O otimizador atual recupera o delta nativo clonando parâmetros e estados. Isso
-é apropriado como implementação de referência, mas não para LLMs.
+O `SlowHeatAdamW` agora usa um caminho pontual quando há máscaras. Ele calcula
+os momentos AdamW nativos em temporários de vida curta, aplica a máscara ao
+parâmetro e interpola os momentos conforme `state_policy`, sem manter snapshots
+completos do parâmetro e de todos os estados até o fim do step.
 
 Se parâmetro e dois momentos forem FP32, os snapshots representam cerca de:
 
@@ -455,10 +470,10 @@ Se parâmetro e dois momentos forem FP32, os snapshots representam cerca de:
 3 tensors * 4 bytes * parameter_count
 ```
 
-ou aproximadamente 12 GB temporários por bilhão de parâmetros registrados.
+ou aproximadamente 12 GB temporários por bilhão de parâmetros registrados no
+caminho antigo. Esse custo persistente foi removido do AdamW mascarado.
 
-A implementação escalável deve aplicar a máscara dentro do kernel do
-otimizador:
+A implementação atual segue, por parâmetro, a semântica:
 
 ```text
 native_moment_delta = compute_adam_moment_delta(...)
@@ -468,7 +483,9 @@ native_parameter_delta = compute_adamw_delta(...)
 parameter += mask * native_parameter_delta
 ```
 
-Requisitos adicionais:
+O caminho pontual rejeita explicitamente `fused`, `capturable`,
+`differentiable`, parâmetros complexos e `GradScaler`. Para escala além de BERT,
+ainda são requisitos:
 
 - `foreach` ou kernel Triton/CUDA fundido;
 - máscaras broadcast sem expandir para um tensor por peso;
@@ -476,7 +493,7 @@ Requisitos adicionais:
 - checkpoint com IDs estruturais, não apenas posições em `param_groups`;
 - teste explícito de `torch.compile` e graph breaks.
 
-## 14. Esqueleto de módulos
+## 14. APIs implementadas
 
 ```python
 class SlowHeatFFNTracker(nn.Module):
@@ -486,56 +503,62 @@ class SlowHeatFFNTracker(nn.Module):
 
 
 class SlowHeatAttentionTracker(nn.Module):
-    def observe_qkv(self, q, k, v, valid_tokens=None):
-        ...
-
-    def observe_head_output(self, head_output, valid_tokens=None):
+    def observe(self, q, k, v, head_output, valid_tokens=None):
         ...
 
 
-class TransformerMaskRegistry:
-    def register_swiglu(self, tracker, gate_proj, up_proj, down_proj):
-        ...
-
-    def register_attention(self, tracker, q_proj, k_proj, v_proj, o_proj):
-        ...
+class SlowHeatBertForSequenceClassification:
+    def register_plasticity_masks(self, optimizer, hard=False): ...
+    def consolidate(self, strategy="max"): ...
 ```
 
 O tracker deve ser separado do `nn.Linear`, pois uma unidade SwiGLU controla
 duas projeções produtoras e uma consumidora.
 
-## 15. Plano de implementação no repositório
+## 15. Etapas e extensões
 
-### Etapa A — Transformer pequeno, apenas FFN
+### Etapa A — BERT pequeno, apenas FFN (implementada)
 
-- criar `FunctionalSlowHeatTracker` independente de camada;
+- criar `SlowHeatFFNTracker` independente de camada;
 - instrumentar a ativação intermediária de uma FFN ReLU/GELU;
 - registrar linhas de `up_proj` e colunas de `down_proj`;
 - validar em classificação sequencial pequena.
 
-### Etapa B — SwiGLU
+### Etapa B — atenção por cabeça em BERT (implementada)
+
+- observar Q/K/V e saída de cada cabeça;
+- proteger blocos de linhas e colunas;
+- manter budgets separados por família e camada.
+
+### Etapa C — LoRA produtor-only (implementada)
+
+- adaptar Q/K/V e `intermediate.dense`;
+- congelar todas as matrizes A;
+- mascarar linhas de B com o tracker correspondente;
+- manter consumidores e base congelados.
+
+### Etapa D — SwiGLU (futura)
 
 - observar o produto gated;
 - agrupar `gate_proj`, `up_proj` e `down_proj`;
 - testar que nenhuma das duas linhas produtoras escapa da proteção.
 
-### Etapa C — atenção por cabeça
+### Etapa E — QKV fundido e GQA (futura)
 
 - começar com MHA sem QKV fundido;
 - observar Q/K/V e saída da cabeça;
 - proteger blocos de linhas e colunas;
 - adicionar QKV fundido e depois GQA.
 
-### Etapa D — LoRA
+### Etapa F — variantes LoRA (futura)
 
-- substituir o protótipo baseado em magnitude por utilidade funcional;
-- implementar `A` congelado e `B` mascarado;
 - comparar LoRA agrupado por cabeça;
+- adicionar bancos expansíveis com limite explícito;
 - medir rank útil e crescimento por tarefa.
 
-### Etapa E — escala
+### Etapa G — escala distribuída (futura)
 
-- substituir snapshots por update fundido;
+- adicionar caminho `foreach` ou update fundido;
 - integrar data e tensor parallel;
 - medir throughput, pico de memória e graph breaks;
 - somente então aumentar o número de parâmetros.
@@ -544,18 +567,20 @@ duas projeções produtoras e uma consumidora.
 
 1. Padding e tokens ignorados não alteram a utilidade.
 2. A FFN produz um vetor `[d_ff]` de utilidade finita.
-3. Uma unidade SwiGLU protege as duas projeções de entrada e a coluna de saída.
-4. Uma cabeça protegida mascara Q, K, V e as colunas corretas de O.
-5. QKV fundido produz as mesmas máscaras da versão com projeções separadas.
-6. GQA agrega corretamente vários query heads por KV head.
-7. O budget mantém capacidade mínima em FFN e atenção separadamente.
-8. Máscara 1 coincide com AdamW nativo; máscara 0 bloqueia weight decay.
-9. `follow_update` impede acúmulo local de momentos protegidos.
-10. Com `A` congelado, atualizar uma linha plástica de `B` não altera saídas
+3. Uma cabeça protegida mascara Q, K, V e as colunas corretas de O.
+4. QKV fundido produz as mesmas máscaras da versão com projeções separadas.
+5. GQA agrega corretamente vários query heads por KV head.
+6. O budget mantém capacidade mínima em FFN e atenção separadamente.
+7. Máscara 1 coincide com AdamW nativo; máscara 0 bloqueia weight decay.
+8. `follow_update` impede acúmulo local de momentos protegidos.
+9. Com `A` congelado, atualizar uma linha plástica de `B` não altera saídas
     protegidas.
-11. Checkpoint rejeita uma topologia com número de heads, offsets ou GQA
+10. Checkpoint rejeita uma topologia com número de heads, offsets ou GQA
     incompatíveis.
-12. O controle sem consolidação coincide com o Transformer vanilla.
+11. O controle sem consolidação coincide com o Transformer vanilla.
+
+Os itens 1, 2, 3 e 6–11 possuem testes para BERT. SwiGLU, QKV fundido e GQA
+permanecem critérios para suas respectivas etapas futuras.
 
 ## 17. Limitações que devem acompanhar os resultados
 
@@ -563,6 +588,8 @@ duas projeções produtoras e uma consumidora.
 - Importância de cabeça é uma aproximação local e depende da granularidade.
 - Budget por unidade não equivale a budget de parâmetros ou memória.
 - Instrumentação pode reduzir ganhos de FlashAttention e checkpointing.
+- Activation checkpointing é rejeitado enquanto os hooks não forem compatíveis
+  com a recomputação do backward.
 - Resultados em um Transformer pequeno não demonstram escalabilidade em LLMs.
 - LoRA com `A` treinável compartilhado não oferece proteção independente por
   saída.

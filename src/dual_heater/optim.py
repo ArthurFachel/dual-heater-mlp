@@ -42,6 +42,15 @@ class _ResolvedMask:
     state_before: dict[str, Tensor]
 
 
+@dataclass(frozen=True)
+class PlasticityMaskBinding:
+    """Declarative optimizer-mask registration used by graph-based models."""
+
+    parameter: Parameter
+    mask: MaskSource
+    kind: str
+
+
 class _PlasticityMaskMixin:
     """Shared registration and final-update masking operations."""
 
@@ -77,6 +86,30 @@ class _PlasticityMaskMixin:
         if self._parameter_position(parameter) is None:
             raise ValueError("parameter não pertence a este optimizer")
         self._plasticity_masks[id(parameter)] = (parameter, mask, kind)
+
+    def register_mask_bindings(
+        self,
+        bindings: Iterable[PlasticityMaskBinding],
+    ) -> None:
+        """Atomically register a complete set of graph-derived masks."""
+
+        materialized = list(bindings)
+        identifiers = [id(binding.parameter) for binding in materialized]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("bindings não pode registrar o mesmo parâmetro duas vezes")
+        if any(not binding.kind for binding in materialized):
+            raise ValueError("todo binding deve ter kind estável e não vazio")
+        if any(
+            self._parameter_position(binding.parameter) is None
+            for binding in materialized
+        ):
+            raise ValueError("todos os parâmetros dos bindings devem pertencer ao optimizer")
+        for binding in materialized:
+            self.register_plasticity_mask(
+                binding.parameter,
+                binding.mask,
+                kind=binding.kind,
+            )
 
     def register_slow_heat_module(
         self,
@@ -457,6 +490,29 @@ class _PlasticityMaskMixin:
             )
         return resolved
 
+    def _resolved_mask_for_parameter(self, parameter: Parameter) -> Tensor | None:
+        registration = self._plasticity_masks.get(id(parameter))
+        if registration is None:
+            return None
+        registered_parameter, source, _ = registration
+        if registered_parameter is not parameter:
+            raise RuntimeError("registro de máscara aponta para parâmetro incorreto")
+        mask = source() if callable(source) else source
+        if not isinstance(mask, Tensor):
+            raise TypeError("a fonte da máscara deve retornar um Tensor")
+        mask = mask.detach().to(device=parameter.device, dtype=parameter.dtype)
+        try:
+            expanded = torch.broadcast_to(mask, parameter.shape)
+        except RuntimeError as error:
+            raise ValueError(
+                "a máscara de plasticidade não é compatível com o parâmetro"
+            ) from error
+        if not torch.isfinite(expanded).all():
+            raise ValueError("a máscara de plasticidade deve ser finita")
+        if torch.any(expanded < 0.0) or torch.any(expanded > 1.0):
+            raise ValueError("a máscara de plasticidade deve estar em [0, 1]")
+        return expanded
+
     @staticmethod
     def _apply_resolved_masks(
         snapshots: list[_ResolvedMask],
@@ -510,7 +566,12 @@ class _PlasticityMaskMixin:
 
 
 class SlowHeatAdamW(_PlasticityMaskMixin, torch.optim.AdamW):
-    """AdamW with masks applied to the complete parameter update."""
+    """AdamW with masks applied to the complete parameter and state updates.
+
+    When masks are present, the pointwise implementation computes native AdamW
+    moments in short-lived temporaries and applies the mask directly. It avoids
+    the parameter-plus-state snapshots used by the generic optimizer path.
+    """
 
     def __init__(
         self,
@@ -524,10 +585,137 @@ class SlowHeatAdamW(_PlasticityMaskMixin, torch.optim.AdamW):
 
     @torch.no_grad()
     def step(self, closure: Callable[[], float] | None = None):
-        return self._step_with_masks(
-            lambda: torch.optim.AdamW.step(self),
-            closure,
-        )
+        loss = self._run_closure(closure)
+        self._ensure_checkpoint_masks_registered()
+        if not self._plasticity_masks:
+            torch.optim.AdamW.step(self)
+            return loss
+        self._pointwise_masked_step()
+        return loss
+
+    def _pointwise_masked_step(self) -> None:
+        """Apply AdamW without retaining full parameter/state snapshots."""
+
+        if getattr(self, "grad_scale", None) is not None or getattr(
+            self, "found_inf", None
+        ) is not None:
+            raise RuntimeError("SlowHeatAdamW mascarado não suporta GradScaler")
+        for group in self.param_groups:
+            if group.get("capturable", False):
+                raise ValueError("SlowHeatAdamW mascarado não suporta capturable=True")
+            if group.get("differentiable", False):
+                raise ValueError(
+                    "SlowHeatAdamW mascarado não suporta differentiable=True"
+                )
+            if group.get("fused", False):
+                raise ValueError("SlowHeatAdamW mascarado não suporta fused=True")
+            lr = group["lr"]
+            beta1, beta2 = group["betas"]
+            if any(torch.is_tensor(value) for value in (lr, beta1, beta2)):
+                raise ValueError(
+                    "SlowHeatAdamW mascarado requer lr e betas escalares"
+                )
+            lr = float(lr)
+            beta1 = float(beta1)
+            beta2 = float(beta2)
+            eps = float(group["eps"])
+            weight_decay = float(group["weight_decay"])
+            amsgrad = bool(group["amsgrad"])
+            maximize = bool(group["maximize"])
+
+            for parameter in group["params"]:
+                if parameter.grad is None:
+                    continue
+                if parameter.grad.is_sparse:
+                    raise RuntimeError("AdamW não suporta gradientes esparsos")
+                if torch.is_complex(parameter):
+                    raise ValueError(
+                        "SlowHeatAdamW mascarado não suporta parâmetros complexos"
+                    )
+                state = self.state[parameter]
+                if not state:
+                    state["step"] = torch.tensor(0.0, dtype=torch.float32)
+                    state["exp_avg"] = torch.zeros_like(
+                        parameter, memory_format=torch.preserve_format
+                    )
+                    state["exp_avg_sq"] = torch.zeros_like(
+                        parameter, memory_format=torch.preserve_format
+                    )
+                    if amsgrad:
+                        state["max_exp_avg_sq"] = torch.zeros_like(
+                            parameter, memory_format=torch.preserve_format
+                        )
+                state["step"].add_(1)
+                step = float(state["step"].item())
+                grad = -parameter.grad if maximize else parameter.grad
+                exp_avg = state["exp_avg"]
+                exp_avg_sq = state["exp_avg_sq"]
+                mask = self._resolved_mask_for_parameter(parameter)
+
+                if mask is None or bool(torch.all(mask == 1.0)):
+                    if weight_decay != 0.0:
+                        parameter.mul_(1.0 - lr * weight_decay)
+                    exp_avg.lerp_(grad, 1.0 - beta1)
+                    exp_avg_sq.mul_(beta2).addcmul_(
+                        grad, grad, value=1.0 - beta2
+                    )
+                    denominator_source = exp_avg_sq
+                    if amsgrad:
+                        maximum = state["max_exp_avg_sq"]
+                        torch.maximum(maximum, exp_avg_sq, out=maximum)
+                        denominator_source = maximum
+                    bias_correction1 = 1.0 - beta1**step
+                    bias_correction2 = 1.0 - beta2**step
+                    denominator = denominator_source.sqrt().div_(
+                        bias_correction2**0.5
+                    ).add_(eps)
+                    parameter.addcdiv_(
+                        exp_avg,
+                        denominator,
+                        value=-lr / bias_correction1,
+                    )
+                    continue
+
+                # The parameter update uses the native moments, while the
+                # persistent state optionally follows the same mask. This is
+                # exactly the semantics of the previous snapshot path.
+                native_exp_avg = torch.lerp(exp_avg, grad, 1.0 - beta1)
+                native_exp_avg_sq = exp_avg_sq.mul(beta2).addcmul(
+                    grad, grad, value=1.0 - beta2
+                )
+                native_max = None
+                if amsgrad:
+                    native_max = torch.maximum(
+                        state["max_exp_avg_sq"], native_exp_avg_sq
+                    )
+
+                if self.state_policy == "native":
+                    exp_avg.copy_(native_exp_avg)
+                    exp_avg_sq.copy_(native_exp_avg_sq)
+                    if native_max is not None:
+                        state["max_exp_avg_sq"].copy_(native_max)
+                else:
+                    exp_avg.lerp_(native_exp_avg, mask)
+                    exp_avg_sq.lerp_(native_exp_avg_sq, mask)
+                    if native_max is not None:
+                        state["max_exp_avg_sq"].lerp_(native_max, mask)
+
+                if weight_decay != 0.0:
+                    parameter.mul_(1.0 - lr * weight_decay * mask)
+                denominator_source = (
+                    native_max if native_max is not None else native_exp_avg_sq
+                )
+                bias_correction1 = 1.0 - beta1**step
+                bias_correction2 = 1.0 - beta2**step
+                denominator = denominator_source.sqrt().div_(
+                    bias_correction2**0.5
+                ).add_(eps)
+                native_exp_avg.mul_(mask)
+                parameter.addcdiv_(
+                    native_exp_avg,
+                    denominator,
+                    value=-lr / bias_correction1,
+                )
 
     def state_dict(self) -> dict[str, Any]:
         return self._state_dict_with_mask_metadata(torch.optim.AdamW.state_dict(self))
