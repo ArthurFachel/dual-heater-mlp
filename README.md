@@ -179,6 +179,7 @@ pip install -e '.[nlp]'
 ```python
 from dual_heater import (
     BertSlowHeatConfig,
+    FastHeatConfig,
     SlowHeatAdamW,
     SlowHeatBertForSequenceClassification,
 )
@@ -187,11 +188,29 @@ model = SlowHeatBertForSequenceClassification.from_pretrained(
     "google/bert_uncased_L-4_H-256_A-4",
     num_labels=150,
     ignore_mismatched_sizes=True,
-    slowheat_config=BertSlowHeatConfig(),
+    slowheat_config=BertSlowHeatConfig(
+        fast_heat=FastHeatConfig(),
+        protect_classifier=True,
+        freeze_unbound_parameters=True,
+    ),
 )
-optimizer = SlowHeatAdamW(model.parameters(), lr=5e-5, weight_decay=1e-2)
+trainable = [parameter for parameter in model.parameters() if parameter.requires_grad]
+optimizer = SlowHeatAdamW(trainable, lr=5e-5, weight_decay=1e-2)
 model.register_plasticity_masks(optimizer)
 ```
+
+In this closed-mask protocol, FastHeat is applied after GELU and before the FFN
+output projection. Every trainable parameter is covered by a SlowHeat mask.
+Embeddings, both LayerNorm families, the pooler and the two unbound output
+biases are frozen. The classifier is explicitly tracked and masked. This avoids
+claiming functional protection while an unmasked residual path remains plastic.
+LayerNorm can attenuate a gate's global scale, but does not generally undo its
+non-uniform per-unit directional effect.
+
+`save_pretrained()` stores the complete SlowHeat/FastHeat protocol in
+`config.json`. `from_pretrained()` reconstructs it when omitted and rejects an
+explicitly incompatible protocol. Schema-v1 SlowHeat checkpoints predate this
+metadata and require explicit migration rather than silent loading.
 
 The CLINC150 runner uses ten domain tasks, a fixed 150-way head, unseen-logit
 masking, class-balanced replay and stage checkpoints. Calibration writes no
@@ -216,6 +235,11 @@ not completed efficacy results. See
 For GPUs near 12 GB, start BERT-Mini with batches of 8+8 and BERT-base with
 2+2; the runner explicitly releases model hooks and the CUDA cache between
 methods.
+
+The CLINC150 runner exposes the matched closed-mask pair
+`slowheat_bound` versus `dualheat`, plus replay variants
+`slowheat_bound_replay` versus `dualheat_replay`. FastHeat parameters are
+reachable through `--fast-decay`, `--fast-strength` and `--fast-threshold`.
 
 Enable the local read-only live dashboard by adding telemetry to the training
 command:

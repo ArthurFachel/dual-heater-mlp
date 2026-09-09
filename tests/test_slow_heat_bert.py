@@ -12,6 +12,7 @@ from dual_heater.bert import (
     build_exact_slowheat_lora,
     register_exact_lora_masks,
 )
+from dual_heater.fast_heat import FastHeatActivation, FastHeatConfig
 from dual_heater.optim import SlowHeatAdamW, SlowHeatSGD
 from dual_heater.transformer import (
     SlowHeatAttentionTracker,
@@ -40,6 +41,36 @@ def _backward(model, input_ids, attention_mask):
         labels=torch.tensor([1]),
     )
     output.loss.backward()
+
+
+def test_bert_fastheat_is_post_gelu_inside_each_ffn():
+    fast = FastHeatConfig(
+        fast_decay=0.9,
+        fast_strength=1.0,
+        fast_threshold=0.0,
+    )
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        BertSlowHeatConfig(fast_heat=fast),
+    )
+    intermediate = model.bert.encoder.layer[0].intermediate
+
+    assert isinstance(intermediate.intermediate_act_fn, FastHeatActivation)
+    assert intermediate.intermediate_act_fn.gate.unit_count == 12
+    assert model.get_fast_states() == [intermediate.intermediate_act_fn.gate]
+
+    pre_activation = torch.linspace(-2.0, 2.0, 12).reshape(1, 1, 12)
+    raw_post_gelu = intermediate.intermediate_act_fn.activation(pre_activation)
+    with torch.no_grad():
+        intermediate.intermediate_act_fn.gate.fast_heat.copy_(torch.arange(12.0))
+    intermediate.intermediate_act_fn.eval()
+    gated = intermediate.intermediate_act_fn(pre_activation)
+
+    assert not torch.equal(gated, raw_post_gelu)
+    torch.testing.assert_close(
+        gated,
+        intermediate.intermediate_act_fn.gate(raw_post_gelu),
+    )
 
 
 def test_ffn_tracker_excludes_padding_from_functional_utility():
@@ -88,6 +119,40 @@ def test_bert_padding_does_not_change_tracked_utility():
         short.get_slow_states(), padded.get_slow_states(), strict=True
     ):
         assert torch.allclose(first.task_ema, second.task_ema, atol=1e-5, rtol=1e-5)
+
+
+def test_freeze_unbound_protocol_leaves_only_masked_parameters_trainable():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        BertSlowHeatConfig(
+            fast_heat=FastHeatConfig(),
+            protect_classifier=True,
+            freeze_unbound_parameters=True,
+        ),
+    )
+    bound_ids = {id(binding.parameter) for binding in model.mask_bindings()}
+    trainable = {
+        name: parameter
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad
+    }
+
+    assert {id(parameter) for parameter in trainable.values()} == bound_ids
+    assert model.uncovered_trainable_parameters() == []
+    assert not model.bert.embeddings.word_embeddings.weight.requires_grad
+    assert not model.bert.encoder.layer[0].attention.output.dense.bias.requires_grad
+    assert not model.bert.encoder.layer[0].output.dense.bias.requires_grad
+    assert not model.bert.encoder.layer[0].attention.output.LayerNorm.weight.requires_grad
+    assert not model.bert.encoder.layer[0].output.LayerNorm.bias.requires_grad
+    assert not model.bert.pooler.dense.weight.requires_grad
+    assert model.classifier.weight.requires_grad
+
+    optimizer = SlowHeatSGD(trainable.values(), lr=0.1)
+    model.register_plasticity_masks(optimizer)
+
+    model.bert.pooler.dense.weight.requires_grad_(True)
+    with pytest.raises(RuntimeError, match="pooler.dense.weight"):
+        model.validate_trainable_mask_coverage()
 
 
 def test_bert_mask_bindings_cover_ffn_rows_columns_and_attention_blocks():
@@ -153,17 +218,53 @@ def test_bert_checkpoint_rejects_incompatible_slowheat_configuration():
         target.load_state_dict(source.state_dict())
 
 
+def test_huggingface_roundtrip_restores_fastheat_protocol_and_rejects_mismatch(tmp_path):
+    saved_config = BertSlowHeatConfig(
+        fast_heat=FastHeatConfig(fast_strength=0.7),
+        protect_classifier=True,
+        freeze_unbound_parameters=True,
+    )
+    source = SlowHeatBertForSequenceClassification(_bert_config(), saved_config)
+    with torch.no_grad():
+        source.get_fast_states()[0].fast_heat.copy_(torch.arange(12.0))
+    source.save_pretrained(tmp_path)
+
+    restored = SlowHeatBertForSequenceClassification.from_pretrained(tmp_path)
+    assert restored.slowheat_config == saved_config
+    assert torch.equal(
+        restored.get_fast_states()[0].fast_heat,
+        source.get_fast_states()[0].fast_heat,
+    )
+    assert torch.equal(restored._slowheat_signature, restored._build_slowheat_signature())
+
+    incompatible = BertSlowHeatConfig(
+        fast_heat=FastHeatConfig(fast_strength=0.8),
+        protect_classifier=True,
+        freeze_unbound_parameters=True,
+    )
+    with pytest.raises(RuntimeError, match="config.json"):
+        SlowHeatBertForSequenceClassification.from_pretrained(
+            tmp_path,
+            slowheat_config=incompatible,
+        )
+
+
 def test_huggingface_from_pretrained_loads_native_bert_checkpoint(tmp_path):
     native = transformers.BertForSequenceClassification(_bert_config())
     native.save_pretrained(tmp_path)
 
     model = SlowHeatBertForSequenceClassification.from_pretrained(
         tmp_path,
-        slowheat_config=BertSlowHeatConfig(),
+        slowheat_config=BertSlowHeatConfig(fast_heat=FastHeatConfig()),
     )
 
     assert len(model.ffn_trackers) == 1
     assert len(model.attention_trackers) == 1
+    assert len(model.get_fast_states()) == 1
+    assert torch.equal(
+        model.get_fast_states()[0].fast_heat,
+        torch.zeros(12),
+    )
     assert torch.equal(model.classifier.weight, native.classifier.weight)
 
 

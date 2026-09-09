@@ -1,6 +1,6 @@
 # Functional SlowHeat em Transformers e LLMs
 
-Este documento descreve a adaptação do Functional SlowHeat para blocos de
+Este documento descreve a adaptação do Functional SlowHeat e FastHeat para blocos de
 atenção e feed-forward de Transformers. A primeira implementação está
 disponível para `BertForSequenceClassification`, com trackers de FFN e atenção,
 LoRA produtor-only e benchmark CLINC150. SwiGLU, QKV fundido, GQA, treino
@@ -8,7 +8,9 @@ distribuído e LLMs continuam como extensões futuras.
 
 ## Estado da implementação BERT
 
-- `SlowHeatFFNTracker` observa a saída pós-GELU e exclui padding;
+- `FastHeatActivation` aplica competição divisiva pós-GELU, antes de
+  `output.dense`; o tracker SlowHeat observa essa saída já inibida;
+- `SlowHeatFFNTracker` observa a saída pós-GELU/pós-FastHeat e exclui padding;
 - `SlowHeatAttentionTracker` combina Q/K/V/saída por cabeça sem observar
   probabilidades `[T,T]`;
 - `SlowHeatBertForSequenceClassification` instala hooks sobre o BERT da
@@ -17,6 +19,22 @@ distribuído e LLMs continuam como extensões futuras.
   classificador;
 - `experiments.split_clinc150` implementa dez tarefas por domínio, replay
   pareado, calibração sem teste, manifesto congelado e retomada por estágio.
+
+FastHeat não é aplicado no residual stream nem depois de LayerNorm. A
+normalização é aproximadamente invariante a uma escala global uniforme, mas
+não desfaz em geral uma escala diferente por unidade. Mesmo assim, a primeira
+ablação usa o ponto pós-GELU porque a projeção FFN transforma a modulação em uma
+mudança direcional antes da soma residual.
+
+O protocolo fechado opcional congela todo parâmetro sem `mask_binding`:
+embeddings, LayerNorms, pooler e biases de saída não vinculados. O classificador
+deve ser explicitamente rastreado. `validate_trainable_mask_coverage()` falha se
+qualquer parâmetro treinável escapar das máscaras.
+
+O protocolo completo também é persistido no `config.json` do Hugging Face.
+`from_pretrained()` o reconstrói quando nenhuma configuração explícita é
+fornecida e rejeita divergências antes de aceitar os pesos. Checkpoints antigos
+com assinatura schema-v1 exigem migração explícita.
 
 ## 1. Escolha das unidades funcionais
 
@@ -61,22 +79,23 @@ Considere:
 ```text
 pre = up_proj(x)
 h = activation(pre)
-y = down_proj(h)
+h_fast = FastHeat(h)
+y = down_proj(h_fast)
 ```
 
 ### Passo 1 — observar a unidade intermediária
 
-O melhor ponto de observação é `h`, pois é a representação realmente consumida
+O melhor ponto de observação é `h_fast`, pois é a representação realmente consumida
 por `down_proj`:
 
 ```text
-h.shape = [batch, tokens, d_ff]
+h_fast.shape = [batch, tokens, d_ff]
 ```
 
 ### Passo 2 — calcular a utilidade
 
 ```text
-u[j] = sum_{b,t valid} |h[b,t,j] * dL/dh[b,t,j]|
+u[j] = sum_{b,t valid} |h_fast[b,t,j] * dL/dh_fast[b,t,j]|
 ```
 
 Normalizar sobre `d_ff`:
@@ -517,11 +536,13 @@ duas projeções produtoras e uma consumidora.
 
 ## 15. Etapas e extensões
 
-### Etapa A — BERT pequeno, apenas FFN (implementada)
+### Etapa A — BERT pequeno, FFN SlowHeat + FastHeat (implementada)
 
 - criar `SlowHeatFFNTracker` independente de camada;
 - instrumentar a ativação intermediária de uma FFN ReLU/GELU;
+- aplicar FastHeat pós-GELU e antes da projeção de saída;
 - registrar linhas de `up_proj` e colunas de `down_proj`;
+- oferecer protocolo que congela todo parâmetro sem máscara;
 - validar em classificação sequencial pequena.
 
 ### Etapa B — atenção por cabeça em BERT (implementada)

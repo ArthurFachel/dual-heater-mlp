@@ -6,6 +6,7 @@ require Transformers or PEFT. Install ``dual-heater[nlp]`` before importing it.
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar, Literal
 
@@ -19,6 +20,12 @@ except ImportError as error:  # pragma: no cover - exercised in minimal installs
         "dual_heater.bert requer o extra opcional 'nlp' (transformers)"
     ) from error
 
+from .fast_heat import (
+    FastHeatActivation,
+    FastHeatConfig,
+    fast_heat_states,
+    reset_fast_heat,
+)
 from .optim import PlasticityMaskBinding
 from .transformer import (
     AttentionCombination,
@@ -40,6 +47,8 @@ class BertSlowHeatConfig:
     track_ffn: bool = True
     track_attention: bool = True
     protect_classifier: bool = False
+    fast_heat: FastHeatConfig | None = None
+    freeze_unbound_parameters: bool = False
 
     def __post_init__(self) -> None:
         values = {
@@ -49,7 +58,7 @@ class BertSlowHeatConfig:
             "importance_decay": self.importance_decay,
             "importance_eps": self.importance_eps,
         }
-        if not all(torch.isfinite(torch.tensor(value)).item() for value in values.values()):
+        if not all(math.isfinite(value) for value in values.values()):
             raise ValueError("parâmetros SlowHeat do BERT devem ser finitos")
         if self.slow_strength < 0.0:
             raise ValueError("slow_strength deve ser >= 0")
@@ -65,7 +74,16 @@ class BertSlowHeatConfig:
             raise ValueError(
                 "attention_combination deve ser 'max', 'mean' ou 'sum'"
             )
-        if not self.track_ffn and not self.track_attention and not self.protect_classifier:
+        if self.fast_heat is not None and not isinstance(self.fast_heat, FastHeatConfig):
+            raise TypeError("fast_heat deve ser FastHeatConfig ou None")
+        if not isinstance(self.freeze_unbound_parameters, bool):
+            raise TypeError("freeze_unbound_parameters deve ser booleano")
+        if (
+            not self.track_ffn
+            and not self.track_attention
+            and not self.protect_classifier
+            and self.fast_heat is None
+        ):
             raise ValueError("ao menos uma família SlowHeat deve estar habilitada")
 
 
@@ -81,12 +99,37 @@ class ExactSlowHeatLoRAConfig:
     def __post_init__(self) -> None:
         if not isinstance(self.rank, int) or isinstance(self.rank, bool) or self.rank < 1:
             raise ValueError("rank deve ser um inteiro positivo")
-        if not torch.isfinite(torch.tensor(self.alpha)).item() or self.alpha <= 0.0:
+        if not math.isfinite(self.alpha) or self.alpha <= 0.0:
             raise ValueError("alpha deve ser finito e > 0")
         if not 0.0 <= self.dropout < 1.0:
             raise ValueError("dropout deve estar em [0, 1)")
         if not self.adapter_name:
             raise ValueError("adapter_name não pode ser vazio")
+
+
+_PROTOCOL_CONFIG_KEY = "dual_heater_slowheat"
+
+
+def _protocol_metadata(
+    config: BertSlowHeatConfig,
+    schema_version: int,
+) -> dict[str, Any]:
+    return {"schema_version": schema_version, "config": asdict(config)}
+
+
+def _config_from_protocol_metadata(
+    raw: Any,
+    schema_version: int,
+) -> BertSlowHeatConfig:
+    try:
+        if not isinstance(raw, dict) or raw.get("schema_version") != schema_version:
+            raise ValueError("schema incompatível")
+        values = dict(raw["config"])
+        fast = values.get("fast_heat")
+        values["fast_heat"] = FastHeatConfig(**fast) if fast is not None else None
+        return BertSlowHeatConfig(**values)
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("protocolo DualHeat inválido no config.json") from error
 
 
 def _factor(tracker: SlowHeatFFNTracker, hard: bool) -> Tensor:
@@ -98,12 +141,13 @@ def _factor(tracker: SlowHeatFFNTracker, hard: bool) -> Tensor:
 class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
     """BERT classifier instrumented with post-GELU and per-head SlowHeat."""
 
-    slowheat_schema_version = 1
+    slowheat_schema_version = 2
     _keys_to_ignore_on_load_missing: ClassVar[list[str]] = [
         r"_slowheat_signature",
         r"ffn_trackers\..*",
         r"attention_trackers\..*",
         r"classifier_tracker\..*",
+        r"bert\.encoder\.layer\..*\.intermediate\.intermediate_act_fn\.gate\.fast_heat",
     ]
 
     def __init__(
@@ -111,14 +155,39 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         config,
         slowheat_config: BertSlowHeatConfig | None = None,
     ) -> None:
+        stored_metadata = getattr(config, _PROTOCOL_CONFIG_KEY, None)
+        stored_config = (
+            _config_from_protocol_metadata(
+                stored_metadata,
+                self.slowheat_schema_version,
+            )
+            if stored_metadata is not None
+            else None
+        )
+        if (
+            stored_config is not None
+            and slowheat_config is not None
+            and stored_config != slowheat_config
+        ):
+            raise RuntimeError(
+                "slowheat_config diverge do protocolo persistido no config.json"
+            )
+        effective_config = slowheat_config or stored_config or BertSlowHeatConfig()
         super().__init__(config)
-        self.slowheat_config = slowheat_config or BertSlowHeatConfig()
+        self.slowheat_config = effective_config
+        setattr(
+            self.config,
+            _PROTOCOL_CONFIG_KEY,
+            _protocol_metadata(effective_config, self.slowheat_schema_version),
+        )
         self.ffn_trackers = nn.ModuleList()
         self.attention_trackers = nn.ModuleList()
         self.classifier_tracker: SlowHeatFFNTracker | None = None
         self._slowheat_validity_mask: Tensor | None = None
         self._slowheat_hook_handles: list[Any] = []
         self._install_slowheat_instrumentation()
+        if self.slowheat_config.freeze_unbound_parameters:
+            self.freeze_parameters_without_bindings()
         self.register_buffer(
             "_slowheat_signature",
             self._build_slowheat_signature(),
@@ -128,6 +197,7 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         combination = {"max": 0.0, "mean": 1.0, "sum": 2.0}[
             self.slowheat_config.attention_combination
         ]
+        fast = self.slowheat_config.fast_heat
         return torch.tensor(
             [
                 self.slowheat_schema_version,
@@ -145,6 +215,12 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                 self.slowheat_config.attention_plasticity_budget,
                 self.slowheat_config.importance_decay,
                 self.slowheat_config.importance_eps,
+                float(fast is not None),
+                fast.fast_decay if fast is not None else 0.0,
+                fast.fast_strength if fast is not None else 0.0,
+                fast.fast_threshold if fast is not None else 0.0,
+                fast.eps if fast is not None else 0.0,
+                float(self.slowheat_config.freeze_unbound_parameters),
             ],
             dtype=torch.float64,
         )
@@ -165,6 +241,15 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         ffn_index = 0
         attention_index = 0
         for layer_index, layer in enumerate(self.bert.encoder.layer):
+            if slow_config.fast_heat is not None:
+                activation = layer.intermediate.intermediate_act_fn
+                if not isinstance(activation, FastHeatActivation):
+                    layer.intermediate.intermediate_act_fn = FastHeatActivation(
+                        activation,
+                        self.config.intermediate_size,
+                        unit_dim=-1,
+                        config=slow_config.fast_heat,
+                    )
             if slow_config.track_ffn:
                 if ffn_index < len(self.ffn_trackers):
                     tracker = self.ffn_trackers[ffn_index]
@@ -327,6 +412,12 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
     def get_attention_trackers(self) -> list[SlowHeatAttentionTracker]:
         return list(self.attention_trackers)
 
+    def get_fast_states(self):
+        return fast_heat_states(self)
+
+    def reset_fast_heat(self) -> None:
+        reset_fast_heat(self)
+
     def get_slow_states(
         self,
     ) -> list[SlowHeatFFNTracker | SlowHeatAttentionTracker]:
@@ -452,10 +543,39 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         return bindings
 
     def register_plasticity_masks(self, optimizer, *, hard: bool = False) -> None:
+        if self.slowheat_config.freeze_unbound_parameters:
+            self.validate_trainable_mask_coverage()
         register = getattr(optimizer, "register_mask_bindings", None)
         if not callable(register):
             raise TypeError("optimizer deve expor register_mask_bindings()")
         register(self.mask_bindings(hard=hard))
+
+    def uncovered_trainable_parameters(self) -> list[str]:
+        """Return trainable parameter names absent from every mask binding."""
+
+        bound = {id(binding.parameter) for binding in self.mask_bindings()}
+        return [
+            name
+            for name, parameter in self.named_parameters()
+            if parameter.requires_grad and id(parameter) not in bound
+        ]
+
+    def validate_trainable_mask_coverage(self) -> None:
+        """Fail when any trainable parameter can bypass plasticity masking."""
+
+        uncovered = self.uncovered_trainable_parameters()
+        if uncovered:
+            raise RuntimeError(
+                "parâmetros treináveis sem máscara: " + ", ".join(uncovered)
+            )
+
+    def freeze_parameters_without_bindings(self) -> None:
+        """Freeze embeddings, norms, pooler, output biases and any other leak path."""
+
+        bound = {id(binding.parameter) for binding in self.mask_bindings()}
+        for parameter in self.parameters():
+            parameter.requires_grad_(id(parameter) in bound)
+        self.validate_trainable_mask_coverage()
 
     def slowheat_topology(self) -> dict[str, Any]:
         return {

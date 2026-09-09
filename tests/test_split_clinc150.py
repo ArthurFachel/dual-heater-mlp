@@ -74,6 +74,20 @@ def _fake_dataset():
     }
 
 
+def test_clinc_dualheat_has_matched_closed_slowheat_control():
+    config = SplitCLINC150Config(methods=("slowheat_bound", "dualheat"))
+    config.validate()
+
+    slow = clinc_module._slowheat_config(config, "slowheat_bound")
+    dual = clinc_module._slowheat_config(config, "dualheat")
+
+    assert slow.fast_heat is None
+    assert dual.fast_heat is not None
+    assert dual.fast_heat.fast_strength == config.fast_strength
+    assert slow.protect_classifier and dual.protect_classifier
+    assert slow.freeze_unbound_parameters and dual.freeze_unbound_parameters
+
+
 def test_clinc_builder_creates_official_domains_and_excludes_oos():
     tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
 

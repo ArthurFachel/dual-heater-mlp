@@ -34,6 +34,7 @@ from dual_heater.bert import (
     build_exact_slowheat_lora,
     register_exact_lora_masks,
 )
+from dual_heater.fast_heat import FastHeatConfig
 from dual_heater.metrics import compute_cl_metrics
 from dual_heater.optim import SlowHeatAdamW
 from experiments.artifacts import (
@@ -127,13 +128,19 @@ SUPPORTED_METHODS = (
     "slowheat_replay",
     "lora_replay",
     "slowheat_lora_replay",
+    "slowheat_bound",
+    "dualheat",
+    "slowheat_bound_replay",
+    "dualheat_replay",
 )
 SLOWHEAT_METHODS = {
     "slowheat_none", "slowheat_ffn", "slowheat", "slowheat_replay",
-    "slowheat_lora_replay",
+    "slowheat_lora_replay", "slowheat_bound", "dualheat",
+    "slowheat_bound_replay", "dualheat_replay",
 }
 REPLAY_METHODS = {
     "replay", "slowheat_replay", "lora_replay", "slowheat_lora_replay",
+    "slowheat_bound_replay", "dualheat_replay",
 }
 LORA_METHODS = {"lora_replay", "slowheat_lora_replay"}
 CHECKPOINT_SCHEMA_VERSION = 1
@@ -178,6 +185,10 @@ class SplitCLINC150Config:
     importance_decay: float = 0.99
     importance_eps: float = 1e-8
     attention_combination: str = "max"
+    fast_decay: float = 0.90
+    fast_strength: float = 0.5
+    fast_threshold: float = 0.5
+    fast_eps: float = 1e-8
     lora_rank: int = 8
     lora_alpha: float = 16.0
     evaluate_test: bool = True
@@ -223,6 +234,12 @@ class SplitCLINC150Config:
             importance_decay=self.importance_decay,
             importance_eps=self.importance_eps,
             attention_combination=self.attention_combination,  # type: ignore[arg-type]
+        )
+        FastHeatConfig(
+            fast_decay=self.fast_decay,
+            fast_strength=self.fast_strength,
+            fast_threshold=self.fast_threshold,
+            eps=self.fast_eps,
         )
         ExactSlowHeatLoRAConfig(rank=self.lora_rank, alpha=self.lora_alpha)
 
@@ -585,6 +602,10 @@ def _json_matrix(matrix: np.ndarray) -> list[list[float | None]]:
 
 
 def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatConfig:
+    closed_protocol = method in {
+        "slowheat_bound", "dualheat", "slowheat_bound_replay", "dualheat_replay",
+    }
+    use_fast_heat = method in {"dualheat", "dualheat_replay"}
     return BertSlowHeatConfig(
         slow_strength=config.slow_strength,
         ffn_plasticity_budget=config.ffn_plasticity_budget,
@@ -594,7 +615,18 @@ def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatCo
         attention_combination=config.attention_combination,  # type: ignore[arg-type]
         track_ffn=True,
         track_attention=method != "slowheat_ffn",
-        protect_classifier=False,
+        protect_classifier=closed_protocol,
+        fast_heat=(
+            FastHeatConfig(
+                fast_decay=config.fast_decay,
+                fast_strength=config.fast_strength,
+                fast_threshold=config.fast_threshold,
+                eps=config.fast_eps,
+            )
+            if use_fast_heat
+            else None
+        ),
+        freeze_unbound_parameters=closed_protocol,
     )
 
 
@@ -1297,6 +1329,8 @@ def run_split_clinc150_multi_seed(
     pairs = (
         ("replay", "slowheat_replay"),
         ("lora_replay", "slowheat_lora_replay"),
+        ("slowheat_bound", "dualheat"),
+        ("slowheat_bound_replay", "dualheat_replay"),
     )
     for reference, candidate in pairs:
         if reference not in base_config.methods or candidate not in base_config.methods:
@@ -1472,6 +1506,13 @@ def main() -> None:
         type=int,
         default=SplitCLINC150Config.epochs_per_task,
     )
+    parser.add_argument("--fast-decay", type=float, default=SplitCLINC150Config.fast_decay)
+    parser.add_argument(
+        "--fast-strength", type=float, default=SplitCLINC150Config.fast_strength
+    )
+    parser.add_argument(
+        "--fast-threshold", type=float, default=SplitCLINC150Config.fast_threshold
+    )
     parser.add_argument("--calibrate", action="store_true")
     parser.add_argument("--frozen-manifest")
     parser.add_argument("--bert-base", action="store_true")
@@ -1491,6 +1532,9 @@ def main() -> None:
         replay_batch_size=args.replay_batch_size,
         max_length=args.max_length,
         epochs_per_task=args.epochs_per_task,
+        fast_decay=args.fast_decay,
+        fast_strength=args.fast_strength,
+        fast_threshold=args.fast_threshold,
     )
     tasks, metadata = load_clinc150_tasks(config)
     if args.calibrate:
