@@ -4,6 +4,7 @@ import pytest
 import torch
 from torch import nn
 
+from dual_heater.fast_heat import FastHeatGate
 from dual_heater.transformer import (
     SlowHeatAttentionTracker,
     SlowHeatFFNTracker,
@@ -117,3 +118,31 @@ def test_batch_cadence_is_exact():
     published = [step for step in range(1, 31) if writer.should_publish_batch(step)]
 
     assert published == [10, 20, 30]
+
+
+class _FastHeatModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ffn = nn.ModuleList([SlowHeatFFNTracker(5)])
+        self.fast = nn.ModuleList([FastHeatGate(5, unit_dim=-1)])
+
+    def get_ffn_trackers(self):
+        return list(self.ffn)
+
+    def get_fast_states(self):
+        return list(self.fast)
+
+
+def test_heat_snapshot_includes_fast_heat_per_ffn_layer(tmp_path):
+    model = _FastHeatModel()
+    model.fast[0].fast_heat.copy_(torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5]))
+    writer = TelemetryWriter(tmp_path, identity={"run": 9})
+
+    snapshot = writer.publish_heat(
+        model,
+        context={"method": "dualheat", "stage": 0},
+    )
+    writer.close()
+
+    assert snapshot["available"] is True
+    assert snapshot["ffn"][0]["fast_heat"] == pytest.approx([0.1, 0.2, 0.3, 0.4, 0.5])

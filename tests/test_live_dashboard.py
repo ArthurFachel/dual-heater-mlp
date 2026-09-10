@@ -50,6 +50,7 @@ def test_dashboard_serves_local_read_only_api(dashboard):
     assert status == 200
     assert headers["X-Frame-Options"] == "DENY"
     assert b"BERT \xc3\x97 SlowHeat Live" in html
+    assert b'value="fast_heat"' in html
 
     _, _, raw_runs = _request(base + "/api/runs")
     runs = json.loads(raw_runs)["runs"]

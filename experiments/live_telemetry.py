@@ -141,6 +141,12 @@ def build_heat_snapshot(
             _tracker_snapshot(tracker, layer)
             for layer, tracker in enumerate(ffn_getter())
         ]
+    fast_getter = getattr(model, "get_fast_states", None)
+    if callable(fast_getter):
+        gates = list(fast_getter())
+        for index, entry in enumerate(snapshot["ffn"]):
+            if index < len(gates):
+                entry["fast_heat"] = _tensor_values(gates[index].fast_heat)
     snapshot["available"] = bool(snapshot["attention"] or snapshot["ffn"])
     return snapshot
 

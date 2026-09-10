@@ -14,6 +14,7 @@ from dual_heater.bert import (
 )
 from dual_heater.fast_heat import FastHeatActivation, FastHeatConfig
 from dual_heater.optim import SlowHeatAdamW, SlowHeatSGD
+from experiments.live_telemetry import build_heat_snapshot
 from dual_heater.transformer import (
     SlowHeatAttentionTracker,
     SlowHeatFFNTracker,
@@ -216,6 +217,31 @@ def test_bert_checkpoint_rejects_incompatible_slowheat_configuration():
 
     with pytest.raises(RuntimeError, match="configuração BERT"):
         target.load_state_dict(source.state_dict())
+
+
+def test_bert_heat_snapshot_includes_real_fast_heat():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        BertSlowHeatConfig(fast_heat=FastHeatConfig()),
+    )
+    model.train()
+    model(
+        input_ids=torch.tensor([[2, 5, 3]]),
+        attention_mask=torch.ones(1, 3, dtype=torch.long),
+    ).logits.sum().backward()
+
+    snapshot = build_heat_snapshot(
+        model,
+        context={"method": "dualheat", "stage": 0},
+        run_id="run",
+        session_id="session",
+        sequence=1,
+    )
+
+    assert len(snapshot["ffn"]) == 1
+    fast_heat = snapshot["ffn"][0]["fast_heat"]
+    assert len(fast_heat) == 12  # intermediate_size do _bert_config
+    assert max(abs(value) for value in fast_heat) > 0.0
 
 
 def test_huggingface_roundtrip_restores_fastheat_protocol_and_rejects_mismatch(tmp_path):
