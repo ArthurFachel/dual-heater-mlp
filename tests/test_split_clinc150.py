@@ -285,3 +285,7 @@ def test_tiny_clinc_runner_is_paired_and_stage_resumable(monkeypatch, tmp_path):
     failure_events = read_events(failed_output / "telemetry/events.jsonl")
     assert failure_events[-2]["event"] == "run_error"
     assert failure_events[-1]["event"] == "session_error"
+
+
+def test_clinc_defaults_to_validation_only():
+    assert SplitCLINC150Config().evaluate_test is False

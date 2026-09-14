@@ -202,7 +202,7 @@ class SplitCLINC150Config:
     fast_topk_fraction: float = 0.25
     lora_rank: int = 8
     lora_alpha: float = 16.0
-    evaluate_test: bool = True
+    evaluate_test: bool = False
     methods: tuple[str, ...] = (
         "vanilla", "slowheat_none", "slowheat_ffn", "slowheat", "replay",
         "slowheat_replay",
