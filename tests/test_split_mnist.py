@@ -25,6 +25,7 @@ from experiments.split_mnist import (
     _classes_for_task,
     _consolidate_ewc_importance,
     _evaluate_task,
+    _old_class_distillation_loss,
     _select_class_indices,
     build_paired_models,
     config_payload,
@@ -831,3 +832,18 @@ def test_ewc_consolidation_divides_fisher_by_example_count():
 
     assert importance["weight"] == pytest.approx(manual["weight"] / 3, abs=1e-6)
     assert torch.equal(anchors["weight"], model.weight.detach())
+
+
+def test_classifier_expander_distillation_ignores_new_classes():
+    student = torch.tensor([[1.0, 2.0, 3.0, 4.0]])
+    teacher_a = torch.tensor([[1.5, 1.0, -100.0, 100.0]])
+    teacher_b = torch.tensor([[1.5, 1.0, 100.0, -100.0]])
+
+    loss_a = _old_class_distillation_loss(student, teacher_a, (0, 1))
+    loss_b = _old_class_distillation_loss(student, teacher_b, (0, 1))
+
+    assert torch.equal(loss_a, loss_b)
+    assert torch.equal(
+        _old_class_distillation_loss(student, teacher_a, ()),
+        student.new_zeros(()),
+    )

@@ -1268,6 +1268,26 @@ def _parameter_penalty(
     return penalty
 
 
+def _old_class_distillation_loss(
+    student_logits: Tensor,
+    teacher_logits: Tensor,
+    old_classes: tuple[int, ...],
+) -> Tensor:
+    """Match the teacher only on classes it actually learned."""
+
+    if not old_classes:
+        return student_logits.new_zeros(())
+    old_index = torch.tensor(
+        old_classes,
+        device=student_logits.device,
+        dtype=torch.long,
+    )
+    return F.mse_loss(
+        student_logits.index_select(1, old_index),
+        teacher_logits.index_select(1, old_index),
+    )
+
+
 def _accumulate_empirical_fisher(
     model: nn.Module,
     logits: Tensor,
@@ -1919,16 +1939,12 @@ def run_split_mnist(
                             if teacher is not None and old_classes:
                                 with torch.no_grad():
                                     teacher_logits = teacher(replay_x)
-                                seen_index = torch.tensor(
-                                    seen_classes,
-                                    device=config.device,
-                                    dtype=torch.long,
-                                )
                                 loss = loss + (
                                     config.classifier_expander_distillation_weight
-                                    * F.mse_loss(
-                                        replay_logits.index_select(1, seen_index),
-                                        teacher_logits.index_select(1, seen_index),
+                                    * _old_class_distillation_loss(
+                                        replay_logits,
+                                        teacher_logits,
+                                        old_classes,
                                     )
                                 )
                                 cost["teacher_forward_examples"] += replay_count
