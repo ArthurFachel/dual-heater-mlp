@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import torch
 
@@ -319,3 +321,70 @@ def test_cli_rejects_test_access_without_frozen_manifest(monkeypatch, capsys):
         clinc_module.main()
 
     assert "--frozen-manifest" in capsys.readouterr().err
+
+
+def _patch_tiny_bert(monkeypatch):
+    def local_pretrained(cls, _name, **kwargs):
+        return cls(
+            transformers.BertConfig(
+                vocab_size=64,
+                hidden_size=8,
+                num_hidden_layers=1,
+                num_attention_heads=2,
+                intermediate_size=12,
+                hidden_dropout_prob=0.0,
+                attention_probs_dropout_prob=0.0,
+                classifier_dropout=0.0,
+                num_labels=kwargs["num_labels"],
+            )
+        )
+
+    monkeypatch.setattr(
+        transformers.BertForSequenceClassification,
+        "from_pretrained",
+        classmethod(local_pretrained),
+    )
+
+
+def test_incompatible_protocol_is_not_overwritten(monkeypatch, tmp_path):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("replay",),
+    )
+    output_dir = tmp_path / "run"
+    output_dir.mkdir()
+    protocol_path = output_dir / "protocol.json"
+    protocol_path.write_text('{"config": "outro protocolo"}', encoding="utf-8")
+    original = protocol_path.read_bytes()
+
+    with pytest.raises(RuntimeError, match="outro protocolo"):
+        run_split_clinc150(config, tasks, output_dir=output_dir, resume=True)
+
+    assert protocol_path.read_bytes() == original
+
+
+def test_protocol_records_source_fingerprint(monkeypatch, tmp_path):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("replay",),
+    )
+
+    run_split_clinc150(config, tasks, output_dir=tmp_path / "run")
+
+    protocol = json.loads(
+        (tmp_path / "run" / "protocol.json").read_text(encoding="utf-8")
+    )
+    assert isinstance(protocol["source_sha256"], str)
+    assert len(protocol["source_sha256"]) == 64

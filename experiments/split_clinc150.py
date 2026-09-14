@@ -38,7 +38,9 @@ from dual_heater.fast_heat import FastHeatConfig
 from dual_heater.metrics import compute_cl_metrics
 from dual_heater.optim import SlowHeatAdamW
 from experiments.artifacts import (
+    read_json_object,
     read_torch_checkpoint,
+    source_fingerprint,
     write_json_atomic,
     write_torch_atomic,
 )
@@ -782,9 +784,18 @@ def _run_split_clinc150(
     initial_state = deepcopy(template.state_dict())
     metadata["resolved_model_commit"] = getattr(template.config, "_commit_hash", None)
     del template
-    identity = _checkpoint_identity(config, metadata, data_sha256)
-    if destination is not None:
-        write_json_atomic(destination / "protocol.json", identity)
+    identity = {
+        **_checkpoint_identity(config, metadata, data_sha256),
+        "source_sha256": source_fingerprint(Path(__file__).resolve().parents[1]),
+    }
+    protocol_path = None if destination is None else destination / "protocol.json"
+    if protocol_path is not None and protocol_path.exists():
+        existing = read_json_object(protocol_path)
+        # Compare through JSON so tuples and lists round-trip identically.
+        if existing != json.loads(json.dumps(identity, sort_keys=True)):
+            raise RuntimeError("output CLINC150 pertence a outro protocolo")
+    if protocol_path is not None:
+        write_json_atomic(protocol_path, identity)
     if telemetry and destination is None:
         raise ValueError("telemetria requer output_dir")
     telemetry_writer = (
