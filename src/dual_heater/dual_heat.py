@@ -49,9 +49,10 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from ._layers import activation, validate_finite_hyperparameters, validate_mlp_dims
+from .state import FP32ScientificStateMixin
 
 
-class DualHeatLinear(nn.Module):
+class DualHeatLinear(FP32ScientificStateMixin):
     """
     Linear layer com inibição lateral + importância por neurônio + slow heat com
     memória limitada (forgetting) opcional.
@@ -137,7 +138,10 @@ class DualHeatLinear(nn.Module):
         self.register_buffer("fast_heat", torch.zeros(out_features))
         # Slow heat (média amostral com janela limitada opcional)
         self.register_buffer("slow_heat", torch.zeros(out_features))
-        self.register_buffer("slow_n", torch.ones(1))
+        # int64: um contador float para de incrementar acima da mantissa
+        # (2048 em fp16) e congelaria a média incremental silenciosamente.
+        self.register_buffer("slow_n", torch.ones(1, dtype=torch.int64))
+        self._fp32_state_names = ("fast_heat", "slow_heat")
 
         # Hook legado de modulação do gradiente
         self.weight.register_hook(self._gradient_mask_hook())
@@ -217,7 +221,7 @@ class DualHeatLinear(nn.Module):
         manualmente em algum ponto de controle (não é chamado automaticamente:
         DualHeat não usa oracle de fronteira de tarefas por design)."""
         self.slow_heat.zero_()
-        self.slow_n.fill_(1.0)
+        self.slow_n.fill_(1)
 
     def extra_repr(self) -> str:
         w = self.slow_window if self.slow_window else "∞"

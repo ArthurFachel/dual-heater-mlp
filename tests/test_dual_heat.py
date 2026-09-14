@@ -143,3 +143,24 @@ def test_lateral_inhibition_is_an_explicit_train_only_regularizer():
 
     assert not torch.equal(training_output, evaluation_output)
     assert torch.equal(layer.fast_heat, heat_after_training)
+
+
+@pytest.mark.parametrize("cast", ["half", "bfloat16"])
+def test_dual_heat_state_keeps_precision_and_counter_dtype(cast):
+    layer = DualHeatLinear(3, 4, importance="activation")
+
+    getattr(layer, cast)()
+
+    assert layer.weight.dtype is not torch.float32
+    assert layer.fast_heat.dtype is torch.float32
+    assert layer.slow_heat.dtype is torch.float32
+    assert layer.slow_n.dtype is torch.int64
+
+
+def test_legacy_counter_increments_exactly_beyond_fp16_resolution():
+    layer = DualHeatLinear(2, 2, importance="activation").half()
+
+    for _ in range(3000):
+        layer.slow_n += 1
+
+    assert int(layer.slow_n.item()) == 3001

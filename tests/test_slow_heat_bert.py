@@ -436,3 +436,55 @@ def test_exact_lora_freezes_a_and_hard_masks_protected_b_rows():
             assert torch.equal(parameter, a_before[name])
     assert torch.equal(query_b[:4], query_before[:4])
     assert not torch.equal(query_b[4:], query_before[4:])
+
+
+def test_bert_scientific_state_survives_half_precision_cast():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        slowheat_config=BertSlowHeatConfig(fast_heat=FastHeatConfig()),
+    )
+    tracker = model.ffn_trackers[0]
+    tracker.task_ema.add_(0.125)
+
+    model.half()
+
+    assert model.classifier.weight.dtype is torch.float16
+    assert tracker.slow_heat.dtype is torch.float32
+    assert tracker.task_ema.dtype is torch.float32
+    assert tracker.importance_memory.dtype is torch.float32
+    assert tracker.task_step.dtype is torch.int64
+    assert tracker.consolidated_tasks.dtype is torch.int64
+    assert tracker.task_ema[0].item() == pytest.approx(0.125)
+    assert model.get_fast_states()[0].fast_heat.dtype is torch.float32
+
+
+def test_half_precision_model_still_detects_incompatible_checkpoints(tmp_path):
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        slowheat_config=BertSlowHeatConfig(slow_strength=5.0),
+    ).half()
+    other = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        slowheat_config=BertSlowHeatConfig(slow_strength=50.0),
+    )
+
+    with pytest.raises(RuntimeError, match="incompatível"):
+        model.load_state_dict(other.state_dict())
+
+
+def test_half_precision_does_not_collapse_distinct_slowheat_configs():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        slowheat_config=BertSlowHeatConfig(importance_eps=1e-8),
+    ).half()
+    other = SlowHeatBertForSequenceClassification(
+        _bert_config(),
+        slowheat_config=BertSlowHeatConfig(importance_eps=1e-9),
+    )
+    other_state = {
+        name: value.half() if value.is_floating_point() else value
+        for name, value in other.state_dict().items()
+    }
+
+    with pytest.raises(RuntimeError, match="incompatível"):
+        model.load_state_dict(other_state)

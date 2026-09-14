@@ -413,3 +413,14 @@ def test_global_topk_runs_once_the_coordinator_supplies_the_scale():
     gate.set_external_scale(torch.ones(4))
 
     assert torch.equal(gate(torch.ones(2, 4)), torch.ones(2, 4))
+
+
+@pytest.mark.parametrize("cast", ["half", "bfloat16"])
+def test_fast_heat_buffer_stays_fp32_under_reduced_precision(cast):
+    gate = FastHeatGate(4, unit_dim=-1)
+    gate.fast_heat.add_(0.25)
+
+    getattr(gate, cast)()
+
+    assert gate.fast_heat.dtype is torch.float32
+    assert gate.fast_heat[0].item() == pytest.approx(0.25)

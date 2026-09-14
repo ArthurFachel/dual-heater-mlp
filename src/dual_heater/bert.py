@@ -6,6 +6,8 @@ require Transformers or PEFT. Install ``dual-heater[nlp]`` before importing it.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar, Literal
@@ -23,10 +25,12 @@ except ImportError as error:  # pragma: no cover - exercised in minimal installs
 from .fast_heat import (
     FastHeatActivation,
     FastHeatConfig,
+    FastHeatGate,
     fast_heat_states,
     reset_fast_heat,
 )
 from .optim import PlasticityMaskBinding
+from .slow_heat import _SlowHeatImportanceMixin
 from .transformer import (
     AttentionCombination,
     SlowHeatAttentionTracker,
@@ -155,6 +159,52 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         r"bert\.encoder\.layer\..*\.intermediate\.intermediate_act_fn\.gate\.fast_heat",
     ]
 
+    def _init_weights(self, module) -> None:
+        """Reset mechanism state that `from_pretrained` leaves uninitialized.
+
+        Transformers materializes modules lazily and only initializes what
+        `_init_weights` knows about, so FastHeat/SlowHeat buffers would otherwise
+        start from arbitrary memory instead of zero when a native BERT
+        checkpoint is loaded.
+        """
+
+        super()._init_weights(module)
+        if isinstance(module, FastHeatGate):
+            module.reset_fast_heat()
+        elif isinstance(module, _SlowHeatImportanceMixin):
+            with torch.no_grad():
+                module.importance_memory.zero_()
+                module.slow_heat.zero_()
+                module.task_ema.zero_()
+                module.task_step.zero_()
+                module.consolidated_tasks.zero_()
+        elif module is self:
+            # FastHeat gates carry `_is_hf_initialized`, so Transformers never
+            # visits them individually. Their reset happens in
+            # `_adjust_missing_and_unexpected_keys`, which is the first hook
+            # that knows which buffers were genuinely absent from the
+            # checkpoint; resetting here would clobber a restored `fast_heat`.
+            pass
+
+    def _adjust_missing_and_unexpected_keys(self, loading_info) -> None:
+        """Zero mechanism buffers that the checkpoint did not provide.
+
+        Transformers materializes modules lazily, so a buffer absent from the
+        checkpoint keeps arbitrary memory instead of its registered zeros. This
+        runs after weights are loaded and is the only hook that distinguishes a
+        genuinely missing `fast_heat` from one the checkpoint restored.
+        """
+
+        missing = set(getattr(loading_info, "missing_keys", ()) or ())
+        if missing:
+            with torch.no_grad():
+                for name, gate in self.named_modules():
+                    if isinstance(gate, FastHeatGate) and (
+                        f"{name}.fast_heat" in missing
+                    ):
+                        gate.reset_fast_heat()
+        return super()._adjust_missing_and_unexpected_keys(loading_info)
+
     def __init__(
         self,
         config,
@@ -198,47 +248,37 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             self._build_slowheat_signature(),
         )
 
+    def _slowheat_identity_payload(self) -> dict[str, Any]:
+        """Canonical, JSON-serializable identity of topology plus protocol."""
+
+        return {
+            "schema_version": self.slowheat_schema_version,
+            "hidden_size": self.config.hidden_size,
+            "intermediate_size": self.config.intermediate_size,
+            "num_hidden_layers": self.config.num_hidden_layers,
+            "num_attention_heads": self.config.num_attention_heads,
+            "num_labels": self.config.num_labels,
+            "slowheat_config": asdict(self.slowheat_config),
+        }
+
     def _build_slowheat_signature(self) -> Tensor:
-        combination = {"max": 0.0, "mean": 1.0, "sum": 2.0}[
-            self.slowheat_config.attention_combination
-        ]
-        fast = self.slowheat_config.fast_heat
-        capacity_scope = {"local": 0.0, "global": 1.0, "hierarchical": 2.0}[
-            self.slowheat_config.capacity_scope
-        ]
-        fast_competition = (
-            {"mean_others": 0.0, "global_topk": 1.0}[fast.competition]
-            if fast is not None
-            else 0.0
+        """Digest the identity into int64 so no dtype cast can alter it.
+
+        The previous float vector lost small hyperparameters (importance_eps of
+        1e-8 and 1e-9 both flush to zero in fp16), which made two different
+        protocols compare equal on a half-precision model.
+        """
+
+        canonical = json.dumps(
+            self._slowheat_identity_payload(), sort_keys=True, separators=(",", ":")
         )
+        digest = hashlib.sha256(canonical.encode("utf-8")).digest()
         return torch.tensor(
             [
-                self.slowheat_schema_version,
-                self.config.hidden_size,
-                self.config.intermediate_size,
-                self.config.num_hidden_layers,
-                self.config.num_attention_heads,
-                self.config.num_labels,
-                float(self.slowheat_config.track_ffn),
-                float(self.slowheat_config.track_attention),
-                float(self.slowheat_config.protect_classifier),
-                combination,
-                self.slowheat_config.slow_strength,
-                self.slowheat_config.ffn_plasticity_budget,
-                self.slowheat_config.attention_plasticity_budget,
-                self.slowheat_config.importance_decay,
-                self.slowheat_config.importance_eps,
-                float(fast is not None),
-                fast.fast_decay if fast is not None else 0.0,
-                fast.fast_strength if fast is not None else 0.0,
-                fast.fast_threshold if fast is not None else 0.0,
-                fast.eps if fast is not None else 0.0,
-                float(self.slowheat_config.freeze_unbound_parameters),
-                capacity_scope,
-                fast_competition,
-                fast.topk_fraction if fast is not None else 0.0,
+                int.from_bytes(digest[index : index + 8], "big", signed=True)
+                for index in range(0, 32, 8)
             ],
-            dtype=torch.float64,
+            dtype=torch.int64,
         )
 
     def _new_ffn_tracker(self, units: int, budget: float) -> SlowHeatFFNTracker:

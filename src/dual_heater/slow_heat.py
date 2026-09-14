@@ -102,6 +102,23 @@ class _SlowHeatImportanceMixin:
     consolidated_tasks: Tensor
     plasticity_budget_state: Tensor
 
+    # Heats, importance and the budget decide which units get protected, so a
+    # model-wide .half()/.bfloat16() must not reduce their precision.
+    _fp32_state_names: tuple[str, ...] = (
+        "importance_memory",
+        "slow_heat",
+        "task_ema",
+        "plasticity_budget_state",
+    )
+
+    def _apply(self, fn, recurse: bool = True):
+        result = super()._apply(fn, recurse=recurse)
+        for name in self._fp32_state_names:
+            buffer = getattr(self, name, None)
+            if buffer is not None and buffer.is_floating_point():
+                setattr(self, name, buffer.float())
+        return result
+
     def _initialize_importance_state(
         self,
         *,
@@ -147,11 +164,11 @@ class _SlowHeatImportanceMixin:
         self.register_buffer("task_ema", torch.zeros(unit_count, device=state_device))
         self.register_buffer(
             "task_step",
-            torch.zeros(1, dtype=torch.long, device=state_device),
+            torch.zeros(1, dtype=torch.int64, device=state_device),
         )
         self.register_buffer(
             "consolidated_tasks",
-            torch.zeros(1, dtype=torch.long, device=state_device),
+            torch.zeros(1, dtype=torch.int64, device=state_device),
         )
 
     def _reduce_contribution(self, contribution: Tensor) -> Tensor:

@@ -16,6 +16,8 @@ from typing import Literal
 import torch
 from torch import Tensor, nn
 
+from dual_heater.state import FP32ScientificStateMixin
+
 
 @dataclass(frozen=True)
 class FastHeatConfig:
@@ -54,7 +56,7 @@ class FastHeatConfig:
             raise ValueError("topk_fraction deve estar em (0, 1]")
 
 
-class FastHeatGate(nn.Module):
+class FastHeatGate(FP32ScientificStateMixin):
     """Apply normalized activation-based lateral inhibition.
 
     ``unit_dim`` identifies the unit/channel dimension.  Linear and sequence
@@ -84,6 +86,7 @@ class FastHeatGate(nn.Module):
         self.unit_dim = unit_dim
         self.config = FastHeatConfig() if config is None else config
         self.register_buffer("fast_heat", torch.zeros(unit_count))
+        self._fp32_state_names = ("fast_heat",)
         self._external_scale: Tensor | None = None
         self._last_elements_per_example = 0
 

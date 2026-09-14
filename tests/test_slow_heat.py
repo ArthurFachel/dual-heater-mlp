@@ -175,3 +175,22 @@ def test_zero_functional_signal_remains_finite_in_half_precision():
 
     assert torch.isfinite(layer.task_ema).all()
     assert torch.count_nonzero(layer.task_ema) == 0
+
+
+@pytest.mark.parametrize("cast", ["half", "bfloat16"])
+def test_slow_heat_scientific_buffers_resist_dtype_casts(cast):
+    layer = SlowHeatLinear(3, 4)
+    layer.task_ema.add_(0.125)
+    layer.importance_memory.add_(0.375)
+
+    getattr(layer, cast)()
+
+    assert layer.weight.dtype is not torch.float32
+    assert layer.slow_heat.dtype is torch.float32
+    assert layer.task_ema.dtype is torch.float32
+    assert layer.importance_memory.dtype is torch.float32
+    assert layer.plasticity_budget_state.dtype is torch.float32
+    assert layer.task_step.dtype is torch.int64
+    assert layer.consolidated_tasks.dtype is torch.int64
+    assert layer.task_ema[0].item() == pytest.approx(0.125)
+    assert layer.importance_memory[0].item() == pytest.approx(0.375)

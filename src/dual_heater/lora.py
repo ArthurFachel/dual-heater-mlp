@@ -54,9 +54,10 @@ import torch.nn.functional as F
 from torch import nn
 
 from ._layers import validate_finite_hyperparameters
+from .state import FP32ScientificStateMixin
 
 
-class DualHeatLoRALinear(nn.Module):
+class DualHeatLoRALinear(FP32ScientificStateMixin):
     def __init__(
         self,
         in_features: int,
@@ -127,7 +128,9 @@ class DualHeatLoRALinear(nn.Module):
 
         self.register_buffer("fast_heat", torch.zeros(out_features))
         self.register_buffer("slow_heat", torch.zeros(out_features))
-        self.register_buffer("slow_n", torch.ones(1))
+        # int64 pelo mesmo motivo de DualHeatLinear: exatidão do contador.
+        self.register_buffer("slow_n", torch.ones(1, dtype=torch.int64))
+        self._fp32_state_names = ("fast_heat", "slow_heat")
 
     def _plasticity_scale_output(self, grad: torch.Tensor) -> torch.Tensor:
         if self.slow_strength <= 0.0:
@@ -175,7 +178,7 @@ class DualHeatLoRALinear(nn.Module):
 
     def reset_slow_heat(self):
         self.slow_heat.zero_()
-        self.slow_n.fill_(1.0)
+        self.slow_n.fill_(1)
 
     def extra_repr(self) -> str:
         w = self.slow_window if self.slow_window else "\u221e"
