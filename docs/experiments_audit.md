@@ -443,3 +443,72 @@ material independente; seus contratos foram avaliados por meio dos consumidores:
 5. ReplayBuffer, custo e validação de configs.
 6. Índice/locks/confinamento da telemetria.
 7. Robustez de LPR, proveniência e artefatos sintéticos.
+
+---
+
+## Status de correção (milestone P0)
+
+Os achados acima são preservados como registro histórico. Esta seção marca
+apenas o que foi corrigido e verificado por teste de regressão. Suíte no fim do
+milestone: 301 passed, 0 failed (CPU, GPU invisível, uma thread).
+
+Baseline antes das correções: 273 passed, **1 failed**
+(`test_huggingface_from_pretrained_loads_native_bert_checkpoint`) e 11 erros de
+Ruff. A falha era real e foi corrigida neste milestone; os 11 erros de Ruff
+permanecem e pertencem à Fase H.
+
+| Achado | Estado | Teste de regressão |
+|---|---|---|
+| Fisher EWC incorreto | corrigido | `test_empirical_fisher_squares_per_example_before_averaging`, `test_ewc_consolidation_divides_fisher_by_example_count` |
+| Destilação de classes novas | corrigido | `test_classifier_expander_distillation_ignores_new_classes` |
+| Replay adaptativo não pareado | corrigido | `test_replay_selection_pairing_flag_is_reported_per_method`, `test_paired_suite_rejects_learner_adaptive_replay_selection` |
+| Teste CLINC por padrão | corrigido | `test_clinc_defaults_to_validation_only`, `test_cli_evaluate_test_defaults_to_false`, `test_cli_rejects_test_access_without_frozen_manifest` |
+| Resume CLINC sem código | corrigido | `test_incompatible_protocol_is_not_overwritten`, `test_protocol_records_source_fingerprint` |
+| Resume CLINC sem RNG | corrigido | `test_resume_with_dropout_matches_uninterrupted_run`, `test_checkpoint_without_rng_state_is_rejected` |
+| Scheduler único em CLINC | corrigido | `test_task_scoped_scheduler_repeats_the_same_relative_schedule`, `test_stream_scoped_scheduler_spreads_decay_over_the_whole_stream`, `test_protocol_records_scheduler_scope` |
+| `global_topk` silenciosamente errado | corrigido | `test_global_topk_requires_external_global_scale`, `test_global_topk_runs_once_the_coordinator_supplies_the_scale` |
+| Estado científico em dtype reduzido | corrigido | `test_fast_heat_buffer_stays_fp32_under_reduced_precision`, `test_slow_heat_scientific_buffers_resist_dtype_casts`, `test_dual_heat_state_keeps_precision_and_counter_dtype`, `test_legacy_counter_increments_exactly_beyond_fp16_resolution`, `test_bert_scientific_state_survives_half_precision_cast` |
+| Pré-registro removível | **pendente** | Fase E1 |
+| Manifesto FastHeat não verificável | **pendente** | Fase E2 |
+| Máscara fail-closed ao limpar | **pendente** | Fase D3 |
+| Validadores e `ReplayBuffer` | **pendente** | Fase D4 |
+
+### Achados adicionais durante a implementação
+
+Dois defeitos não previstos na auditoria original apareceram ao escrever os
+testes e foram corrigidos no mesmo milestone:
+
+1. **Assinatura BERT colapsava configurações distintas sob fp16.**
+   `_slowheat_signature` era um vetor float; sob `.half()` os valores pequenos
+   sofriam underflow, de modo que `importance_eps=1e-8` e `1e-9` viravam ambos
+   `0.0` e um checkpoint de outro protocolo era aceito silenciosamente. A
+   assinatura passou a ser um digest SHA-256 em int64 sobre o payload canônico,
+   imune a qualquer cast. Teste:
+   `test_half_precision_does_not_collapse_distinct_slowheat_configs`.
+
+2. **`from_pretrained` deixava `fast_heat` com memória arbitrária.**
+   Transformers materializa módulos preguiçosamente e marca os gates com
+   `_is_hf_initialized`, logo nunca os inicializava; o buffer começava com lixo
+   em vez de zeros. O reset foi colocado em
+   `_adjust_missing_and_unexpected_keys`, único hook que roda após o
+   carregamento e ainda distingue um `fast_heat` genuinamente ausente de um que
+   o checkpoint restaurou. Teste:
+   `test_huggingface_from_pretrained_loads_native_bert_checkpoint`.
+
+### Decisão de protocolo registrada
+
+`apply_frozen_slowheat_manifest()` não força mais `evaluate_test=True`. O acesso
+ao split de teste passou a depender exclusivamente da flag explícita
+`--evaluate-test`, que por sua vez exige `--frozen-manifest`. O teste histórico
+que exigia o comportamento antigo foi reescrito para afirmar que o manifesto
+preserva a flag.
+
+`CHECKPOINT_SCHEMA_VERSION` foi para `2`. Checkpoints v1 não guardam estado de
+RNG e são rejeitados com mensagem de migração, sem adivinhar o estado ausente.
+
+### Limite de evidência
+
+Nenhum resultado científico novo foi produzido neste milestone. As correções de
+EWC, destilação, pareamento de replay e protocolo CLINC alteram números, logo
+**nenhuma execução anterior a estes commits pode ser promovida como evidência
+confirmatória**.
