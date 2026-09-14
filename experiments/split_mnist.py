@@ -1296,6 +1296,26 @@ def _accumulate_empirical_fisher(
     return len(targets)
 
 
+def _consolidate_ewc_importance(
+    model: nn.Module,
+    *,
+    fisher_sum: dict[str, Tensor],
+    fisher_examples: int,
+    importance: dict[str, Tensor],
+    anchors: dict[str, Tensor],
+    decay: float,
+) -> None:
+    """Turn the accumulated per-example Fisher into an EWC importance estimate."""
+
+    divisor = max(1, fisher_examples)
+    for name, parameter in model.named_parameters():
+        estimate = fisher_sum[name] / divisor
+        if name in importance:
+            estimate = decay * importance[name] + estimate
+        importance[name] = estimate.detach().clone()
+        anchors[name] = parameter.detach().clone()
+
+
 def _gradient_vector(model: nn.Module) -> Tensor:
     parts = [
         (
@@ -1805,7 +1825,7 @@ def run_split_mnist(
                 name: torch.zeros_like(parameter)
                 for name, parameter in model.named_parameters()
             }
-            fisher_steps = 0
+            fisher_examples = 0
 
             epoch_budget = method_epoch_budget(
                 method_spec,
@@ -1975,24 +1995,15 @@ def run_split_mnist(
                             for name, parameter in model.named_parameters()
                         }
 
-                    fisher_gradients: tuple[Tensor | None, ...] | None = None
-                    fisher_parameters: tuple[tuple[str, nn.Parameter], ...] = ()
                     if method == "ewc":
                         # The empirical Fisher must come from the current-task
-                        # likelihood, not from the EWC-regularized total loss.
-                        fisher_parameters = tuple(model.named_parameters())
-                        fisher_gradients = torch.autograd.grad(
-                            current_loss,
-                            tuple(parameter for _, parameter in fisher_parameters),
-                            retain_graph=True,
-                            allow_unused=True,
+                        # likelihood, squared per example before averaging.
+                        fisher_examples += _accumulate_empirical_fisher(
+                            model,
+                            current_logits,
+                            current_y,
+                            fisher_sum,
                         )
-                        fisher_steps += 1
-                        for (name, _), gradient in zip(
-                            fisher_parameters, fisher_gradients, strict=True
-                        ):
-                            if gradient is not None:
-                                fisher_sum[name].add_(gradient.detach().square())
                         cost["learner_backward_examples"] += current_count
 
                     if method == "agem" and replay_loss is not None:
@@ -2205,12 +2216,14 @@ def run_split_mnist(
             validation_acquisition.append(acquisition)
 
             if method == "ewc":
-                for name, parameter in model.named_parameters():
-                    estimate = fisher_sum[name] / max(1, fisher_steps)
-                    if name in ewc_importance:
-                        estimate = config.ewc_decay * ewc_importance[name] + estimate
-                    ewc_importance[name] = estimate.detach().clone()
-                    ewc_anchors[name] = parameter.detach().clone()
+                _consolidate_ewc_importance(
+                    model,
+                    fisher_sum=fisher_sum,
+                    fisher_examples=fisher_examples,
+                    importance=ewc_importance,
+                    anchors=ewc_anchors,
+                    decay=config.ewc_decay,
+                )
                 cost["consolidation_flops"] += int(cost["model_parameters"])
             if method == "si":
                 for name, parameter in model.named_parameters():

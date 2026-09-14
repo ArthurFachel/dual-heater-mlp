@@ -23,6 +23,7 @@ from experiments.split_mnist import (
     _accumulate_empirical_fisher,
     _accuracy,
     _classes_for_task,
+    _consolidate_ewc_importance,
     _evaluate_task,
     _select_class_indices,
     build_paired_models,
@@ -782,3 +783,51 @@ def test_empirical_fisher_squares_per_example_before_averaging():
     assert accumulator["weight"] == pytest.approx(torch.full_like(model.weight, 0.5))
     estimate = accumulator["weight"] / sample_count
     assert estimate == pytest.approx(torch.full_like(model.weight, 0.25))
+
+
+def test_ewc_consolidation_divides_fisher_by_example_count():
+    torch.manual_seed(0)
+    model = torch.nn.Linear(2, 3, bias=False)
+    inputs = torch.randn(3, 2)
+    targets = torch.tensor([0, 1, 2])
+
+    manual = {
+        name: torch.zeros_like(parameter)
+        for name, parameter in model.named_parameters()
+    }
+    for index in range(3):
+        sample_loss = torch.nn.functional.cross_entropy(
+            model(inputs[index : index + 1]),
+            targets[index : index + 1],
+            reduction="sum",
+        )
+        (gradient,) = torch.autograd.grad(sample_loss, (model.weight,))
+        manual["weight"].add_(gradient.detach().square())
+
+    fisher_sum = {
+        name: torch.zeros_like(parameter)
+        for name, parameter in model.named_parameters()
+    }
+    fisher_examples = 0
+    for start in (0, 2):
+        batch_x = inputs[start : start + 2]
+        batch_y = targets[start : start + 2]
+        fisher_examples += _accumulate_empirical_fisher(
+            model, model(batch_x), batch_y, fisher_sum
+        )
+
+    assert fisher_examples == 3
+
+    importance: dict[str, torch.Tensor] = {}
+    anchors: dict[str, torch.Tensor] = {}
+    _consolidate_ewc_importance(
+        model,
+        fisher_sum=fisher_sum,
+        fisher_examples=fisher_examples,
+        importance=importance,
+        anchors=anchors,
+        decay=0.0,
+    )
+
+    assert importance["weight"] == pytest.approx(manual["weight"] / 3, abs=1e-6)
+    assert torch.equal(anchors["weight"], model.weight.detach())
