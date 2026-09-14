@@ -1268,6 +1268,12 @@ def _parameter_penalty(
     return penalty
 
 
+def replay_selection_is_method_independent(strategy: str) -> bool:
+    """True only when the replay indices are identical across methods."""
+
+    return strategy == "first"
+
+
 def _old_class_distillation_loss(
     student_logits: Tensor,
     teacher_logits: Tensor,
@@ -2354,6 +2360,10 @@ def run_split_mnist(
         task_aware_metrics = compute_cl_metrics(task_aware_matrix)
         average_accuracy, average_forgetting = _stage_curves(matrix)
         results[method] = {
+            "replay_selection": config.replay_selection,
+            "replay_indices_paired": replay_selection_is_method_independent(
+                config.replay_selection
+            ),
             "accuracy_matrix": _json_matrix(matrix),
             "task_aware_accuracy_matrix": _json_matrix(task_aware_matrix),
             "stage_average_accuracy": average_accuracy,

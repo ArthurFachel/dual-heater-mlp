@@ -31,6 +31,7 @@ from experiments.split_mnist import (
     _optional_result_metric,
     _result_metric,
     config_payload,
+    replay_selection_is_method_independent,
     run_split_mnist_multi_seed,
 )
 from experiments.split_mnist_suite import (
@@ -583,6 +584,11 @@ def run_dualheat_pairs(
     config: SplitMNISTConfig | None = None,
 ) -> dict[str, Any]:
     selected = paired_config(name, device) if config is None else config
+    if not replay_selection_is_method_independent(selected.replay_selection):
+        raise ValueError(
+            "a suíte pareada requer replay_selection='first'; "
+            "seleção adaptativa pertence ao tratamento experimental"
+        )
     loaders = {
         "split_mnist": None,
         "permuted_mnist": load_permuted_mnist,

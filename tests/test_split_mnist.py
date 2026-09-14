@@ -847,3 +847,45 @@ def test_classifier_expander_distillation_ignores_new_classes():
         _old_class_distillation_loss(student, teacher_a, ()),
         student.new_zeros(()),
     )
+
+
+def test_replay_selection_pairing_flag_is_reported_per_method(tmp_path):
+    base = SplitMNISTConfig(
+        seed=3,
+        hidden_dims=(8,),
+        batch_size=4,
+        epochs_per_task=1,
+        replay_per_class=1,
+        replay_batch_size=2,
+        methods=("replay",),
+    )
+
+    paired = run_split_mnist(
+        replace(base, replay_selection="first"),
+        _tiny_tasks(base),
+        output_dir=tmp_path / "paired",
+    )
+    adaptive = run_split_mnist(
+        replace(base, replay_selection="loss"),
+        _tiny_tasks(base),
+        output_dir=tmp_path / "adaptive",
+    )
+
+    assert paired["replay"]["replay_selection"] == "first"
+    assert paired["replay"]["replay_indices_paired"] is True
+    assert adaptive["replay"]["replay_selection"] == "loss"
+    assert adaptive["replay"]["replay_indices_paired"] is False
+
+
+def test_paired_suite_rejects_learner_adaptive_replay_selection(tmp_path):
+    config = replace(paired_config(device="cpu"), replay_selection="loss")
+
+    with pytest.raises(ValueError, match="replay_selection='first'"):
+        run_dualheat_pairs(
+            seeds=[1],
+            data_dir=tmp_path / "data",
+            output_dir=tmp_path / "out",
+            download=False,
+            verbose=False,
+            config=config,
+        )
