@@ -176,7 +176,15 @@ def test_frozen_manifest_transfers_mini_hyperparameters_to_bert_base():
     assert updated.slow_strength == 10.0
     assert updated.ffn_plasticity_budget == 0.5
     assert updated.attention_plasticity_budget == 0.25
-    assert updated.evaluate_test is True
+    assert updated.evaluate_test is False
+    assert (
+        apply_frozen_slowheat_manifest(
+            SplitCLINC150Config(evaluate_test=True),
+            manifest,
+            model_name=BERT_BASE_MODEL,
+        ).evaluate_test
+        is True
+    )
 
 
 def test_tiny_clinc_runner_is_paired_and_stage_resumable(monkeypatch, tmp_path):
@@ -289,3 +297,25 @@ def test_tiny_clinc_runner_is_paired_and_stage_resumable(monkeypatch, tmp_path):
 
 def test_clinc_defaults_to_validation_only():
     assert SplitCLINC150Config().evaluate_test is False
+
+
+def test_cli_evaluate_test_defaults_to_false():
+    parser = clinc_module.build_parser()
+
+    assert parser.parse_args([]).evaluate_test is False
+    assert parser.parse_args(["--evaluate-test"]).evaluate_test is True
+    assert parser.parse_args(["--no-evaluate-test"]).evaluate_test is False
+
+
+def test_cli_rejects_test_access_without_frozen_manifest(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["split_clinc150", "--evaluate-test"])
+    monkeypatch.setattr(
+        clinc_module,
+        "load_clinc150_tasks",
+        lambda config: pytest.fail("dados não devem ser carregados"),
+    )
+
+    with pytest.raises(SystemExit):
+        clinc_module.main()
+
+    assert "--frozen-manifest" in capsys.readouterr().err

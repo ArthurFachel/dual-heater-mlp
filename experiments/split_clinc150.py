@@ -1521,11 +1521,12 @@ def apply_frozen_slowheat_manifest(
         attention_plasticity_budget=float(
             selected["attention_plasticity_budget"]
         ),
-        evaluate_test=True,
     )
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser so the test-split gate can be verified offline."""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="results/split_clinc150")
     parser.add_argument("--device", default="cpu")
@@ -1572,7 +1573,20 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--telemetry", action="store_true")
     parser.add_argument("--telemetry-every", type=int, default=10)
+    parser.add_argument(
+        "--evaluate-test",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="avaliar o split de teste; requer --frozen-manifest",
+    )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
+    if args.evaluate_test and args.frozen_manifest is None:
+        parser.error("--evaluate-test requer --frozen-manifest")
     config = SplitCLINC150Config(
         model_name=args.model_name,
         methods=(
@@ -1591,6 +1605,7 @@ def main() -> None:
         fast_strength=args.fast_strength,
         fast_threshold=args.fast_threshold,
         fast_topk_fraction=args.fast_topk_fraction,
+        evaluate_test=args.evaluate_test,
     )
     tasks, metadata = load_clinc150_tasks(config)
     if args.calibrate:
