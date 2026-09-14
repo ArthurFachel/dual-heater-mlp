@@ -495,6 +495,33 @@ testes e foram corrigidos no mesmo milestone:
    o checkpoint restaurou. Teste:
    `test_huggingface_from_pretrained_loads_native_bert_checkpoint`.
 
+### Regressão introduzida e corrigida no próprio milestone
+
+Fechar `evaluate_test` por padrão (C1) colidiu com um guard antigo em
+`run_split_clinc150_multi_seed()`, que exigia `evaluate_test=True` para agregar.
+Enquanto o default era `True` o guard nunca disparava; com o default `False` ele
+passou a abortar **toda** execução multi-seed, inclusive exploratória. Como
+`--evaluate-test` exige `--frozen-manifest`, o escape também estava fechado: na
+prática, nenhuma run CLINC exploratória era possível.
+
+A correção separa os dois modos que o guard misturava:
+
+- run exploratória (padrão): agrega os endpoints de **validação**
+  (`validation_metrics`), sem tocar no split de teste;
+- run confirmatória (`confirmatory=True`, ligado pelo CLI a `--evaluate-test` e
+  portanto a `--frozen-manifest`): exige `evaluate_test=True` e agrega teste.
+
+`aggregate.json` passou a registrar `endpoint_source` (`validation` ou `test`),
+`evaluate_test` e `confirmatory`, de modo que nenhuma agregação seja lida sem
+saber de qual split ela veio. Testes:
+`test_multi_seed_aggregates_validation_when_test_split_is_closed`,
+`test_multi_seed_confirmatory_mode_requires_the_test_split`,
+`test_multi_seed_uses_test_endpoints_when_explicitly_opened`.
+
+Causa do ponto cego: a cobertura do milestone exercitava `run_split_clinc150`
+(seed única), o parser e o gate do manifesto, mas nunca
+`run_split_clinc150_multi_seed`, que não tinha teste algum.
+
 ### Decisão de protocolo registrada
 
 `apply_frozen_slowheat_manifest()` não força mais `evaluate_test=True`. O acesso

@@ -1432,11 +1432,19 @@ def run_split_clinc150_multi_seed(
     resume: bool = False,
     telemetry: bool = False,
     telemetry_every: int = 10,
+    confirmatory: bool = False,
 ) -> dict[str, Any]:
     if not seeds or len(set(seeds)) != len(seeds):
         raise ValueError("seeds deve ser não vazio e sem duplicatas")
-    if not base_config.evaluate_test:
-        raise ValueError("agregação final requer evaluate_test=True")
+    # Exploratory runs aggregate validation endpoints; only a run declared
+    # confirmatory may read the held-out test split, and then it must have been
+    # opened explicitly (which the CLI ties to a frozen manifest).
+    if confirmatory and not base_config.evaluate_test:
+        raise ValueError(
+            "agregação confirmatória requer evaluate_test=True; "
+            "runs exploratórias agregam validação"
+        )
+    metric_key = "metrics" if base_config.evaluate_test else "validation_metrics"
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     write_environment_manifest(
@@ -1457,6 +1465,9 @@ def run_split_clinc150_multi_seed(
     aggregate: dict[str, Any] = {
         "seeds": seeds,
         "primary_endpoint": "final_average_accuracy",
+        "endpoint_source": "test" if base_config.evaluate_test else "validation",
+        "evaluate_test": base_config.evaluate_test,
+        "confirmatory": confirmatory,
         "methods": {},
         "paired_differences": {},
     }
@@ -1466,7 +1477,7 @@ def run_split_clinc150_multi_seed(
     for method in base_config.methods:
         aggregate["methods"][method] = {
             metric: normal_summary(
-                [raw[seed][method]["metrics"][metric] for seed in seeds]
+                [raw[seed][method][metric_key][metric] for seed in seeds]
             )
             for metric in metric_names
         }
@@ -1480,8 +1491,8 @@ def run_split_clinc150_multi_seed(
         if reference not in base_config.methods or candidate not in base_config.methods:
             continue
         differences = [
-            raw[seed][candidate]["metrics"]["final_average_accuracy"]
-            - raw[seed][reference]["metrics"]["final_average_accuracy"]
+            raw[seed][candidate][metric_key]["final_average_accuracy"]
+            - raw[seed][reference][metric_key]["final_average_accuracy"]
             for seed in seeds
         ]
         aggregate["paired_differences"][f"{candidate}_minus_{reference}"] = {
@@ -1747,6 +1758,7 @@ def main() -> None:
         resume=args.resume,
         telemetry=args.telemetry,
         telemetry_every=args.telemetry_every,
+        confirmatory=args.evaluate_test,
     )
 
 

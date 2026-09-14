@@ -1,4 +1,6 @@
 import json
+import math
+from dataclasses import replace
 
 import pytest
 import torch
@@ -539,3 +541,69 @@ def test_protocol_records_scheduler_scope(monkeypatch, tmp_path):
         (tmp_path / "run" / "protocol.json").read_text(encoding="utf-8")
     )
     assert protocol["config"]["scheduler_scope"] == "task"
+
+
+def _multi_seed_config():
+    return SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("replay",),
+    )
+
+
+def test_multi_seed_aggregates_validation_when_test_split_is_closed(
+    monkeypatch, tmp_path
+):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = _multi_seed_config()
+    assert config.evaluate_test is False
+
+    aggregate = clinc_module.run_split_clinc150_multi_seed(
+        config,
+        tasks,
+        seeds=[1, 2],
+        metadata={},
+        output_dir=tmp_path / "run",
+    )
+
+    assert aggregate["endpoint_source"] == "validation"
+    assert aggregate["evaluate_test"] is False
+    summary = aggregate["methods"]["replay"]["final_average_accuracy"]
+    assert math.isfinite(summary["mean"])
+
+
+def test_multi_seed_confirmatory_mode_requires_the_test_split(monkeypatch, tmp_path):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+
+    with pytest.raises(ValueError, match="evaluate_test=True"):
+        clinc_module.run_split_clinc150_multi_seed(
+            _multi_seed_config(),
+            tasks,
+            seeds=[1],
+            metadata={},
+            output_dir=tmp_path / "run",
+            confirmatory=True,
+        )
+
+
+def test_multi_seed_uses_test_endpoints_when_explicitly_opened(monkeypatch, tmp_path):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = replace(_multi_seed_config(), evaluate_test=True)
+
+    aggregate = clinc_module.run_split_clinc150_multi_seed(
+        config,
+        tasks,
+        seeds=[1],
+        metadata={},
+        output_dir=tmp_path / "run",
+        confirmatory=True,
+    )
+
+    assert aggregate["endpoint_source"] == "test"
+    assert aggregate["evaluate_test"] is True
