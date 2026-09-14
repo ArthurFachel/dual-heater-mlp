@@ -16,11 +16,12 @@ import math
 import random
 import time
 from collections import deque
+from collections.abc import Sequence
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -205,6 +206,7 @@ class SplitCLINC150Config:
     lora_rank: int = 8
     lora_alpha: float = 16.0
     evaluate_test: bool = False
+    scheduler_scope: Literal["task", "stream"] = "task"
     methods: tuple[str, ...] = (
         "vanilla", "slowheat_none", "slowheat_ffn", "slowheat", "replay",
         "slowheat_replay",
@@ -237,6 +239,8 @@ class SplitCLINC150Config:
             raise ValueError("max_grad_norm deve ser > 0")
         if not isinstance(self.evaluate_test, bool):
             raise TypeError("evaluate_test deve ser booleano")
+        if self.scheduler_scope not in ("task", "stream"):
+            raise ValueError("scheduler_scope deve ser 'task' ou 'stream'")
         unknown = set(self.methods) - set(SUPPORTED_METHODS)
         if unknown or not self.methods or len(set(self.methods)) != len(self.methods):
             raise ValueError(f"lista de métodos inválida: {sorted(unknown)}")
@@ -727,6 +731,36 @@ def _build_optimizer_and_scheduler(
     return optimizer, scheduler
 
 
+def build_stage_scheduler(
+    optimizer,
+    config: SplitCLINC150Config,
+    *,
+    task_steps: Sequence[int],
+    stage: int,
+    _stream_scheduler=None,
+):
+    """Build the LR schedule for one stage under the configured scope.
+
+    With scope 'task' every stage restarts the warmup/decay schedule, so a task's
+    learning rate does not depend on its position in the stream. Scope 'stream'
+    reproduces the historical single decay across the whole stream.
+    """
+
+    from transformers import get_linear_schedule_with_warmup
+
+    if config.scheduler_scope == "stream":
+        if _stream_scheduler is not None:
+            return _stream_scheduler
+        horizon = int(sum(task_steps))
+    else:
+        horizon = int(task_steps[stage])
+    return get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(horizon * config.warmup_ratio),
+        num_training_steps=horizon,
+    )
+
+
 def _stage_schedule(count: int, *, seed: int) -> list[Tensor]:
     generator = torch.Generator().manual_seed(seed)
     return [torch.randperm(count, generator=generator)]
@@ -956,6 +990,11 @@ def _run_split_clinc150(
             task = tasks[stage]
             seen = _seen_classes(tasks, stage)
             stage_losses: list[float] = []
+            if config.scheduler_scope == "task":
+                # Each task restarts warmup/decay so LR does not encode position.
+                scheduler = build_stage_scheduler(
+                    optimizer, config, task_steps=task_steps, stage=stage
+                )
             if telemetry_writer is not None:
                 telemetry_writer.emit(
                     "task_start",
@@ -1211,6 +1250,7 @@ def _run_split_clinc150(
                         "model": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
                         "scheduler": scheduler.state_dict(),
+                        "scheduler_scope": config.scheduler_scope,
                         "replay": replay.state_dict(),
                         "accuracy": torch.from_numpy(accuracy.copy()),
                         "validation_accuracy": torch.from_numpy(

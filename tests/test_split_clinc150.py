@@ -479,3 +479,63 @@ def test_checkpoint_without_rng_state_is_rejected(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="incompatível"):
         run_split_clinc150(config, tasks, output_dir=output_dir, resume=True)
+
+
+def _stage_learning_rates(config, task_steps, stage):
+    parameter = torch.nn.Parameter(torch.zeros(1))
+    optimizer = torch.optim.AdamW([parameter], lr=config.learning_rate)
+    scheduler = clinc_module.build_stage_scheduler(
+        optimizer, config, task_steps=task_steps, stage=stage
+    )
+    learning_rates = []
+    for _ in range(task_steps[stage]):
+        learning_rates.append(optimizer.param_groups[0]["lr"])
+        optimizer.step()
+        scheduler.step()
+    return learning_rates
+
+
+def test_task_scoped_scheduler_repeats_the_same_relative_schedule():
+    config = SplitCLINC150Config(scheduler_scope="task")
+    task_steps = [20, 20, 30]
+
+    first = _stage_learning_rates(config, task_steps, 0)
+    second = _stage_learning_rates(config, task_steps, 1)
+
+    assert first == second
+    assert first[0] == pytest.approx(second[0])
+    assert max(first) == pytest.approx(config.learning_rate)
+    assert first[-1] < first[len(first) // 2]
+
+
+def test_stream_scoped_scheduler_spreads_decay_over_the_whole_stream():
+    task_steps = [20, 20, 30]
+    task_scope = _stage_learning_rates(
+        SplitCLINC150Config(scheduler_scope="task"), task_steps, 0
+    )
+    stream_scope = _stage_learning_rates(
+        SplitCLINC150Config(scheduler_scope="stream"), task_steps, 0
+    )
+
+    # A stream-wide horizon decays more slowly inside the first task.
+    assert stream_scope[-1] > task_scope[-1]
+
+
+def test_protocol_records_scheduler_scope(monkeypatch, tmp_path):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("replay",),
+    )
+
+    run_split_clinc150(config, tasks, output_dir=tmp_path / "run")
+
+    protocol = json.loads(
+        (tmp_path / "run" / "protocol.json").read_text(encoding="utf-8")
+    )
+    assert protocol["config"]["scheduler_scope"] == "task"

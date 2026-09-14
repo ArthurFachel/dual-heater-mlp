@@ -80,6 +80,20 @@ próxima tarefa
 Tokens de padding, posições ignoradas da loss e exemplos inválidos devem ser
 excluídos da redução de utilidade.
 
+### Escopo do scheduler de learning rate
+
+O runner CLINC150 expõe `scheduler_scope`:
+
+- `task` (padrão): warmup e decaimento reiniciam no início de cada tarefa. A taxa
+  de aprendizado deixa de depender da posição da tarefa no stream, o que é
+  necessário para comparar ordens de tarefa de forma pareada.
+- `stream`: um único warmup/decaimento cobre o stream inteiro. Mantido apenas
+  como ablação reproduzível dos resultados históricos; artefatos dos dois escopos
+  não devem ser misturados na mesma agregação.
+
+O escopo é persistido em `protocol.json` (via a config) e no checkpoint de
+estágio, de modo que uma retomada nunca troca de escopo silenciosamente.
+
 ## 3. Feed-Forward Network padrão
 
 Considere:
