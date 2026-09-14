@@ -120,6 +120,11 @@ class FastHeatGate(nn.Module):
     def current_scale(self) -> Tensor:
         if self._external_scale is not None:
             return self._external_scale
+        if self.config.competition == "global_topk":
+            raise RuntimeError(
+                "global_topk requer escala global preparada pelo coordenador "
+                "do modelo; sem ela o gate executaria mean_others"
+            )
         return self._lateral_scale()
 
     def forward(self, inputs: Tensor) -> Tensor:

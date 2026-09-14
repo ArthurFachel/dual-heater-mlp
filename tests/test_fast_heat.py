@@ -391,3 +391,25 @@ def test_pilot_tie_break_prefers_weaker_intervention():
     assert selected["fast_strength"] == 0.5
     assert selected["fast_decay"] == 0.90
     assert selected["fast_threshold"] == 0.5
+
+
+def test_global_topk_requires_external_global_scale():
+    gate = FastHeatGate(
+        4,
+        unit_dim=-1,
+        config=FastHeatConfig(competition="global_topk"),
+    )
+
+    with pytest.raises(RuntimeError, match="escala global"):
+        gate(torch.ones(2, 4))
+
+
+def test_global_topk_runs_once_the_coordinator_supplies_the_scale():
+    gate = FastHeatGate(
+        4,
+        unit_dim=-1,
+        config=FastHeatConfig(competition="global_topk"),
+    )
+    gate.set_external_scale(torch.ones(4))
+
+    assert torch.equal(gate(torch.ones(2, 4)), torch.ones(2, 4))
