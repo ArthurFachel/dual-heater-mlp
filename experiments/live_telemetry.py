@@ -251,7 +251,10 @@ class TelemetryWriter:
         *,
         context: dict[str, Any],
         stage_snapshot: bool = False,
+        epoch_snapshot: bool = False,
     ) -> dict[str, Any]:
+        if stage_snapshot and epoch_snapshot:
+            raise ValueError("snapshot não pode ser simultaneamente de tarefa e época")
         write_started = time.perf_counter()
         snapshot = build_heat_snapshot(
             model,
@@ -261,12 +264,17 @@ class TelemetryWriter:
             sequence=self.sequence,
         )
         write_json_atomic(self.heat_latest_path, snapshot)
-        if stage_snapshot and model is not None:
+        if (stage_snapshot or epoch_snapshot) and model is not None:
             method = _SAFE_COMPONENT.sub("_", str(context.get("method", "method")))
             stage = int(context.get("stage", 0)) + 1
+            epoch = int(context.get("epoch", 0)) + 1
+            suffix = f"-epoch-{epoch:02d}" if epoch_snapshot else ""
             write_json_atomic(
                 self.heat_history_dir
-                / f"{method}-stage-{stage:02d}-seq-{self.sequence:08d}.json",
+                / (
+                    f"{method}-stage-{stage:02d}{suffix}"
+                    f"-seq-{self.sequence:08d}.json"
+                ),
                 snapshot,
             )
         self._write_seconds += time.perf_counter() - write_started

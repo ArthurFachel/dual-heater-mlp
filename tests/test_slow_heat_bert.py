@@ -1,3 +1,4 @@
+import weakref
 from copy import deepcopy
 
 import pytest
@@ -14,18 +15,18 @@ from dual_heater.bert import (
 )
 from dual_heater.fast_heat import FastHeatActivation, FastHeatConfig
 from dual_heater.optim import SlowHeatAdamW, SlowHeatSGD
-from experiments.live_telemetry import build_heat_snapshot
 from dual_heater.transformer import (
     SlowHeatAttentionTracker,
     SlowHeatFFNTracker,
 )
+from experiments.live_telemetry import build_heat_snapshot
 
 
-def _bert_config(*, heads: int = 2, labels: int = 4):
+def _bert_config(*, heads: int = 2, labels: int = 4, layers: int = 1):
     return transformers.BertConfig(
         vocab_size=64,
         hidden_size=8,
-        num_hidden_layers=1,
+        num_hidden_layers=layers,
         num_attention_heads=heads,
         intermediate_size=12,
         hidden_dropout_prob=0.0,
@@ -98,6 +99,22 @@ def test_attention_tracker_emits_one_value_per_head(combination):
     assert tracker.task_ema.shape == (2,)
     assert torch.isfinite(tracker.task_ema).all()
     assert tracker.task_step.item() == 1
+
+
+def test_attention_tracker_releases_forward_tensors_after_backward():
+    tracker = SlowHeatAttentionTracker(2, 3)
+    query, key, value, output = (
+        torch.randn(2, 4, 6, requires_grad=True) for _ in range(4)
+    )
+    tensors = [query, key, value, output]
+    references = [weakref.ref(tensor) for tensor in tensors]
+    tracker.observe(query, key, value, output, torch.ones(2, 4))
+
+    loss = torch.stack([tensor.square().sum() for tensor in tensors]).sum()
+    loss.backward()
+    del loss, tensors, query, key, value, output
+
+    assert all(reference() is None for reference in references)
 
 
 def test_bert_padding_does_not_change_tracked_utility():
@@ -176,6 +193,86 @@ def test_bert_mask_bindings_cover_ffn_rows_columns_and_attention_blocks():
     assert torch.equal(query_rows[:4], torch.zeros(4, 1))
     assert torch.equal(query_rows[4:], torch.ones(4, 1))
     assert output_columns.shape == (1, 8)
+
+
+def test_global_family_capacity_is_allocated_across_all_ffn_layers():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2),
+        BertSlowHeatConfig(
+            track_attention=False,
+            ffn_plasticity_budget=0.5,
+            capacity_scope="global",
+        ),
+    )
+    first, second = model.ffn_trackers
+    first.task_ema.copy_(torch.arange(24.0, 12.0, -1.0))
+    second.task_ema.copy_(torch.arange(12.0, 0.0, -1.0))
+    first.task_step.fill_(1)
+    second.task_step.fill_(1)
+
+    model.consolidate(strategy="max")
+
+    assert torch.count_nonzero(first.slow_heat).item() == 12
+    assert torch.count_nonzero(second.slow_heat).item() == 0
+    assert sum(
+        torch.count_nonzero(tracker.slow_heat).item()
+        for tracker in model.ffn_trackers
+    ) == 12
+
+
+def test_hierarchical_capacity_allocates_layer_quotas_before_units():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2),
+        BertSlowHeatConfig(
+            track_attention=False,
+            ffn_plasticity_budget=0.25,
+            capacity_scope="hierarchical",
+        ),
+    )
+    first, second = model.ffn_trackers
+    first.task_ema.fill_(3.0)
+    second.task_ema.fill_(1.0)
+    first.task_step.fill_(1)
+    second.task_step.fill_(1)
+
+    model.consolidate(strategy="max")
+
+    assert torch.count_nonzero(first.slow_heat).item() == 12
+    assert torch.count_nonzero(second.slow_heat).item() == 6
+    assert sum(
+        torch.count_nonzero(tracker.slow_heat).item()
+        for tracker in model.ffn_trackers
+    ) == 18
+
+
+def test_global_topk_fastheat_only_gates_hottest_units_across_layers():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2),
+        BertSlowHeatConfig(
+            track_attention=False,
+            capacity_scope="global",
+            fast_heat=FastHeatConfig(
+                fast_strength=1.0,
+                competition="global_topk",
+                topk_fraction=0.25,
+            ),
+        ),
+    )
+    first, second = model.get_fast_states()
+    first.fast_heat.copy_(torch.arange(12.0))
+    second.fast_heat.zero_()
+
+    model.eval()
+    model(
+        input_ids=torch.tensor([[2, 5, 3]]),
+        attention_mask=torch.ones(1, 3, dtype=torch.long),
+    )
+
+    scales = torch.cat((first.current_scale(), second.current_scale()))
+    assert torch.count_nonzero(scales < 1.0).item() == 6
+    assert torch.equal(scales[:6], torch.ones(6))
+    assert torch.all(scales[6:12] < 1.0)
+    assert torch.equal(scales[12:], torch.ones(12))
 
 
 def test_no_consolidation_slowheat_bert_matches_native_adamw():

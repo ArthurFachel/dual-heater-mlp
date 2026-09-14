@@ -143,6 +143,7 @@
             <div class="heat-controls">
               <div><label for="heatMetric">Sinal</label><select id="heatMetric"><option value="task_importance">Importância atual</option><option value="consolidated_importance">Memória consolidada</option><option value="heat">Heat aplicado</option><option value="fast_heat">FastHeat</option><option value="plasticity">Plasticidade</option></select></div>
               <div><label for="ffnLayer">Camada FFN</label><select id="ffnLayer"></select></div>
+              <div><label for="epochSnapshot">Época</label><select id="epochSnapshot"><option value="">Ao vivo</option></select></div>
             </div>
           </div>
           <div class="chart-block"><h3>Cabeças de atenção por camada</h3><div id="attentionGrid" class="attention-grid"></div></div>
@@ -151,7 +152,14 @@
         </section>
 
         <section class="panel">
-          <div class="panel-head"><h2>Matriz tarefa × estágio</h2><span id="matrixKind" class="hint">Aguardando avaliação</span></div>
+          <div class="panel-head">
+            <h2>Matriz tarefa × estágio</h2>
+            <div class="heat-controls">
+              <div><label for="accuracyMethod">Método</label><select id="accuracyMethod"></select></div>
+              <div><label for="accuracyKind">Visão</label><select id="accuracyKind"><option value="accuracy_matrix">Class-IL</option><option value="task_aware_accuracy_matrix">Task-aware</option><option value="validation_accuracy_matrix">Validação Class-IL</option></select></div>
+            </div>
+            <span id="matrixKind" class="hint">Aguardando avaliação</span>
+          </div>
           <div id="accuracyMatrix" class="matrix-wrap"></div>
         </section>
       </div>
@@ -172,7 +180,7 @@
   </main>
 
   <script>
-    const state = { runs: [], run: '', events: [], sequence: 0, heat: null, tick: 0 };
+    const state = { runs: [], run: '', events: [], sequence: 0, heat: null, snapshots: [], snapshotName: '', accuracyViews: [], accuracyMethod: '', tick: 0 };
     const $ = id => document.getElementById(id);
     const eventLabels = {
       session_start: 'Sessão iniciada', run_start: 'Execução iniciada', method_start: 'Método iniciado',
@@ -235,7 +243,44 @@
     }
     async function loadHeat() {
       if (!state.run) return;
-      const payload = await getJSON(`/api/heat?run=${encodeURIComponent(state.run)}`); state.heat = payload.heat;
+      const endpoint = state.snapshotName
+        ? `/api/snapshot?run=${encodeURIComponent(state.run)}&name=${encodeURIComponent(state.snapshotName)}`
+        : `/api/heat?run=${encodeURIComponent(state.run)}`;
+      const payload = await getJSON(endpoint); state.heat = payload.heat;
+    }
+    async function loadSnapshots() {
+      if (!state.run) return;
+      const payload = await getJSON(`/api/stages?run=${encodeURIComponent(state.run)}`);
+      state.snapshots = (payload.stages || []).filter(item => item.context?.epoch != null);
+      const selector = $('epochSnapshot'), previous = state.snapshotName;
+      selector.innerHTML = '<option value="">Ao vivo</option>';
+      state.snapshots.forEach(item => {
+        const context = item.context || {}, option = document.createElement('option');
+        option.value = item.name;
+        option.textContent = [
+          context.method,
+          context.stage != null ? `tarefa ${Number(context.stage) + 1}` : '',
+          context.epoch != null ? `época ${Number(context.epoch) + 1}` : ''
+        ].filter(Boolean).join(' · ');
+        selector.appendChild(option);
+      });
+      state.snapshotName = state.snapshots.some(item => item.name === previous) ? previous : '';
+      selector.value = state.snapshotName;
+    }
+    async function loadAccuracy() {
+      if (!state.run) return;
+      const payload = await getJSON(`/api/accuracy?run=${encodeURIComponent(state.run)}`);
+      state.accuracyViews = payload.methods || [];
+      const selector = $('accuracyMethod'), previous = state.accuracyMethod;
+      selector.innerHTML = '';
+      state.accuracyViews.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.method; option.textContent = item.method; selector.appendChild(option);
+      });
+      state.accuracyMethod = state.accuracyViews.some(item => item.method === previous)
+        ? previous
+        : state.accuracyViews[state.accuracyViews.length - 1]?.method || '';
+      selector.value = state.accuracyMethod;
     }
     function statusInfo() {
       if (!state.events.length) return ['Aguardando eventos', '', ''];
@@ -341,9 +386,13 @@
       values.forEach((value, index) => { const level = heatLevel(Number(value), all); ctx.fillStyle = mixColor(css('--surface-2'), css('--heat'), level / 100); const x = index % cols * cellW, y = Math.floor(index / cols) * cellH; ctx.fillRect(x, y, Math.max(1, cellW - gap), Math.max(1, cellH - gap)); });
     }
     function renderMatrix() {
-      const evaluations = state.events.filter(e => e.event === 'evaluation_end'); const target = evaluations[evaluations.length - 1]; const host = $('accuracyMatrix'); host.innerHTML = '';
+      const target = state.accuracyViews.find(item => item.method === state.accuracyMethod); const host = $('accuracyMatrix'); host.innerHTML = '';
       if (!target) { host.innerHTML = '<div class="empty">A matriz aparecerá depois da primeira avaliação.</div>'; return; }
-      const matrix = target.accuracy_matrix || target.validation_accuracy_matrix; $('matrixKind').textContent = target.accuracy_matrix ? 'Acurácia class-incremental' : 'Acurácia de validação';
+      const requestedKind = $('accuracyKind').value;
+      const kind = target[requestedKind] ? requestedKind : target.accuracy_matrix ? 'accuracy_matrix' : 'validation_accuracy_matrix';
+      const matrix = target[kind];
+      const labels = { accuracy_matrix: 'Acurácia class-incremental', task_aware_accuracy_matrix: 'Acurácia task-aware', validation_accuracy_matrix: 'Acurácia de validação' };
+      $('matrixKind').textContent = `${target.method} · ${labels[kind]}`;
       const grid = document.createElement('div'); grid.className = 'matrix'; const values = matrix.flat().filter(v => v != null).map(Number);
       const header = document.createElement('div'); header.className = 'matrix-row'; header.innerHTML = '<span></span>' + Array.from({length: 10}, (_, i) => `<span class="matrix-label">T${i + 1}</span>`).join(''); grid.appendChild(header);
       matrix.forEach((rowValues, rowIndex) => { const row = document.createElement('div'); row.className = 'matrix-row'; row.innerHTML = `<span class="matrix-label">E${rowIndex + 1}</span>`; rowValues.forEach((value, colIndex) => { const cell = document.createElement('span'); cell.className = 'matrix-cell'; if (value == null) { cell.textContent = '·'; cell.style.setProperty('--level', '0%'); } else { cell.textContent = fmt(100 * value, 0); cell.style.setProperty('--level', `${heatLevel(Number(value), values)}%`); cell.title = `Estágio ${rowIndex + 1}, tarefa ${colIndex + 1}: ${fmt(100 * value, 2)}%`; } row.appendChild(cell); }); grid.appendChild(row); });
@@ -363,10 +412,16 @@
       if (!state.runs.length) { $('statusText').textContent = 'Nenhuma telemetria encontrada'; $('context').textContent = 'Inicie o treino com --telemetry'; return; }
       renderHero(); drawSeries($('lossCanvas'), 'rolling_loss'); drawSeries($('lrCanvas'), 'learning_rate'); renderGPU(); renderHeat(); renderMatrix(); renderTimeline();
     }
-    $('runSelect').addEventListener('change', async event => { state.run = event.target.value; state.events = []; state.sequence = 0; state.heat = null; await refresh(true); });
+    $('runSelect').addEventListener('change', async event => { state.run = event.target.value; state.events = []; state.sequence = 0; state.heat = null; state.snapshots = []; state.snapshotName = ''; state.accuracyViews = []; state.accuracyMethod = ''; await refresh(true); });
     $('heatMetric').addEventListener('change', renderHeat); $('ffnLayer').addEventListener('change', renderHeat);
+    $('epochSnapshot').addEventListener('change', async event => { state.snapshotName = event.target.value; await loadHeat(); renderHeat(); });
+    $('accuracyMethod').addEventListener('change', event => { state.accuracyMethod = event.target.value; renderMatrix(); });
+    $('accuracyKind').addEventListener('change', renderMatrix);
     async function refresh(forceRuns = false) {
-      try { if (forceRuns || state.tick++ % 5 === 0) await loadRuns(); await Promise.all([loadEvents(), loadHeat()]); render(); }
+      try {
+        if (forceRuns || state.tick++ % 5 === 0) { await loadRuns(); await Promise.all([loadSnapshots(), loadAccuracy()]); }
+        await Promise.all([loadEvents(), loadHeat()]); render();
+      }
       catch (error) { $('statusText').textContent = 'Painel aguardando o treinamento'; $('context').textContent = error.message; }
     }
     new ResizeObserver(() => { drawSeries($('lossCanvas'), 'rolling_loss'); drawSeries($('lrCanvas'), 'learning_rate'); renderHeat(); }).observe(document.querySelector('.shell'));

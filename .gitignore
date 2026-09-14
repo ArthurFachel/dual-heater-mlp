@@ -6,6 +6,7 @@ __pycache__/
 .coverage
 htmlcov/
 .venv/
+.hf-cache/
 venv/
 env/
 build/
@@ -17,3 +18,4 @@ checkpoints/
 data/
 tmp/
 .DS_Store
+results/

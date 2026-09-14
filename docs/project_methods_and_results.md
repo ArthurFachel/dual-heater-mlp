@@ -2,7 +2,11 @@
 
 ## Visão do projeto, catálogo de métodos e análise dos resultados
 
-**Data da revisão documental:** 18 de agosto de 2026
+**Data da revisão documental original:** 18 de agosto de 2026
+**Escopo:** análise histórica do CSV Split-MNIST de cinco seeds. Para o estado
+atual da implementação, novos métodos e resultados BERT, consulte
+[`docs/README.md`](README.md), [`methods_catalog.md`](methods_catalog.md) e
+[`bert_clinc150_results.md`](bert_clinc150_results.md).
 **Projeto:** `dual-heater` v0.2.0  
 **Benchmark dos resultados fornecidos:** Split-MNIST class-incremental  
 **Estado científico:** protótipo de pesquisa; os resultados sustentam conclusões exploratórias, não uma alegação de estado da arte.
@@ -60,7 +64,8 @@ Limitações que motivaram a revisão:
 - proteção apenas por linha não preserva completamente o caminho de um neurônio;
 - multiplicar o gradiente bruto não equivale a multiplicar o update final do AdamW;
 - não há orçamento explícito de capacidade livre;
-- a inibição rápida altera a função durante treino, mas não durante avaliação.
+- a inibição rápida altera a função em treino e avaliação; o estado rápido é
+  atualizado somente durante o treino.
 
 DualHeat permanece no código para pesquisa histórica e ablações, mas **não é o método principal avaliado no CSV**.
 
@@ -397,7 +402,12 @@ Observações:
 
 Interpretação: o ganho ocorre principalmente na retenção class-incremental e na redução do gap da cabeça. A acurácia task-aware praticamente não muda. Isso sugere que SlowHeat preservou melhor a compatibilidade global entre representações antigas e a cabeça livre, em vez de melhorar a discriminação interna das tarefas.
 
-O custo é a principal desvantagem. A diferença entre FLOPs estimados é pequena, mas o tempo cresce muito. O provável gargalo está em snapshots de parâmetros/estados, aplicação de máscaras e overhead Python, não em multiplicações da rede.
+O custo é a principal desvantagem. A diferença entre FLOPs estimados é pequena,
+mas o tempo cresce muito. O provável gargalo está na aplicação de máscaras,
+movimentação de estado e overhead Python, não em multiplicações da rede. A
+implementação atual do AdamW mascarado usa atualização pontual e não mantém
+snapshots completos até o fim do step; esta hipótese descreve o runner que
+produziu o CSV histórico.
 
 ### 8.2 SlowHeat + Replay versus Replay
 
@@ -541,7 +551,11 @@ Os custos e a lista de métodos indicam que a maior parte das linhas vem da suí
 | Replay, 20 épocas | 286.720 | 403,849 G | 628.800 B | 0 |
 | Replay + early stopping | média de 104.653 | média de 147,405 G | 628.800 B | 0 |
 
-A memória reportada para replay é aproximadamente 0,629 MB em unidade decimal. O custo permanente adicional do SlowHeat é pequeno por unidade, mas o otimizador atual tira snapshots temporários de parâmetros e estados protegidos a cada step. Esse custo temporário não aparece na coluna de memória de replay.
+A memória reportada para replay é aproximadamente 0,629 MB em unidade decimal.
+O custo permanente adicional do SlowHeat é pequeno por unidade. O caminho atual
+do `SlowHeatAdamW` calcula deltas pontuais e não mantém snapshots completos de
+parâmetros e estados até o fim do step. A coluna de memória de replay não inclui
+buffers SlowHeat, estados do otimizador nem temporários do update.
 
 ---
 
@@ -581,9 +595,9 @@ O parser também aceita nomes estruturados como `slowheat_beta_10_budget_0.25` o
 | `slowheat_max_unidirectional` | proteção apenas por linha |
 | `slowheat_max_unbudgeted` | sem reserva mínima de plasticidade |
 
-### 11.3 Generalização planejada pelo runner
+### 11.3 Generalização disponível no runner
 
-O protocolo completo inclui:
+O protocolo completo inclui caminhos executáveis para:
 
 - MLPs `256–128`, `512–256` e `512–512–256`;
 - memórias de 5, 10, 20, 50 e 100 exemplos por classe;
@@ -591,7 +605,9 @@ O protocolo completo inclui:
 - Split-CIFAR-10 Class-IL em cinco tarefas de duas classes;
 - Split-CIFAR-100 Class-IL em dez tarefas de dez classes.
 
-O CSV fornecido não contém resultados dessas extensões.
+O CSV histórico analisado neste documento não contém resultados dessas
+extensões. Resultados posteriores não devem ser misturados a esta tabela sem
+preservar seção, arquitetura, seeds e protocolo de origem.
 
 ---
 
@@ -622,12 +638,16 @@ Os testes validam contratos de implementação. Eles não demonstram eficácia c
 2. **Sem dados pareados no arquivo.** Não é possível calcular o teste correto da diferença.
 3. **Mistura de seções.** SlowHeat + DER++ é exploratório e não pertence ao contraste confirmatório congelado.
 4. **Fairness por épocas, não por exemplos.** Métodos com replay processam 40% mais exemplos que Vanilla.
-5. **Um benchmark simples.** Split-MNIST não demonstra escalabilidade para visão complexa ou linguagem.
+5. **Um benchmark simples neste recorte.** Este CSV Split-MNIST não demonstra
+   escalabilidade; resultados visuais e BERT posteriores são experimentos
+   separados.
 6. **Fronteiras de tarefa conhecidas.** SlowHeat é boundary-aware, o que limita comparações com métodos task-free.
 7. **Cabeça compartilhada sensível a viés.** Vários métodos preservam desempenho task-aware, mas falham globalmente.
 8. **Overhead de tempo elevado.** A implementação atual do otimizador não é fundida e pode não escalar.
 9. **IC normal com amostra pequena.** Os intervalos apresentados são estreitos demais em relação a um IC t.
-10. **Artefatos brutos ausentes do repositório.** Sem resultados por seed, ambiente e hash, a auditoria fica incompleta.
+10. **Proveniência incompleta no CSV original.** O repositório passou a conter
+    artefatos por seed e ambiente para outros protocolos, mas eles não
+    reconstroem a origem deste CSV histórico.
 
 ---
 
@@ -650,7 +670,8 @@ Os dados **não** permitem afirmar ainda que:
 - SlowHeat é superior de forma geral a DER++, Replay ou outros métodos;
 - o ganho de SlowHeat + DER++ é estatisticamente confirmado;
 - SlowHeat + Replay supera Replay no endpoint confirmatório;
-- o método escala para redes convolucionais ou transformers;
+- os resultados deste CSV demonstram generalização para redes convolucionais ou
+  Transformers; esses cenários possuem execuções posteriores e independentes;
 - a redução de forgetting, sozinha, representa melhor aprendizagem contínua.
 
 ---

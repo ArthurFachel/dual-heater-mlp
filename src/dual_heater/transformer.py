@@ -177,6 +177,8 @@ class SlowHeatAttentionTracker(_SlowHeatImportanceMixin, nn.Module):
             return head_output
 
         normalized_signals: dict[str, Tensor] = {}
+        signal_names = tuple(tensors)
+        expected_signals = len(signal_names)
 
         def make_hook(name: str, activation: Tensor):
             def hook(grad: Tensor) -> Tensor:
@@ -199,9 +201,9 @@ class SlowHeatAttentionTracker(_SlowHeatImportanceMixin, nn.Module):
                     normalized_signals[name] = signal / signal.mean().clamp_min(
                         self.importance_eps
                     )
-                    if len(normalized_signals) == len(tensors):
+                    if len(normalized_signals) == expected_signals:
                         stacked = torch.stack(
-                            [normalized_signals[item] for item in tensors]
+                            [normalized_signals[item] for item in signal_names]
                         )
                         if self.combination == "max":
                             combined = stacked.amax(dim=0)
@@ -210,6 +212,7 @@ class SlowHeatAttentionTracker(_SlowHeatImportanceMixin, nn.Module):
                         else:
                             combined = stacked.sum(dim=0)
                         self._update_task_ema(combined)
+                        normalized_signals.clear()
                 return grad
 
             return hook

@@ -8,6 +8,7 @@ from experiments.artifacts import read_torch_checkpoint
 from experiments.live_telemetry import read_events
 from experiments.split_clinc150 import (
     BERT_BASE_MODEL,
+    BERT_HEAT_VARIANTS,
     CLINC150_DOMAINS,
     SplitCLINC150Config,
     TextReplayBuffer,
@@ -86,6 +87,33 @@ def test_clinc_dualheat_has_matched_closed_slowheat_control():
     assert dual.fast_heat.fast_strength == config.fast_strength
     assert slow.protect_classifier and dual.protect_classifier
     assert slow.freeze_unbound_parameters and dual.freeze_unbound_parameters
+
+
+def test_bert_heat_variant_preset_is_a_matched_four_method_ablation():
+    assert BERT_HEAT_VARIANTS == (
+        "slowheat_bound",
+        "slowheat_global",
+        "slowheat_hierarchical",
+        "dualheat_global_topk",
+    )
+    config = SplitCLINC150Config(methods=BERT_HEAT_VARIANTS)
+    resolved = [clinc_module._slowheat_config(config, method) for method in config.methods]
+
+    assert [item.capacity_scope for item in resolved] == [
+        "local",
+        "global",
+        "hierarchical",
+        "global",
+    ]
+    assert [item.fast_heat is not None for item in resolved] == [
+        False,
+        False,
+        False,
+        True,
+    ]
+    assert resolved[-1].fast_heat.competition == "global_topk"
+    assert all(item.protect_classifier for item in resolved)
+    assert all(item.freeze_unbound_parameters for item in resolved)
 
 
 def test_clinc_builder_creates_official_domains_and_excludes_oos():
@@ -238,7 +266,9 @@ def test_tiny_clinc_runner_is_paired_and_stage_resumable(monkeypatch, tmp_path):
     method_ends = [event for event in events if event["event"] == "method_end"]
     assert all(event["telemetry_overhead_seconds"] >= 0.0 for event in method_ends)
     assert all(event["telemetry_overhead_ratio"] >= 0.0 for event in method_ends)
-    assert len(list((live_dir / "telemetry/heat").glob("*.json"))) == 10
+    heat_history = list((live_dir / "telemetry/heat").glob("*.json"))
+    assert len(heat_history) == 20
+    assert len([path for path in heat_history if "-epoch-" in path.name]) == 10
 
     def fail_model_build(*args, **kwargs):
         raise RuntimeError("falha de treino simulada")

@@ -49,6 +49,7 @@ class BertSlowHeatConfig:
     protect_classifier: bool = False
     fast_heat: FastHeatConfig | None = None
     freeze_unbound_parameters: bool = False
+    capacity_scope: Literal["local", "global", "hierarchical"] = "local"
 
     def __post_init__(self) -> None:
         values = {
@@ -78,6 +79,10 @@ class BertSlowHeatConfig:
             raise TypeError("fast_heat deve ser FastHeatConfig ou None")
         if not isinstance(self.freeze_unbound_parameters, bool):
             raise TypeError("freeze_unbound_parameters deve ser booleano")
+        if self.capacity_scope not in {"local", "global", "hierarchical"}:
+            raise ValueError(
+                "capacity_scope deve ser 'local', 'global' ou 'hierarchical'"
+            )
         if (
             not self.track_ffn
             and not self.track_attention
@@ -198,6 +203,14 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             self.slowheat_config.attention_combination
         ]
         fast = self.slowheat_config.fast_heat
+        capacity_scope = {"local": 0.0, "global": 1.0, "hierarchical": 2.0}[
+            self.slowheat_config.capacity_scope
+        ]
+        fast_competition = (
+            {"mean_others": 0.0, "global_topk": 1.0}[fast.competition]
+            if fast is not None
+            else 0.0
+        )
         return torch.tensor(
             [
                 self.slowheat_schema_version,
@@ -221,6 +234,9 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                 fast.fast_threshold if fast is not None else 0.0,
                 fast.eps if fast is not None else 0.0,
                 float(self.slowheat_config.freeze_unbound_parameters),
+                capacity_scope,
+                fast_competition,
+                fast.topk_fraction if fast is not None else 0.0,
             ],
             dtype=torch.float64,
         )
@@ -392,6 +408,7 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             )
         if attention_mask.ndim != 2:
             raise ValueError("attention_mask deve ter forma [B, T]")
+        self.prepare_fast_heat()
         self._slowheat_validity_mask = attention_mask.detach()
         try:
             return super().forward(
@@ -418,6 +435,33 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
     def reset_fast_heat(self) -> None:
         reset_fast_heat(self)
 
+    @torch.no_grad()
+    def prepare_fast_heat(self) -> None:
+        gates = self.get_fast_states()
+        if not gates:
+            return
+        config = gates[0].config
+        if config.competition != "global_topk":
+            for gate in gates:
+                gate.set_external_scale(None)
+            return
+        heat = torch.cat([gate.fast_heat for gate in gates])
+        scale = torch.ones_like(heat)
+        selected_count = min(
+            math.floor(config.topk_fraction * heat.numel() + 1e-12),
+            int(torch.count_nonzero(heat > 0.0).item()),
+        )
+        if config.fast_strength > 0.0 and selected_count:
+            selected = torch.argsort(heat, descending=True, stable=True)[:selected_count]
+            scale[selected] = 1.0 / (
+                1.0 + config.fast_strength * heat[selected]
+            )
+        offset = 0
+        for gate in gates:
+            width = gate.fast_heat.numel()
+            gate.set_external_scale(scale[offset : offset + width])
+            offset += width
+
     def get_slow_states(
         self,
     ) -> list[SlowHeatFFNTracker | SlowHeatAttentionTracker]:
@@ -431,9 +475,148 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             states.append(self.classifier_tracker)
         return states
 
+    @staticmethod
+    def _merge_task_importance(
+        states: list[SlowHeatFFNTracker | SlowHeatAttentionTracker],
+        strategy: Literal["max", "mean", "sum"],
+    ) -> None:
+        if strategy not in {"max", "mean", "sum"}:
+            raise ValueError("strategy deve ser 'max', 'mean' ou 'sum'")
+        if any(state.task_step.item() == 0 for state in states):
+            raise RuntimeError("não é possível consolidar uma task sem backward")
+        with torch.no_grad():
+            for state in states:
+                if strategy == "max":
+                    state.importance_memory.copy_(
+                        torch.maximum(state.importance_memory, state.task_ema)
+                    )
+                elif strategy == "mean":
+                    count = int(state.consolidated_tasks.item()) + 1
+                    state.importance_memory.add_(
+                        (state.task_ema - state.importance_memory) / count
+                    )
+                else:
+                    state.importance_memory.add_(state.task_ema)
+                state.consolidated_tasks.add_(1)
+                state.task_ema.zero_()
+                state.task_step.zero_()
+
+    @staticmethod
+    @torch.no_grad()
+    def _apply_global_capacity(
+        states: list[SlowHeatFFNTracker | SlowHeatAttentionTracker],
+    ) -> None:
+        if not states:
+            return
+        budget = states[0].plasticity_budget
+        if any(state.plasticity_budget != budget for state in states[1:]):
+            raise RuntimeError("o budget global deve ser uniforme dentro da família")
+        importance = torch.cat([state.importance_memory for state in states])
+        protected = min(
+            math.floor((1.0 - budget) * importance.numel() + 1e-12),
+            int(torch.count_nonzero(importance > 0.0).item()),
+        )
+        for state in states:
+            state.slow_heat.zero_()
+        if protected == 0:
+            return
+        selected = torch.argsort(importance, descending=True, stable=True)[:protected]
+        heat = torch.zeros_like(importance)
+        heat[selected] = importance[selected] / importance[selected].max().clamp_min(
+            states[0].importance_eps
+        )
+        offset = 0
+        for state in states:
+            width = state.slow_heat.numel()
+            state.slow_heat.copy_(heat[offset : offset + width])
+            offset += width
+
+    @staticmethod
+    @torch.no_grad()
+    def _apply_hierarchical_capacity(
+        states: list[SlowHeatFFNTracker | SlowHeatAttentionTracker],
+    ) -> None:
+        if not states:
+            return
+        budget = states[0].plasticity_budget
+        if any(state.plasticity_budget != budget for state in states[1:]):
+            raise RuntimeError("o budget hierárquico deve ser uniforme dentro da família")
+        capacities = [
+            int(torch.count_nonzero(state.importance_memory > 0.0).item())
+            for state in states
+        ]
+        protected = min(
+            math.floor(
+                (1.0 - budget)
+                * sum(state.importance_memory.numel() for state in states)
+                + 1e-12
+            ),
+            sum(capacities),
+        )
+        for state in states:
+            state.slow_heat.zero_()
+        if protected == 0:
+            return
+        weights = [float(state.importance_memory.mean()) for state in states]
+        weight_sum = sum(weights)
+        if weight_sum <= 0.0:
+            weights = [float(capacity) for capacity in capacities]
+            weight_sum = sum(weights)
+        ideals = [protected * weight / weight_sum for weight in weights]
+        quotas = [min(capacity, math.floor(ideal)) for capacity, ideal in zip(capacities, ideals, strict=True)]
+        remaining = protected - sum(quotas)
+        priority = sorted(
+            range(len(states)),
+            key=lambda index: (ideals[index] - math.floor(ideals[index]), weights[index], -index),
+            reverse=True,
+        )
+        while remaining:
+            progressed = False
+            for index in priority:
+                if quotas[index] < capacities[index]:
+                    quotas[index] += 1
+                    remaining -= 1
+                    progressed = True
+                    if remaining == 0:
+                        break
+            if not progressed:
+                raise RuntimeError("não foi possível distribuir o budget hierárquico")
+        maxima = [
+            state.importance_memory[
+                torch.argsort(state.importance_memory, descending=True, stable=True)[:quota]
+            ].max()
+            for state, quota in zip(states, quotas, strict=True)
+            if quota
+        ]
+        normalizer = torch.stack(maxima).max().clamp_min(states[0].importance_eps)
+        for state, quota in zip(states, quotas, strict=True):
+            if quota == 0:
+                continue
+            selected = torch.argsort(
+                state.importance_memory, descending=True, stable=True
+            )[:quota]
+            state.slow_heat[selected] = state.importance_memory[selected] / normalizer
+
     def consolidate(self, strategy: Literal["max", "mean", "sum"] = "max") -> None:
-        for state in self.get_slow_states():
-            state.consolidate(strategy=strategy)
+        scope = self.slowheat_config.capacity_scope
+        if scope == "local":
+            for state in self.get_slow_states():
+                state.consolidate(strategy=strategy)
+            return
+        families: list[list[SlowHeatFFNTracker | SlowHeatAttentionTracker]] = [
+            list(self.ffn_trackers),
+            list(self.attention_trackers),
+        ]
+        for states in families:
+            if not states:
+                continue
+            self._merge_task_importance(states, strategy)
+            if scope == "global":
+                self._apply_global_capacity(states)
+            else:
+                self._apply_hierarchical_capacity(states)
+        if self.classifier_tracker is not None:
+            self.classifier_tracker.consolidate(strategy=strategy)
 
     def capacity_metrics(self) -> list[dict[str, float]]:
         return [state.capacity_metrics() for state in self.get_slow_states()]

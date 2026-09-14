@@ -21,6 +21,21 @@ python -m experiments.split_clinc150 \
   --output-dir results/bert_mini_live
 ```
 
+Para executar, em uma única chamada serial e pareada, as quatro variantes de
+alocação de Heat (`slowheat_bound`, `slowheat_global`,
+`slowheat_hierarchical` e `dualheat_global_topk`):
+
+```bash
+python -m experiments.split_clinc150 \
+  --device cuda \
+  --seeds 0 \
+  --batch-size 2 \
+  --epochs-per-task 2 \
+  --heat-variants \
+  --telemetry \
+  --output-dir results/bert_heat_variants
+```
+
 No segundo terminal:
 
 ```bash
@@ -41,15 +56,22 @@ o treinamento; reabri-lo recupera todo o histórico disponível.
 - importância atual, memória consolidada, Heat e plasticidade por cabeça;
 - todos os neurônios FFN da camada selecionada, incluindo o FastHeat;
 - FastHeat por neurônio FFN da camada selecionada (sinal `FastHeat`);
+- seletor de época para rever snapshots de Heat/FastHeat sem sair do modo ao vivo;
 - fração protegida por família e camada;
 - eventos de consolidação, avaliação e checkpoint;
 - matriz tarefa por estágio e curvas comparativas entre métodos.
+
+Na matriz de acurácia, o seletor `Método` alterna entre todos os métodos que já
+emitiram uma avaliação. O seletor `Visão` alterna entre Class-IL, task-aware e
+validação Class-IL sem descartar os resultados de métodos concluídos.
 
 Os escalares são acrescentados a `telemetry/events.jsonl`. O estado completo
 mais recente fica em `telemetry/heat-latest.json`, e cada fronteira de tarefa
 gera uma fotografia imutável em `telemetry/heat/`. Cada camada FFN pode carregar
 um campo opcional `fast_heat` (valores do `FastHeatGate.fast_heat` por neurônio)
 quando o modelo possui FastHeat; camadas sem FastHeat omitem esse campo.
+Métodos com Heat também gravam uma fotografia ao final de cada época. O seletor
+`Época` usa esses arquivos; `Ao vivo` volta a acompanhar `heat-latest.json`.
 
 O evento `method_end` registra `telemetry_overhead_seconds` e
 `telemetry_overhead_ratio`. Isso permite conferir, em cada GPU e configuração

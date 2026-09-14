@@ -146,3 +146,20 @@ def test_heat_snapshot_includes_fast_heat_per_ffn_layer(tmp_path):
 
     assert snapshot["available"] is True
     assert snapshot["ffn"][0]["fast_heat"] == pytest.approx([0.1, 0.2, 0.3, 0.4, 0.5])
+
+
+def test_epoch_heat_snapshot_is_saved_with_method_stage_and_epoch(tmp_path):
+    model = _FastHeatModel()
+    writer = TelemetryWriter(tmp_path, identity={"run": 10})
+
+    writer.publish_heat(
+        model,
+        context={"method": "dualheat", "stage": 1, "epoch": 2},
+        epoch_snapshot=True,
+    )
+    writer.close()
+
+    history = list((tmp_path / "telemetry/heat").glob("*.json"))
+    assert [path.name for path in history] == [
+        "dualheat-stage-02-epoch-03-seq-00000001.json"
+    ]

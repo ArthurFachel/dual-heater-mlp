@@ -99,6 +99,22 @@ def _read_optional_json(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def _accuracy_views(telemetry_dir: Path) -> list[dict[str, Any]]:
+    latest_by_method: dict[str, dict[str, Any]] = {}
+    for event in read_events(telemetry_dir / "events.jsonl", limit=2**31 - 1):
+        method = event.get("method")
+        if event.get("event") != "evaluation_end" or not isinstance(method, str):
+            continue
+        latest_by_method[method] = {
+            "method": method,
+            "sequence": event.get("sequence"),
+            "accuracy_matrix": event.get("accuracy_matrix"),
+            "task_aware_accuracy_matrix": event.get("task_aware_accuracy_matrix"),
+            "validation_accuracy_matrix": event.get("validation_accuracy_matrix"),
+        }
+    return list(latest_by_method.values())
+
+
 def _handler_class(root: Path, html: bytes):
     class DashboardHandler(BaseHTTPRequestHandler):
         server_version = "SlowHeatDashboard/1"
@@ -158,7 +174,13 @@ def _handler_class(root: Path, html: bytes):
             if parsed.path == "/api/runs":
                 self._send_json({"runs": _run_summaries(root)})
                 return
-            if parsed.path not in {"/api/events", "/api/heat", "/api/stages"}:
+            if parsed.path not in {
+                "/api/events",
+                "/api/heat",
+                "/api/stages",
+                "/api/snapshot",
+                "/api/accuracy",
+            }:
                 self._send_json({"error": "not_found"}, status=HTTPStatus.NOT_FOUND)
                 return
             telemetry_dir = self._query_run(query)
@@ -186,6 +208,27 @@ def _handler_class(root: Path, html: bytes):
                 self._send_json(
                     {"heat": _read_optional_json(telemetry_dir / "heat-latest.json")}
                 )
+                return
+            if parsed.path == "/api/accuracy":
+                self._send_json({"methods": _accuracy_views(telemetry_dir)})
+                return
+            if parsed.path == "/api/snapshot":
+                history = (telemetry_dir / "heat").resolve()
+                name = query.get("name", [""])[0]
+                candidate = (history / name).resolve()
+                if (
+                    not name
+                    or Path(name).name != name
+                    or candidate.suffix != ".json"
+                    or not _is_within(candidate, history)
+                    or not candidate.is_file()
+                ):
+                    self._send_json(
+                        {"error": "invalid_snapshot"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"heat": _read_optional_json(candidate)})
                 return
             snapshots = []
             history = telemetry_dir / "heat"

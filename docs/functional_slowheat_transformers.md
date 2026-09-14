@@ -19,6 +19,9 @@ distribuído e LLMs continuam como extensões futuras.
   classificador;
 - `experiments.split_clinc150` implementa dez tarefas por domínio, replay
   pareado, calibração sem teste, manifesto congelado e retomada por estágio.
+- o capacity budget pode ser local por camada, global por família ou
+  hierárquico; o preset `--heat-variants` executa as três opções junto da
+  variante global com FastHeat top-k sob o mesmo envelope de parâmetros.
 
 FastHeat não é aplicado no residual stream nem depois de LayerNorm. A
 normalização é aproximadamente invariante a uma escala global uniforme, mas
@@ -35,6 +38,11 @@ O protocolo completo também é persistido no `config.json` do Hugging Face.
 `from_pretrained()` o reconstrói quando nenhuma configuração explícita é
 fornecida e rejeita divergências antes de aceitar os pesos. Checkpoints antigos
 com assinatura schema-v1 exigem migração explícita.
+
+As onze runs BERT-Mini preservadas, seus métodos, métricas e limitações de
+proveniência estão em
+[bert_clinc150_results.md](bert_clinc150_results.md). Elas são evidência
+exploratória de uma seed por método, não resultados confirmatórios.
 
 ## 1. Escolha das unidades funcionais
 
@@ -64,7 +72,7 @@ backward
     -> atualizar task_ema
 fronteira de tarefa
     -> consolidar max/mean/sum
-    -> aplicar capacity budget
+    -> aplicar capacity budget local, global por família ou hierárquico
 próxima tarefa
     -> mascarar o delta final do otimizador
 ```
@@ -617,6 +625,9 @@ permanecem critérios para suas respectivas etapas futuras.
 
 ## Referências
 
+- [Índice da documentação](README.md)
+- [Catálogo atual de métodos](methods_catalog.md)
+- [Resultados históricos BERT/CLINC150](bert_clinc150_results.md)
 - [Contrato do Functional SlowHeat](functional_slowheat.md)
 - [Semântica do otimizador](optimizer_semantics.md)
 - [Attention Is All You Need](https://arxiv.org/abs/1706.03762)

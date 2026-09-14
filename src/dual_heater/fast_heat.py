@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 from torch import Tensor, nn
@@ -24,6 +25,8 @@ class FastHeatConfig:
     fast_strength: float = 0.5
     fast_threshold: float = 0.5
     eps: float = 1e-8
+    competition: Literal["mean_others", "global_topk"] = "mean_others"
+    topk_fraction: float = 0.25
 
     def __post_init__(self) -> None:
         values = (
@@ -31,6 +34,7 @@ class FastHeatConfig:
             self.fast_strength,
             self.fast_threshold,
             self.eps,
+            self.topk_fraction,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("parâmetros FastHeat devem ser finitos")
@@ -42,6 +46,12 @@ class FastHeatConfig:
             raise ValueError("fast_threshold deve ser >= 0")
         if self.eps <= 0.0:
             raise ValueError("eps deve ser > 0")
+        if self.competition not in {"mean_others", "global_topk"}:
+            raise ValueError(
+                "competition deve ser 'mean_others' ou 'global_topk'"
+            )
+        if not 0.0 < self.topk_fraction <= 1.0:
+            raise ValueError("topk_fraction deve estar em (0, 1]")
 
 
 class FastHeatGate(nn.Module):
@@ -74,6 +84,7 @@ class FastHeatGate(nn.Module):
         self.unit_dim = unit_dim
         self.config = FastHeatConfig() if config is None else config
         self.register_buffer("fast_heat", torch.zeros(unit_count))
+        self._external_scale: Tensor | None = None
         self._last_elements_per_example = 0
 
     def _resolved_unit_dim(self, ndim: int) -> int:
@@ -93,6 +104,24 @@ class FastHeatGate(nn.Module):
         mean_others = (self.fast_heat.sum() - self.fast_heat) / (self.unit_count - 1)
         return 1.0 / (1.0 + self.config.fast_strength * mean_others)
 
+    def set_external_scale(self, scale: Tensor | None) -> None:
+        if scale is None:
+            self._external_scale = None
+            return
+        if scale.shape != self.fast_heat.shape:
+            raise ValueError("escala FastHeat externa possui forma incompatível")
+        if not torch.isfinite(scale).all() or torch.any(scale < 0.0):
+            raise ValueError("escala FastHeat externa deve ser finita e não negativa")
+        self._external_scale = scale.detach().to(
+            device=self.fast_heat.device,
+            dtype=self.fast_heat.dtype,
+        )
+
+    def current_scale(self) -> Tensor:
+        if self._external_scale is not None:
+            return self._external_scale
+        return self._lateral_scale()
+
     def forward(self, inputs: Tensor) -> Tensor:
         if not torch.is_floating_point(inputs):
             raise TypeError("FastHeatGate requer tensor de ponto flutuante")
@@ -104,7 +133,7 @@ class FastHeatGate(nn.Module):
         batch_size = int(inputs.shape[0]) if inputs.ndim > 0 else 1
         self._last_elements_per_example = inputs.numel() // max(1, batch_size)
 
-        scale = self._lateral_scale().to(dtype=inputs.dtype)
+        scale = self.current_scale().to(device=inputs.device, dtype=inputs.dtype)
         output = inputs * scale.view(self._view_shape(inputs, unit_dim))
 
         if self.training:
@@ -128,6 +157,7 @@ class FastHeatGate(nn.Module):
     @torch.no_grad()
     def reset_fast_heat(self) -> None:
         self.fast_heat.zero_()
+        self._external_scale = None
 
     def estimated_flops_per_example(self) -> int:
         """Return a deterministic operation-count approximation.
@@ -147,7 +177,7 @@ class FastHeatGate(nn.Module):
             f"units={self.unit_count}, dim={self.unit_dim}, "
             f"alpha={self.config.fast_decay}, "
             f"gamma={self.config.fast_strength}, "
-            f"delta={self.config.fast_threshold}"
+            f"delta={self.config.fast_threshold}, mode={self.config.competition}"
         )
 
 

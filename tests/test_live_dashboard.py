@@ -25,11 +25,39 @@ def dashboard(tmp_path):
         total_steps=20,
         loss=0.75,
     )
+    writer.emit(
+        "evaluation_end",
+        method="vanilla",
+        accuracy_matrix=[[0.8]],
+        task_aware_accuracy_matrix=[[0.9]],
+        validation_accuracy_matrix=[[0.7]],
+    )
+    writer.emit(
+        "evaluation_end",
+        method="slowheat",
+        accuracy_matrix=[[0.85]],
+        task_aware_accuracy_matrix=[[0.95]],
+        validation_accuracy_matrix=[[0.75]],
+    )
     writer.publish_heat(
         None,
         context={"method": "slowheat", "stage": 0},
     )
     writer.close()
+    history = tmp_path / "telemetry/heat"
+    history.mkdir()
+    (history / "dualheat-stage-01-epoch-01-seq-00000002.json").write_text(
+        json.dumps(
+            {
+                "sequence": 2,
+                "available": True,
+                "context": {"method": "dualheat", "stage": 0, "epoch": 0},
+                "attention": [],
+                "ffn": [{"layer": 0, "units": 2, "fast_heat": [0.2, 0.8]}],
+            }
+        ),
+        encoding="utf-8",
+    )
     server = create_server(tmp_path, port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -51,6 +79,8 @@ def test_dashboard_serves_local_read_only_api(dashboard):
     assert headers["X-Frame-Options"] == "DENY"
     assert b"BERT \xc3\x97 SlowHeat Live" in html
     assert b'value="fast_heat"' in html
+    assert b'id="epochSnapshot"' in html
+    assert b'id="accuracyMethod"' in html
 
     _, _, raw_runs = _request(base + "/api/runs")
     runs = json.loads(raw_runs)["runs"]
@@ -64,6 +94,22 @@ def test_dashboard_serves_local_read_only_api(dashboard):
     _, _, raw_heat = _request(base + "/api/heat?run=.")
     assert json.loads(raw_heat)["heat"]["available"] is False
 
+    _, _, raw_accuracy = _request(base + "/api/accuracy?run=.")
+    accuracy = json.loads(raw_accuracy)["methods"]
+    assert [item["method"] for item in accuracy] == ["vanilla", "slowheat"]
+    assert accuracy[0]["accuracy_matrix"] == [[0.8]]
+    assert accuracy[1]["task_aware_accuracy_matrix"] == [[0.95]]
+
+    _, _, raw_stages = _request(base + "/api/stages?run=.")
+    stages = json.loads(raw_stages)["stages"]
+    assert stages[0]["context"]["method"] == "dualheat"
+
+    _, _, raw_snapshot = _request(
+        base + f"/api/snapshot?run=.&name={stages[0]['name']}"
+    )
+    snapshot = json.loads(raw_snapshot)["heat"]
+    assert snapshot["ffn"][0]["fast_heat"] == [0.2, 0.8]
+
 
 def test_dashboard_rejects_writes_and_path_traversal(dashboard):
     base, _, _ = dashboard
@@ -75,6 +121,10 @@ def test_dashboard_rejects_writes_and_path_traversal(dashboard):
     with pytest.raises(urllib.error.HTTPError) as traversal_error:
         _request(base + "/api/events?run=../../outside")
     assert traversal_error.value.code == 400
+
+    with pytest.raises(urllib.error.HTTPError) as snapshot_error:
+        _request(base + "/api/snapshot?run=.&name=../../outside.json")
+    assert snapshot_error.value.code == 400
 
 
 def test_dashboard_discovers_seed_subdirectories(tmp_path):

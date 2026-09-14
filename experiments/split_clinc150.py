@@ -132,11 +132,21 @@ SUPPORTED_METHODS = (
     "dualheat",
     "slowheat_bound_replay",
     "dualheat_replay",
+    "slowheat_global",
+    "slowheat_hierarchical",
+    "dualheat_global_topk",
+)
+BERT_HEAT_VARIANTS = (
+    "slowheat_bound",
+    "slowheat_global",
+    "slowheat_hierarchical",
+    "dualheat_global_topk",
 )
 SLOWHEAT_METHODS = {
     "slowheat_none", "slowheat_ffn", "slowheat", "slowheat_replay",
     "slowheat_lora_replay", "slowheat_bound", "dualheat",
     "slowheat_bound_replay", "dualheat_replay",
+    "slowheat_global", "slowheat_hierarchical", "dualheat_global_topk",
 }
 REPLAY_METHODS = {
     "replay", "slowheat_replay", "lora_replay", "slowheat_lora_replay",
@@ -189,6 +199,7 @@ class SplitCLINC150Config:
     fast_strength: float = 0.5
     fast_threshold: float = 0.5
     fast_eps: float = 1e-8
+    fast_topk_fraction: float = 0.25
     lora_rank: int = 8
     lora_alpha: float = 16.0
     evaluate_test: bool = True
@@ -240,6 +251,7 @@ class SplitCLINC150Config:
             fast_strength=self.fast_strength,
             fast_threshold=self.fast_threshold,
             eps=self.fast_eps,
+            topk_fraction=self.fast_topk_fraction,
         )
         ExactSlowHeatLoRAConfig(rank=self.lora_rank, alpha=self.lora_alpha)
 
@@ -604,8 +616,16 @@ def _json_matrix(matrix: np.ndarray) -> list[list[float | None]]:
 def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatConfig:
     closed_protocol = method in {
         "slowheat_bound", "dualheat", "slowheat_bound_replay", "dualheat_replay",
+        "slowheat_global", "slowheat_hierarchical", "dualheat_global_topk",
     }
-    use_fast_heat = method in {"dualheat", "dualheat_replay"}
+    use_fast_heat = method in {
+        "dualheat", "dualheat_replay", "dualheat_global_topk",
+    }
+    capacity_scope = {
+        "slowheat_global": "global",
+        "slowheat_hierarchical": "hierarchical",
+        "dualheat_global_topk": "global",
+    }.get(method, "local")
     return BertSlowHeatConfig(
         slow_strength=config.slow_strength,
         ffn_plasticity_budget=config.ffn_plasticity_budget,
@@ -622,11 +642,18 @@ def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatCo
                 fast_strength=config.fast_strength,
                 fast_threshold=config.fast_threshold,
                 eps=config.fast_eps,
+                competition=(
+                    "global_topk"
+                    if method == "dualheat_global_topk"
+                    else "mean_others"
+                ),
+                topk_fraction=config.fast_topk_fraction,
             )
             if use_fast_heat
             else None
         ),
         freeze_unbound_parameters=closed_protocol,
+        capacity_scope=capacity_scope,
     )
 
 
@@ -1016,6 +1043,21 @@ def _run_split_clinc150(
                         method_step=method_step,
                         total_steps=total_steps,
                     )
+                    if slow_model is not None:
+                        telemetry_writer.publish_heat(
+                            slow_model,
+                            context={
+                                "seed": config.seed,
+                                "method": method,
+                                "stage": stage,
+                                "domain": task.domain,
+                                "epoch": epoch,
+                                "phase": "epoch_end",
+                                "method_step": method_step,
+                                "total_steps": total_steps,
+                            },
+                            epoch_snapshot=True,
+                        )
             training_losses.append(stage_losses)
 
             if method in REPLAY_METHODS:
@@ -1488,7 +1530,13 @@ def main() -> None:
     parser.add_argument("--output-dir", default="results/split_clinc150")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--seeds", nargs="+", type=int, default=[11, 22, 33])
-    parser.add_argument("--methods", nargs="+", choices=SUPPORTED_METHODS)
+    method_group = parser.add_mutually_exclusive_group()
+    method_group.add_argument("--methods", nargs="+", choices=SUPPORTED_METHODS)
+    method_group.add_argument(
+        "--heat-variants",
+        action="store_true",
+        help="executa a ablação local/global/hierárquica/global+FastHeat top-k",
+    )
     parser.add_argument("--model-name", default=SplitCLINC150Config.model_name)
     parser.add_argument(
         "--batch-size", type=int, default=SplitCLINC150Config.batch_size
@@ -1513,6 +1561,11 @@ def main() -> None:
     parser.add_argument(
         "--fast-threshold", type=float, default=SplitCLINC150Config.fast_threshold
     )
+    parser.add_argument(
+        "--fast-topk-fraction",
+        type=float,
+        default=SplitCLINC150Config.fast_topk_fraction,
+    )
     parser.add_argument("--calibrate", action="store_true")
     parser.add_argument("--frozen-manifest")
     parser.add_argument("--bert-base", action="store_true")
@@ -1523,7 +1576,9 @@ def main() -> None:
     config = SplitCLINC150Config(
         model_name=args.model_name,
         methods=(
-            tuple(args.methods)
+            BERT_HEAT_VARIANTS
+            if args.heat_variants
+            else tuple(args.methods)
             if args.methods is not None
             else SplitCLINC150Config.methods
         ),
@@ -1535,6 +1590,7 @@ def main() -> None:
         fast_decay=args.fast_decay,
         fast_strength=args.fast_strength,
         fast_threshold=args.fast_threshold,
+        fast_topk_fraction=args.fast_topk_fraction,
     )
     tasks, metadata = load_clinc150_tasks(config)
     if args.calibrate:
