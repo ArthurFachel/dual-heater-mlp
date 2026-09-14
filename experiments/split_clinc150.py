@@ -155,7 +155,7 @@ REPLAY_METHODS = {
     "slowheat_bound_replay", "dualheat_replay",
 }
 LORA_METHODS = {"lora_replay", "slowheat_lora_replay"}
-CHECKPOINT_SCHEMA_VERSION = 1
+CHECKPOINT_SCHEMA_VERSION = 2
 BERT_MINI_MODEL = "google/bert_uncased_L-4_H-256_A-4"
 BERT_BASE_MODEL = "google-bert/bert-base-uncased"
 DEFAULT_CALIBRATION_GRID = tuple(
@@ -732,6 +732,41 @@ def _stage_schedule(count: int, *, seed: int) -> list[Tensor]:
     return [torch.randperm(count, generator=generator)]
 
 
+def _encode_rng_state() -> str:
+    """Serialize Python/NumPy RNG state into a weights_only-safe JSON string."""
+
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+    return json.dumps(
+        {
+            "python": [
+                python_state[0],
+                list(python_state[1]),
+                python_state[2],
+            ],
+            "numpy": [
+                numpy_state[0],
+                [int(value) for value in numpy_state[1]],
+                int(numpy_state[2]),
+                int(numpy_state[3]),
+                float(numpy_state[4]),
+            ],
+        }
+    )
+
+
+def _restore_rng_state(encoded: str) -> None:
+    """Restore the Python and NumPy generators saved by `_encode_rng_state`."""
+
+    payload = json.loads(encoded)
+    kind, keys, gauss = payload["python"]
+    random.setstate((kind, tuple(keys), gauss))
+    name, keys, position, has_gauss, cached = payload["numpy"]
+    np.random.set_state(
+        (name, np.array(keys, dtype=np.uint32), position, has_gauss, cached)
+    )
+
+
 def _checkpoint_identity(
     config: SplitCLINC150Config,
     metadata: dict[str, Any],
@@ -857,7 +892,11 @@ def _run_split_clinc150(
                 )
             checkpoint = read_torch_checkpoint(checkpoint_path)
             if checkpoint.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
-                raise RuntimeError("versão de checkpoint CLINC150 incompatível")
+                raise RuntimeError(
+                    "versão de checkpoint CLINC150 incompatível; "
+                    "checkpoints anteriores à v2 não guardam estado de RNG "
+                    "e devem ser reexecutados do início"
+                )
             if checkpoint.get("identity") != identity:
                 raise RuntimeError("checkpoint CLINC150 não corresponde ao protocolo")
             model.load_state_dict(checkpoint["model"])
@@ -872,6 +911,11 @@ def _run_split_clinc150(
             capacity_history = checkpoint["capacity_history"]
             tokens_processed = int(checkpoint["tokens_processed"])
             next_stage = int(checkpoint["next_stage"])
+            _restore_rng_state(checkpoint["host_rng_state"])
+            torch.set_rng_state(checkpoint["torch_rng_state"])
+            cuda_rng_states = checkpoint.get("cuda_rng_states")
+            if cuda_rng_states is not None and torch.cuda.is_available():
+                torch.cuda.set_rng_state_all(cuda_rng_states)
 
         slow_model = _find_slowheat_model(model)
         method_step = sum(task_steps[:next_stage])
@@ -1177,6 +1221,13 @@ def _run_split_clinc150(
                         "training_losses": training_losses,
                         "capacity_history": capacity_history,
                         "tokens_processed": tokens_processed,
+                        "host_rng_state": _encode_rng_state(),
+                        "torch_rng_state": torch.get_rng_state(),
+                        "cuda_rng_states": (
+                            torch.cuda.get_rng_state_all()
+                            if torch.cuda.is_available()
+                            else None
+                        ),
                     },
                 )
                 if telemetry_writer is not None:

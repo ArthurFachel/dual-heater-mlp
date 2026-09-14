@@ -388,3 +388,94 @@ def test_protocol_records_source_fingerprint(monkeypatch, tmp_path):
     )
     assert isinstance(protocol["source_sha256"], str)
     assert len(protocol["source_sha256"]) == 64
+
+
+def _patch_tiny_bert_with_dropout(monkeypatch, dropout: float):
+    def local_pretrained(cls, _name, **kwargs):
+        return cls(
+            transformers.BertConfig(
+                vocab_size=64,
+                hidden_size=8,
+                num_hidden_layers=1,
+                num_attention_heads=2,
+                intermediate_size=12,
+                hidden_dropout_prob=dropout,
+                attention_probs_dropout_prob=dropout,
+                classifier_dropout=dropout,
+                num_labels=kwargs["num_labels"],
+            )
+        )
+
+    monkeypatch.setattr(
+        transformers.BertForSequenceClassification,
+        "from_pretrained",
+        classmethod(local_pretrained),
+    )
+
+
+class _StopAfterFirstCheckpoint(RuntimeError):
+    pass
+
+
+def test_resume_with_dropout_matches_uninterrupted_run(monkeypatch, tmp_path):
+    _patch_tiny_bert_with_dropout(monkeypatch, 0.1)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("replay",),
+    )
+
+    reference = run_split_clinc150(config, tasks, output_dir=tmp_path / "reference")
+
+    live_dir = tmp_path / "live"
+    real_write = clinc_module.write_torch_atomic
+    written = {"count": 0}
+
+    def stopping_write(path, payload):
+        real_write(path, payload)
+        written["count"] += 1
+        if written["count"] == 1:
+            raise _StopAfterFirstCheckpoint
+
+    monkeypatch.setattr(clinc_module, "write_torch_atomic", stopping_write)
+    with pytest.raises(_StopAfterFirstCheckpoint):
+        run_split_clinc150(config, tasks, output_dir=live_dir)
+
+    monkeypatch.setattr(clinc_module, "write_torch_atomic", real_write)
+    resumed = run_split_clinc150(config, tasks, output_dir=live_dir, resume=True)
+
+    assert resumed["replay"]["training_losses"] == reference["replay"][
+        "training_losses"
+    ]
+    assert (
+        resumed["replay"]["validation_accuracy_matrix"]
+        == reference["replay"]["validation_accuracy_matrix"]
+    )
+
+
+def test_checkpoint_without_rng_state_is_rejected(monkeypatch, tmp_path):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("replay",),
+    )
+    output_dir = tmp_path / "run"
+    run_split_clinc150(config, tasks, output_dir=output_dir)
+
+    checkpoint_path = output_dir / "replay" / "checkpoint.pt"
+    payload = read_torch_checkpoint(checkpoint_path)
+    payload["schema_version"] = 1
+    payload.pop("host_rng_state", None)
+    torch.save(payload, checkpoint_path)
+
+    with pytest.raises(RuntimeError, match="incompatível"):
+        run_split_clinc150(config, tasks, output_dir=output_dir, resume=True)
