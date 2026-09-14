@@ -1268,6 +1268,34 @@ def _parameter_penalty(
     return penalty
 
 
+def _accumulate_empirical_fisher(
+    model: nn.Module,
+    logits: Tensor,
+    targets: Tensor,
+    accumulator: dict[str, Tensor],
+) -> int:
+    """Accumulate sum_i grad(log p(y_i|x_i))**2 for one batch."""
+
+    named_parameters = tuple(model.named_parameters())
+    parameters = tuple(parameter for _, parameter in named_parameters)
+    for sample_index in range(len(targets)):
+        sample_loss = F.cross_entropy(
+            logits[sample_index : sample_index + 1],
+            targets[sample_index : sample_index + 1],
+            reduction="sum",
+        )
+        gradients = torch.autograd.grad(
+            sample_loss,
+            parameters,
+            retain_graph=True,
+            allow_unused=True,
+        )
+        for (name, _), gradient in zip(named_parameters, gradients, strict=True):
+            if gradient is not None:
+                accumulator[name].add_(gradient.detach().square())
+    return len(targets)
+
+
 def _gradient_vector(model: nn.Module) -> Tensor:
     parts = [
         (

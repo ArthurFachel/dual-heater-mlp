@@ -20,6 +20,7 @@ from experiments.dualheat_pairs import (
 from experiments.split_mnist import (
     MNISTTask,
     SplitMNISTConfig,
+    _accumulate_empirical_fisher,
     _accuracy,
     _classes_for_task,
     _evaluate_task,
@@ -757,3 +758,27 @@ def test_split_mnist_config_rejects_invalid_protocol(updates):
 
     with pytest.raises(ValueError):
         config.validate()
+
+
+def test_empirical_fisher_squares_per_example_before_averaging():
+    model = torch.nn.Linear(1, 2, bias=False)
+    torch.nn.init.zeros_(model.weight)
+    inputs = torch.ones(2, 1)
+    targets = torch.tensor([0, 1])
+    logits = model(inputs)
+    accumulator = {
+        name: torch.zeros_like(parameter)
+        for name, parameter in model.named_parameters()
+    }
+
+    sample_count = _accumulate_empirical_fisher(
+        model,
+        logits,
+        targets,
+        accumulator,
+    )
+
+    assert sample_count == 2
+    assert accumulator["weight"] == pytest.approx(torch.full_like(model.weight, 0.5))
+    estimate = accumulator["weight"] / sample_count
+    assert estimate == pytest.approx(torch.full_like(model.weight, 0.25))
