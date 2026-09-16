@@ -17,7 +17,7 @@ from torch import Tensor, nn
 
 from experiments.artifacts import read_json_object, write_json_atomic
 
-TELEMETRY_SCHEMA_VERSION = 1
+TELEMETRY_SCHEMA_VERSION = 2
 _SAFE_COMPONENT = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
@@ -126,11 +126,15 @@ def build_heat_snapshot(
         "available": model is not None,
         "attention": [],
         "ffn": [],
+        "residual": [],
+        "pooler": [],
+        "classifier": [],
     }
     if model is None:
         return snapshot
     attention_getter = getattr(model, "get_attention_trackers", None)
     ffn_getter = getattr(model, "get_ffn_trackers", None)
+    residual_getter = getattr(model, "get_residual_trackers", None)
     if callable(attention_getter):
         snapshot["attention"] = [
             _tracker_snapshot(tracker, layer)
@@ -141,13 +145,27 @@ def build_heat_snapshot(
             _tracker_snapshot(tracker, layer)
             for layer, tracker in enumerate(ffn_getter())
         ]
+    if callable(residual_getter):
+        snapshot["residual"] = [
+            _tracker_snapshot(tracker, layer)
+            for layer, tracker in enumerate(residual_getter())
+        ]
+    pooler_tracker = getattr(model, "pooler_tracker", None)
+    if pooler_tracker is not None:
+        snapshot["pooler"] = [_tracker_snapshot(pooler_tracker, 0)]
+    classifier_tracker = getattr(model, "classifier_tracker", None)
+    if classifier_tracker is not None:
+        snapshot["classifier"] = [_tracker_snapshot(classifier_tracker, 0)]
     fast_getter = getattr(model, "get_fast_states", None)
     if callable(fast_getter):
         gates = list(fast_getter())
         for index, entry in enumerate(snapshot["ffn"]):
             if index < len(gates):
                 entry["fast_heat"] = _tensor_values(gates[index].fast_heat)
-    snapshot["available"] = bool(snapshot["attention"] or snapshot["ffn"])
+    snapshot["available"] = any(
+        snapshot[family]
+        for family in ("attention", "ffn", "residual", "pooler", "classifier")
+    )
     return snapshot
 
 
@@ -180,6 +198,8 @@ class TelemetryWriter:
         manifest_path = self.telemetry_dir / "manifest.json"
         if manifest_path.is_file():
             manifest = read_json_object(manifest_path)
+            if manifest.get("schema_version") != TELEMETRY_SCHEMA_VERSION:
+                raise RuntimeError("telemetria existente possui schema incompatível")
             if manifest.get("run_id") != self.run_id:
                 raise RuntimeError(
                     "telemetria existente pertence a um protocolo incompatível"

@@ -1,6 +1,6 @@
 # Catálogo atual de métodos
 
-Estado do inventário: 14 de setembro de 2026. A fonte de verdade para os nomes
+Estado do inventário: 16 de setembro de 2026. A fonte de verdade para os nomes
 aceitos é o código, especialmente `experiments/split_mnist.py`,
 `experiments/method_specs.py`, `experiments/synthetic_cl.py` e
 `experiments/split_clinc150.py`.
@@ -69,7 +69,8 @@ até o fim do step.
 - `SlowHeatFFNTracker`: utilidade de unidades intermediárias, excluindo padding;
 - `SlowHeatAttentionTracker`: importância por cabeça a partir de Q/K/V/saída;
 - `SlowHeatBertForSequenceClassification`: instrumentação de BERT, máscaras,
-  consolidação, budgets local/global/hierárquico e persistência do protocolo;
+  consolidação, budgets local/global/hierárquico, cobertura opcional de
+  embeddings/residual/LayerNorm/pooler/classificador e persistência do protocolo;
 - `build_exact_slowheat_lora`: LoRA produtor-only, com A congelado e B
   mascarado;
 - `FastHeatActivation`: competição pós-GELU antes de `output.dense`.
@@ -180,7 +181,7 @@ O runner sintético aceita:
 | `slowheat_ffn` | SlowHeat apenas na FFN |
 | `slowheat` | FFN + atenção, parâmetros não vinculados treináveis |
 | `replay` | replay textual |
-| `slowheat_replay` | SlowHeat completo + replay |
+| `slowheat_replay` | SlowHeat histórico (FFN + atenção) + replay |
 | `lora_replay` | LoRA + replay |
 | `slowheat_lora_replay` | LoRA exato mascarado + replay |
 | `slowheat_bound` | SlowHeat com parâmetros sem máscara congelados |
@@ -190,10 +191,28 @@ O runner sintético aceita:
 | `slowheat_global` | capacidade global por família |
 | `slowheat_hierarchical` | mínimos locais + redistribuição global |
 | `dualheat_global_topk` | escopo global + FastHeat top-k global |
+| `slowheat_full_coverage` | cobertura hierárquica de embeddings, LayerNorm, residual, atenção, FFN, pooler e classificador |
+| `slowheat_all_minus_embeddings` | cobertura completa sem o fator de embeddings |
+| `slowheat_all_minus_layernorm` | cobertura completa sem máscaras nos parâmetros afins de LayerNorm |
+| `slowheat_all_minus_residual` | cobertura completa sem fatores residuais de linha/coluna |
+| `slowheat_all_minus_attention` | cobertura completa sem importância específica por cabeça |
+| `slowheat_all_minus_ffn` | cobertura completa sem importância específica por neurônio FFN |
+| `slowheat_all_minus_pooler` | cobertura completa sem o fator específico do pooler |
+| `slowheat_all_minus_classifier` | cobertura completa sem o fator específico por logit |
+| `slowheat_ffn_attention` | baseline explícito FFN + atenção, não bound, com capacidade hierárquica |
 
-O preset `--heat-variants` executa os quatro últimos protocolos comparáveis de
+O preset `--heat-variants` executa quatro protocolos comparáveis de
 alocação: `slowheat_bound`, `slowheat_global`, `slowheat_hierarchical` e
 `dualheat_global_topk`. Resultados históricos: [bert_clinc150_results.md](bert_clinc150_results.md).
+
+O preset `--full-coverage-variants` executa exatamente dez métodos: `vanilla`,
+`slowheat_full_coverage`, as sete variantes `slowheat_all_minus_*` da tabela e
+`slowheat_ffn_attention`. Todos os nove métodos SlowHeat desse preset mantêm
+parâmetros sem binding treináveis, desabilitam FastHeat e replay e usam capacidade
+hierárquica. As ablações removem um **fator**; outro endpoint ainda pode mascarar
+parte do mesmo módulo. Elas também não são pareadas por quantidade de parâmetros
+mascarados, portanto seus resultados devem incluir `mask_coverage`. Contrato
+completo: [bert_full_coverage_ablation.md](bert_full_coverage_ablation.md).
 
 ## 6. Backbones e cenários
 

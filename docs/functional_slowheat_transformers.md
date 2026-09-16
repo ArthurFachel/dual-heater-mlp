@@ -1,10 +1,12 @@
 # Functional SlowHeat em Transformers e LLMs
 
 Este documento descreve a adaptação do Functional SlowHeat e FastHeat para blocos de
-atenção e feed-forward de Transformers. A primeira implementação está
-disponível para `BertForSequenceClassification`, com trackers de FFN e atenção,
-LoRA produtor-only e benchmark CLINC150. SwiGLU, QKV fundido, GQA, treino
-distribuído e LLMs continuam como extensões futuras.
+atenção e feed-forward de Transformers. A implementação para
+`BertForSequenceClassification` possui trackers de FFN, atenção, dimensões de
+embedding/residual, pooler e classificador, além de LoRA produtor-only e benchmark
+CLINC150. O protocolo e as ablações de cobertura completa estão em
+[bert_full_coverage_ablation.md](bert_full_coverage_ablation.md). SwiGLU, QKV
+fundido, GQA, treino distribuído e LLMs continuam como extensões futuras.
 
 ## Estado da implementação BERT
 
@@ -15,6 +17,11 @@ distribuído e LLMs continuam como extensões futuras.
   probabilidades `[T,T]`;
 - `SlowHeatBertForSequenceClassification` instala hooks sobre o BERT da
   Hugging Face e registra máscaras estruturais no otimizador;
+- a cobertura estendida opcional observa a saída dos embeddings, as duas junções
+  residuais de cada bloco, o pooler e os logits; LayerNorm reutiliza o tracker da
+  junção residual correspondente;
+- matrizes controladas pelos dois endpoints recebem uma única máscara construída
+  com o `minimum` dos fatores de linha e coluna;
 - `build_exact_slowheat_lora` congela A e deixa treináveis somente B e o
   classificador;
 - `experiments.split_clinc150` implementa dez tarefas por domínio, replay
@@ -22,6 +29,9 @@ distribuído e LLMs continuam como extensões futuras.
 - o capacity budget pode ser local por camada, global por família ou
   hierárquico; o preset `--heat-variants` executa as três opções junto da
   variante global com FastHeat top-k sob o mesmo envelope de parâmetros.
+- o preset `--full-coverage-variants` executa o controle,
+  `slowheat_full_coverage`, sete ablações leave-one-family-out e o baseline
+  explícito FFN+atenção.
 
 FastHeat não é aplicado no residual stream nem depois de LayerNorm. A
 normalização é aproximadamente invariante a uma escala global uniforme, mas
@@ -29,15 +39,20 @@ não desfaz em geral uma escala diferente por unidade. Mesmo assim, a primeira
 ablação usa o ponto pós-GELU porque a projeção FFN transforma a modulação em uma
 mudança direcional antes da soma residual.
 
-O protocolo fechado opcional congela todo parâmetro sem `mask_binding`:
-embeddings, LayerNorms, pooler e biases de saída não vinculados. O classificador
-deve ser explicitamente rastreado. `validate_trainable_mask_coverage()` falha se
-qualquer parâmetro treinável escapar das máscaras.
+O protocolo histórico fechado opcional congela todo parâmetro sem
+`mask_binding`. Na configuração histórica, isso inclui embeddings, LayerNorms,
+pooler e biases de saída não vinculados; o classificador deve ser explicitamente
+rastreado. Na cobertura estendida, essas famílias podem receber bindings próprios.
+As variantes leave-one-family-out usam `freeze_unbound_parameters=False`: retirar
+uma família restaura updates AdamW nativos para parâmetros que ficam sem máscara,
+não os congela. `validate_trainable_mask_coverage()` falha se um protocolo que
+exige cobertura total deixar escapar algum parâmetro treinável.
 
 O protocolo completo também é persistido no `config.json` do Hugging Face.
 `from_pretrained()` o reconstrói quando nenhuma configuração explícita é
-fornecida e rejeita divergências antes de aceitar os pesos. Checkpoints antigos
-com assinatura schema-v1 exigem migração explícita.
+fornecida e rejeita divergências antes de aceitar os pesos. A topologia estendida
+usa schema 3; checkpoints SlowHeat de schemas anteriores são rejeitados em vez de
+receber uma interpretação implícita.
 
 As onze runs BERT-Mini preservadas, seus métodos, métricas e limitações de
 proveniência estão em
@@ -46,17 +61,22 @@ exploratória de uma seed por método, não resultados confirmatórios.
 
 ## 1. Escolha das unidades funcionais
 
-Um Transformer não possui uma única definição natural de neurônio. A proposta
-usa duas unidades complementares:
+Um Transformer não possui uma única definição natural de neurônio. A
+implementação BERT usa unidades complementares:
 
-1. **unidade intermediária da FFN**, incluindo a unidade composta de SwiGLU;
+1. **unidade intermediária da FFN**; a unidade composta de SwiGLU permanece
+   planejada;
 2. **cabeça de atenção**, com opção futura de granularidade por dimensão da
-   cabeça.
+   cabeça;
+3. **coordenada oculta** nas saídas de embeddings e nas duas junções residuais de
+   cada bloco;
+4. **coordenada pooled** no pooler e **logit** no classificador.
 
-Na primeira implementação, as dimensões do residual stream não devem ser
-protegidas diretamente. Elas participam de residual, normalização, embeddings,
-QKV, FFN e possivelmente de uma cabeça de linguagem com pesos amarrados. A
-proteção correta exigiria registrar todas essas ramificações ao mesmo tempo.
+As dimensões do residual stream agora podem ser protegidas por endpoints locais
+coordenados: a saída de um nó controla linhas produtoras e colunas consumidoras
+adjacentes. Isso cobre o grafo BERT fixo, mas não prova invariância da importância
+a uma rotação ou mudança de base da representação. A cobertura não é generalizada
+para arquiteturas com pesos amarrados ou ramificações diferentes.
 
 ## 2. Fluxo geral por tarefa
 
@@ -144,12 +164,13 @@ Uma unidade FFN `j` controla:
 - `up_proj.bias[j]`, se existir;
 - a coluna `j` de `down_proj.weight`.
 
-Na primeira versão, não aplicar fator de destino às linhas de `down_proj`, pois
-essas linhas produzem o residual stream, que ainda não possui tracker próprio:
+Sem tracking residual, a compatibilidade histórica aplica apenas o fator FFN. Com
+`track_residual=True`, as linhas de `down_proj` também recebem o fator da saída do
+bloco; a máscara única combina os endpoints de forma conservadora:
 
 ```text
 M_up[j,i] = m_ff[j]
-M_down[o,j] = m_ff[j]
+M_down[o,j] = min(m_residual[o], m_ff[j])
 ```
 
 ## 4. FFN com SwiGLU ou GEGLU
@@ -355,13 +376,23 @@ O budget deve selecionar pares completos, nunca uma única coordenada do par.
 
 ### Buffers persistentes
 
-Os buffers por unidade têm custo baixo:
+Os buffers por unidade têm custo baixo. Na cobertura histórica:
 
 ```text
 O(sum d_ff + sum num_heads)
 ```
 
-Mesmo em modelos grandes, esse custo é muito menor que os parâmetros.
+Na cobertura completa do BERT, acrescentam-se as coordenadas de embedding,
+duas junções residuais por bloco, pooler e logits:
+
+```text
+O(sum d_ff + sum num_heads + (1 + 2L) * hidden_size
+  + pooler_size + num_labels)
+```
+
+Cada tracker mantém um número constante de buffers científicos. Mesmo em modelos
+grandes, esse custo permanece muito menor que o número de parâmetros, embora as
+ativações retidas pelos hooks até o backward também devam ser medidas.
 
 ### Budget por camada
 
@@ -580,26 +611,37 @@ duas projeções produtoras e uma consumidora.
 - mascarar linhas de B com o tracker correspondente;
 - manter consumidores e base congelados.
 
-### Etapa D — SwiGLU (futura)
+### Etapa D — cobertura completa do grafo BERT (implementada)
+
+- observar embedding, duas junções residuais por bloco, pooler e classificador;
+- reutilizar importância residual para os parâmetros afins de LayerNorm;
+- combinar fatores de linha e coluna com `minimum` em uma máscara por parâmetro;
+- expor cobertura completa e ablações leave-one-family-out no runner CLINC150;
+- persistir topologia/configuração com schema 3 e registrar `mask_coverage`.
+
+Consulte [bert_full_coverage_ablation.md](bert_full_coverage_ablation.md) para a
+tabela completa de ownership, nomes dos métodos e protocolo de execução.
+
+### Etapa E — SwiGLU (futura)
 
 - observar o produto gated;
 - agrupar `gate_proj`, `up_proj` e `down_proj`;
 - testar que nenhuma das duas linhas produtoras escapa da proteção.
 
-### Etapa E — QKV fundido e GQA (futura)
+### Etapa F — QKV fundido e GQA (futura)
 
 - começar com MHA sem QKV fundido;
 - observar Q/K/V e saída da cabeça;
 - proteger blocos de linhas e colunas;
 - adicionar QKV fundido e depois GQA.
 
-### Etapa F — variantes LoRA (futura)
+### Etapa G — variantes LoRA (futura)
 
 - comparar LoRA agrupado por cabeça;
 - adicionar bancos expansíveis com limite explícito;
 - medir rank útil e crescimento por tarefa.
 
-### Etapa G — escala distribuída (futura)
+### Etapa H — escala distribuída (futura)
 
 - adicionar caminho `foreach` ou update fundido;
 - integrar data e tensor parallel;
@@ -621,9 +663,12 @@ duas projeções produtoras e uma consumidora.
 10. Checkpoint rejeita uma topologia com número de heads, offsets ou GQA
     incompatíveis.
 11. O controle sem consolidação coincide com o Transformer vanilla.
+12. A cobertura completa vincula cada parâmetro treinável exatamente uma vez.
+13. Padding não altera utilidade de embedding ou junções residuais.
+14. Telemetria inclui atenção, FFN, residual, pooler e classificador.
 
-Os itens 1, 2, 3 e 6–11 possuem testes para BERT. SwiGLU, QKV fundido e GQA
-permanecem critérios para suas respectivas etapas futuras.
+Os itens aplicáveis à arquitetura BERT não fundida possuem testes. SwiGLU, QKV
+fundido e GQA permanecem critérios para suas respectivas etapas futuras.
 
 ## 17. Limitações que devem acompanhar os resultados
 
@@ -636,11 +681,17 @@ permanecem critérios para suas respectivas etapas futuras.
 - Resultados em um Transformer pequeno não demonstram escalabilidade em LLMs.
 - LoRA com `A` treinável compartilhado não oferece proteção independente por
   saída.
+- A proteção residual coordena endpoints no grafo local, mas depende da base da
+  representação e não é invariante a reparametrizações.
+- As ablações de cobertura mantêm todos os parâmetros treináveis, mas não são
+  pareadas por quantidade de parâmetros mascarados; `mask_coverage` deve ser
+  reportado.
 
 ## Referências
 
 - [Índice da documentação](README.md)
 - [Catálogo atual de métodos](methods_catalog.md)
+- [Ablação de cobertura completa BERT](bert_full_coverage_ablation.md)
 - [Resultados históricos BERT/CLINC150](bert_clinc150_results.md)
 - [Contrato do Functional SlowHeat](functional_slowheat.md)
 - [Semântica do otimizador](optimizer_semantics.md)

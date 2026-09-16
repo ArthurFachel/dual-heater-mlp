@@ -11,6 +11,7 @@ from dual_heater.transformer import (
 )
 from experiments.live_telemetry import (
     TelemetryWriter,
+    build_heat_snapshot,
     read_events,
 )
 
@@ -80,6 +81,19 @@ def test_writer_resumes_sequence_and_rejects_an_incompatible_identity(tmp_path):
         TelemetryWriter(tmp_path, identity={"config": {"seed": 5}})
 
 
+def test_writer_rejects_resume_from_legacy_telemetry_schema(tmp_path):
+    identity = {"config": {"seed": 4}, "data_sha256": "abc"}
+    first = TelemetryWriter(tmp_path, identity=identity)
+    first.close()
+    manifest_path = tmp_path / "telemetry/manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 1
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="schema incompatível"):
+        TelemetryWriter(tmp_path, identity=identity, resumed=True)
+
+
 def test_writer_records_failure_without_hiding_the_original_error(tmp_path):
     writer = TelemetryWriter(tmp_path, identity={"run": 1})
 
@@ -109,6 +123,45 @@ def test_complete_heat_snapshot_contains_each_head_and_ffn_neuron(tmp_path):
     assert len(snapshot["ffn"][0]["heat"]) == 5
     history = next((tmp_path / "telemetry/heat").glob("slowheat-stage-01-*.json"))
     assert json.loads(history.read_text(encoding="utf-8"))["sequence"] == 1
+
+
+def test_heat_snapshot_includes_extended_bert_tracker_families():
+    transformers = pytest.importorskip("transformers")
+    from dual_heater.bert import (
+        BertSlowHeatConfig,
+        SlowHeatBertForSequenceClassification,
+    )
+
+    config = transformers.BertConfig(
+        vocab_size=64,
+        hidden_size=8,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        intermediate_size=12,
+        num_labels=4,
+    )
+    model = SlowHeatBertForSequenceClassification(
+        config,
+        BertSlowHeatConfig(
+            track_embeddings=True,
+            track_residual=True,
+            protect_layer_norm=True,
+            protect_pooler=True,
+            protect_classifier=True,
+        ),
+    )
+    snapshot = build_heat_snapshot(
+        model,
+        context={"method": "slowheat_full_coverage", "stage": 0},
+        run_id="run",
+        session_id="session",
+        sequence=1,
+    )
+
+    assert snapshot["schema_version"] == 2
+    assert len(snapshot["residual"]) == 3
+    assert len(snapshot["pooler"]) == 1
+    assert len(snapshot["classifier"]) == 1
 
 
 def test_batch_cadence_is_exact():
