@@ -204,11 +204,13 @@ def _dynamic_matrix_mask(
 class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
     """BERT classifier instrumented with post-GELU and per-head SlowHeat."""
 
-    slowheat_schema_version = 2
+    slowheat_schema_version = 3
     _keys_to_ignore_on_load_missing: ClassVar[list[str]] = [
         r"_slowheat_signature",
         r"ffn_trackers\..*",
         r"attention_trackers\..*",
+        r"residual_trackers\..*",
+        r"pooler_tracker\..*",
         r"classifier_tracker\..*",
         r"bert\.encoder\.layer\..*\.intermediate\.intermediate_act_fn\.gate\.fast_heat",
     ]
@@ -240,7 +242,12 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             # checkpoint; resetting here would clobber a restored `fast_heat`.
             pass
 
-    def _adjust_missing_and_unexpected_keys(self, loading_info) -> None:
+    def _adjust_missing_and_unexpected_keys(
+        self,
+        missing_keys: Any,
+        unexpected_keys: list[str] | None = None,
+        loading_task_model_from_base_state_dict: bool | None = None,
+    ):
         """Zero mechanism buffers that the checkpoint did not provide.
 
         Transformers materializes modules lazily, so a buffer absent from the
@@ -249,7 +256,33 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         genuinely missing `fast_heat` from one the checkpoint restored.
         """
 
-        missing = set(getattr(loading_info, "missing_keys", ()) or ())
+        if (
+            unexpected_keys is None
+            and loading_task_model_from_base_state_dict is None
+        ):
+            loading_info = missing_keys
+            checkpoint_missing_keys = (
+                loading_info.get("missing_keys", [])
+                if isinstance(loading_info, dict)
+                else getattr(loading_info, "missing_keys", ()) or ()
+            )
+            super_args = (loading_info,)
+        else:
+            if (
+                unexpected_keys is None
+                or loading_task_model_from_base_state_dict is None
+            ):
+                raise TypeError(
+                    "a assinatura atual requer missing_keys, unexpected_keys e "
+                    "loading_task_model_from_base_state_dict"
+                )
+            checkpoint_missing_keys = missing_keys
+            super_args = (
+                missing_keys,
+                unexpected_keys,
+                loading_task_model_from_base_state_dict,
+            )
+        missing = set(checkpoint_missing_keys)
         if missing:
             with torch.no_grad():
                 for name, gate in self.named_modules():
@@ -257,7 +290,7 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                         f"{name}.fast_heat" in missing
                     ):
                         gate.reset_fast_heat()
-        return super()._adjust_missing_and_unexpected_keys(loading_info)
+        return super()._adjust_missing_and_unexpected_keys(*super_args)
 
     def __init__(
         self,
@@ -291,6 +324,8 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         )
         self.ffn_trackers = nn.ModuleList()
         self.attention_trackers = nn.ModuleList()
+        self.residual_trackers = nn.ModuleList()
+        self.pooler_tracker: SlowHeatFFNTracker | None = None
         self.classifier_tracker: SlowHeatFFNTracker | None = None
         self._slowheat_validity_mask: Tensor | None = None
         self._slowheat_hook_handles: list[Any] = []
@@ -345,11 +380,49 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             importance_eps=config.importance_eps,
         )
 
+    def _needs_embedding_state(self) -> bool:
+        config = self.slowheat_config
+        return any(
+            (config.track_embeddings, config.track_residual, config.protect_layer_norm)
+        )
+
+    def _needs_layer_residual_states(self) -> bool:
+        config = self.slowheat_config
+        return config.track_residual or config.protect_layer_norm
+
+    def _new_residual_tracker(self) -> SlowHeatFFNTracker:
+        return self._new_ffn_tracker(
+            self.config.hidden_size,
+            self.slowheat_config.residual_plasticity_budget,
+        )
+
     def _install_slowheat_instrumentation(self) -> None:
         slow_config = self.slowheat_config
         attention_caches: list[dict[str, Tensor]] = []
         ffn_index = 0
         attention_index = 0
+        residual_index = 0
+
+        def install_residual_hook(module: nn.Module) -> None:
+            nonlocal residual_index
+            if residual_index < len(self.residual_trackers):
+                tracker = self.residual_trackers[residual_index]
+            else:
+                tracker = self._new_residual_tracker()
+                self.residual_trackers.append(tracker)
+            residual_index += 1
+
+            def observe_residual(_module, _inputs, output, *, state=tracker):
+                mask = self._slowheat_validity_mask
+                if mask is not None:
+                    state.observe(output, mask)
+
+            self._slowheat_hook_handles.append(
+                module.register_forward_hook(observe_residual)
+            )
+
+        if self._needs_embedding_state():
+            install_residual_hook(self.bert.embeddings)
         for layer_index, layer in enumerate(self.bert.encoder.layer):
             if slow_config.fast_heat is not None:
                 activation = layer.intermediate.intermediate_act_fn
@@ -451,6 +524,27 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                     self_attention.register_forward_hook(observe_attention)
                 )
 
+            if self._needs_layer_residual_states():
+                install_residual_hook(layer.attention.output)
+                install_residual_hook(layer.output)
+
+        if slow_config.protect_pooler:
+            if self.bert.pooler is None:
+                raise RuntimeError("protect_pooler requer um pooler BERT")
+            if self.pooler_tracker is None:
+                self.pooler_tracker = self._new_ffn_tracker(
+                    self.config.hidden_size,
+                    slow_config.pooler_plasticity_budget,
+                )
+
+            def observe_pooler(_module, _inputs, output):
+                assert self.pooler_tracker is not None
+                self.pooler_tracker.observe(output)
+
+            self._slowheat_hook_handles.append(
+                self.bert.pooler.register_forward_hook(observe_pooler)
+            )
+
         if slow_config.protect_classifier:
             if self.classifier_tracker is None:
                 self.classifier_tracker = self._new_ffn_tracker(
@@ -523,6 +617,9 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
     def get_attention_trackers(self) -> list[SlowHeatAttentionTracker]:
         return list(self.attention_trackers)
 
+    def get_residual_trackers(self) -> list[SlowHeatFFNTracker]:
+        return list(self.residual_trackers)
+
     def get_fast_states(self):
         return fast_heat_states(self)
 
@@ -565,6 +662,9 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                 states.append(self.ffn_trackers[index])
             if self.slowheat_config.track_attention:
                 states.append(self.attention_trackers[index])
+        states.extend(self.residual_trackers)
+        if self.pooler_tracker is not None:
+            states.append(self.pooler_tracker)
         if self.classifier_tracker is not None:
             states.append(self.classifier_tracker)
         return states
@@ -700,6 +800,9 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
         families: list[list[SlowHeatFFNTracker | SlowHeatAttentionTracker]] = [
             list(self.ffn_trackers),
             list(self.attention_trackers),
+            list(self.residual_trackers),
+            [self.pooler_tracker] if self.pooler_tracker is not None else [],
+            [self.classifier_tracker] if self.classifier_tracker is not None else [],
         ]
         for states in families:
             if not states:
@@ -709,113 +812,280 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                 self._apply_global_capacity(states)
             else:
                 self._apply_hierarchical_capacity(states)
-        if self.classifier_tracker is not None:
-            self.classifier_tracker.consolidate(strategy=strategy)
-
     def capacity_metrics(self) -> list[dict[str, float]]:
         return [state.capacity_metrics() for state in self.get_slow_states()]
 
     def mask_bindings(self, *, hard: bool = False) -> list[PlasticityMaskBinding]:
         bindings: list[PlasticityMaskBinding] = []
-        ffn_index = 0
-        attention_index = 0
-        for layer_index, layer in enumerate(self.bert.encoder.layer):
-            if self.slowheat_config.track_ffn:
-                tracker = self.ffn_trackers[ffn_index]
-                ffn_index += 1
 
-                def rows(state=tracker):
-                    return _factor(state, hard).reshape(-1, 1)
+        def source(state):
+            return lambda: _factor(state, hard)
 
-                def vector(state=tracker):
-                    return _factor(state, hard)
+        def append(parameter, mask, kind):
+            if parameter is None:
+                return
+            if any(binding.parameter is parameter for binding in bindings):
+                raise RuntimeError(f"parâmetro BERT recebeu binding duplicado: {kind}")
+            bindings.append(PlasticityMaskBinding(parameter, mask, kind))
 
-                def columns(state=tracker):
-                    return _factor(state, hard).reshape(1, -1)
+        has_embedding_state = self._needs_embedding_state()
+        has_layer_residual_states = self._needs_layer_residual_states()
+        embedding_state = self.residual_trackers[0] if has_embedding_state else None
+        layer_residual_offset = 1 if has_embedding_state else 0
 
-                prefix = f"bert_layer_{layer_index}_ffn_{self.config.intermediate_size}"
-                bindings.extend(
-                    (
-                        PlasticityMaskBinding(
-                            layer.intermediate.dense.weight,
-                            rows,
-                            f"{prefix}_producer_rows",
-                        ),
-                        PlasticityMaskBinding(
-                            layer.intermediate.dense.bias,
-                            vector,
-                            f"{prefix}_producer_bias",
-                        ),
-                        PlasticityMaskBinding(
-                            layer.output.dense.weight,
-                            columns,
-                            f"{prefix}_consumer_columns",
-                        ),
-                    )
+        if self.slowheat_config.track_embeddings:
+            assert embedding_state is not None
+
+            def embedding_columns(state=embedding_state):
+                return _factor(state, hard).reshape(1, -1)
+
+            for name in ("word_embeddings", "position_embeddings", "token_type_embeddings"):
+                append(
+                    getattr(self.bert.embeddings, name).weight,
+                    embedding_columns,
+                    f"bert_embeddings_{name}_embedding_columns",
                 )
-            if self.slowheat_config.track_attention:
-                tracker = self.attention_trackers[attention_index]
-                attention_index += 1
+        if self.slowheat_config.protect_layer_norm:
+            assert embedding_state is not None
+            embedding_factor = source(embedding_state)
+            append(
+                self.bert.embeddings.LayerNorm.weight,
+                embedding_factor,
+                "bert_embeddings_layernorm_residual_vector",
+            )
+            append(
+                self.bert.embeddings.LayerNorm.bias,
+                embedding_factor,
+                "bert_embeddings_layernorm_residual_bias",
+            )
 
-                def expanded(state=tracker):
+        for layer_index, layer in enumerate(self.bert.encoder.layer):
+            attention_state = None
+            block_state = None
+            if has_layer_residual_states:
+                attention_state = self.residual_trackers[
+                    layer_residual_offset + 2 * layer_index
+                ]
+                block_state = self.residual_trackers[
+                    layer_residual_offset + 2 * layer_index + 1
+                ]
+            input_state = (
+                embedding_state
+                if layer_index == 0
+                else self.residual_trackers[
+                    layer_residual_offset + 2 * layer_index - 1
+                ]
+            ) if has_layer_residual_states else None
+
+            attention_source: FactorSource | None = None
+            attention_prefix: str | None = None
+            if self.slowheat_config.track_attention:
+                tracker = self.attention_trackers[layer_index]
+
+                def attention_factor(state=tracker):
                     return state.expanded_head_scales(hard=hard)
 
-                def attention_rows(state=tracker):
-                    return state.expanded_head_scales(hard=hard).reshape(-1, 1)
-
-                def attention_columns(state=tracker):
-                    return state.expanded_head_scales(hard=hard).reshape(1, -1)
-
-                prefix = (
+                attention_source = attention_factor
+                attention_prefix = (
                     f"bert_layer_{layer_index}_attention_"
                     f"{tracker.num_heads}x{tracker.head_dim}"
                 )
-                self_attention = layer.attention.self
-                for name in ("query", "key", "value"):
-                    projection = getattr(self_attention, name)
-                    bindings.extend(
-                        (
-                            PlasticityMaskBinding(
-                                projection.weight,
-                                attention_rows,
-                                f"{prefix}_{name}_rows",
-                            ),
-                            PlasticityMaskBinding(
-                                projection.bias,
-                                expanded,
-                                f"{prefix}_{name}_bias",
-                            ),
-                        )
+            input_source = (
+                source(input_state)
+                if self.slowheat_config.track_residual and input_state is not None
+                else None
+            )
+            attention_residual_source = (
+                source(attention_state)
+                if self.slowheat_config.track_residual and attention_state is not None
+                else None
+            )
+
+            self_attention = layer.attention.self
+            for name in ("query", "key", "value"):
+                projection = getattr(self_attention, name)
+                if attention_source is not None or input_source is not None:
+                    kind = f"bert_layer_{layer_index}_{name}"
+                    if attention_source is not None:
+                        kind += "_attention_rows"
+                    if input_source is not None:
+                        kind += "_residual_columns"
+                    if input_source is None and attention_prefix is not None:
+                        kind = f"{attention_prefix}_{name}_rows"
+                    append(
+                        projection.weight,
+                        _dynamic_matrix_mask(attention_source, input_source),
+                        kind,
                     )
-                bindings.append(
-                    PlasticityMaskBinding(
-                        layer.attention.output.dense.weight,
-                        attention_columns,
-                        f"{prefix}_output_columns",
+                if attention_source is not None:
+                    bias_kind = (
+                        f"{attention_prefix}_{name}_bias"
+                        if input_source is None
+                        else f"bert_layer_{layer_index}_{name}_attention_bias"
                     )
+                    append(projection.bias, attention_source, bias_kind)
+
+            if attention_residual_source is not None or attention_source is not None:
+                if attention_residual_source is None and attention_prefix is not None:
+                    output_kind = f"{attention_prefix}_output_columns"
+                else:
+                    output_kind = f"bert_layer_{layer_index}_attention_output"
+                    if attention_residual_source is not None:
+                        output_kind += "_residual_rows"
+                    if attention_source is not None:
+                        output_kind += "_attention_columns"
+                append(
+                    layer.attention.output.dense.weight,
+                    _dynamic_matrix_mask(
+                        attention_residual_source,
+                        attention_source,
+                    ),
+                    output_kind,
                 )
+            if attention_residual_source is not None:
+                append(
+                    layer.attention.output.dense.bias,
+                    attention_residual_source,
+                    f"bert_layer_{layer_index}_attention_output_residual_bias",
+                )
+            if self.slowheat_config.protect_layer_norm:
+                assert attention_state is not None
+                attention_norm_source = source(attention_state)
+                append(
+                    layer.attention.output.LayerNorm.weight,
+                    attention_norm_source,
+                    f"bert_layer_{layer_index}_attention_layernorm_residual_vector",
+                )
+                append(
+                    layer.attention.output.LayerNorm.bias,
+                    attention_norm_source,
+                    f"bert_layer_{layer_index}_attention_layernorm_residual_bias",
+                )
+
+            ffn_source = None
+            ffn_prefix = f"bert_layer_{layer_index}_ffn_{self.config.intermediate_size}"
+            if self.slowheat_config.track_ffn:
+                ffn_source = source(self.ffn_trackers[layer_index])
+            if ffn_source is not None or attention_residual_source is not None:
+                kind = f"bert_layer_{layer_index}_intermediate"
+                if ffn_source is not None:
+                    kind += "_ffn_rows"
+                if attention_residual_source is not None:
+                    kind += "_residual_columns"
+                if attention_residual_source is None:
+                    kind = f"{ffn_prefix}_producer_rows"
+                append(
+                    layer.intermediate.dense.weight,
+                    _dynamic_matrix_mask(ffn_source, attention_residual_source),
+                    kind,
+                )
+            if ffn_source is not None:
+                append(
+                    layer.intermediate.dense.bias,
+                    ffn_source,
+                    f"{ffn_prefix}_producer_bias",
+                )
+
+            block_source = (
+                source(block_state)
+                if self.slowheat_config.track_residual and block_state is not None
+                else None
+            )
+            if block_source is not None or ffn_source is not None:
+                kind = f"bert_layer_{layer_index}_output"
+                if block_source is not None:
+                    kind += "_residual_rows"
+                if ffn_source is not None:
+                    kind += "_ffn_columns"
+                if block_source is None:
+                    kind = f"{ffn_prefix}_consumer_columns"
+                append(
+                    layer.output.dense.weight,
+                    _dynamic_matrix_mask(block_source, ffn_source),
+                    kind,
+                )
+            if block_source is not None:
+                append(
+                    layer.output.dense.bias,
+                    block_source,
+                    f"bert_layer_{layer_index}_output_residual_bias",
+                )
+            if self.slowheat_config.protect_layer_norm:
+                assert block_state is not None
+                block_norm_source = source(block_state)
+                append(
+                    layer.output.LayerNorm.weight,
+                    block_norm_source,
+                    f"bert_layer_{layer_index}_output_layernorm_residual_vector",
+                )
+                append(
+                    layer.output.LayerNorm.bias,
+                    block_norm_source,
+                    f"bert_layer_{layer_index}_output_layernorm_residual_bias",
+                )
+
+        last_block_state = (
+            self.residual_trackers[
+                layer_residual_offset + 2 * len(self.bert.encoder.layer) - 1
+            ]
+            if has_layer_residual_states and len(self.bert.encoder.layer) > 0
+            else None
+        )
+        last_block_source = (
+            source(last_block_state)
+            if self.slowheat_config.track_residual and last_block_state is not None
+            else None
+        )
+        pooler_source = (
+            source(self.pooler_tracker)
+            if self.slowheat_config.protect_pooler
+            and self.pooler_tracker is not None
+            else None
+        )
+        if self.bert.pooler is not None and (
+            pooler_source is not None or last_block_source is not None
+        ):
+            kind = "bert_pooler_dense"
+            if pooler_source is not None:
+                kind += "_pooler_rows"
+            if last_block_source is not None:
+                kind += "_residual_columns"
+            append(
+                self.bert.pooler.dense.weight,
+                _dynamic_matrix_mask(pooler_source, last_block_source),
+                kind,
+            )
+        if self.bert.pooler is not None and pooler_source is not None:
+            append(
+                self.bert.pooler.dense.bias,
+                pooler_source,
+                "bert_pooler_dense_pooler_bias",
+            )
+
+        classifier_source = (
+            source(self.classifier_tracker)
+            if self.classifier_tracker is not None
+            else None
+        )
+        if classifier_source is not None or pooler_source is not None:
+            if classifier_source is not None and pooler_source is None:
+                kind = f"bert_classifier_{self.config.num_labels}_rows"
+            else:
+                kind = "bert_classifier"
+                if classifier_source is not None:
+                    kind += "_classifier_rows"
+                if pooler_source is not None:
+                    kind += "_pooler_columns"
+            append(
+                self.classifier.weight,
+                _dynamic_matrix_mask(classifier_source, pooler_source),
+                kind,
+            )
         if self.classifier_tracker is not None:
-            tracker = self.classifier_tracker
-
-            def classifier_rows(state=tracker):
-                return _factor(state, hard).reshape(-1, 1)
-
-            def classifier_vector(state=tracker):
-                return _factor(state, hard)
-
-            bindings.extend(
-                (
-                    PlasticityMaskBinding(
-                        self.classifier.weight,
-                        classifier_rows,
-                        f"bert_classifier_{self.config.num_labels}_rows",
-                    ),
-                    PlasticityMaskBinding(
-                        self.classifier.bias,
-                        classifier_vector,
-                        f"bert_classifier_{self.config.num_labels}_bias",
-                    ),
-                )
+            append(
+                self.classifier.bias,
+                classifier_source,
+                f"bert_classifier_{self.config.num_labels}_bias",
             )
         return bindings
 

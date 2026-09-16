@@ -1,5 +1,7 @@
+import json
 import weakref
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -46,6 +48,21 @@ def _backward(model, input_ids, attention_mask):
     output.loss.backward()
 
 
+def _full_coverage_config(**overrides):
+    values = {
+        "track_ffn": True,
+        "track_attention": True,
+        "track_embeddings": True,
+        "track_residual": True,
+        "protect_layer_norm": True,
+        "protect_pooler": True,
+        "protect_classifier": True,
+        "capacity_scope": "hierarchical",
+    }
+    values.update(overrides)
+    return BertSlowHeatConfig(**values)
+
+
 def test_extended_bert_config_defaults_preserve_historical_scope():
     config = BertSlowHeatConfig()
 
@@ -81,6 +98,175 @@ def test_dynamic_matrix_mask_combines_row_and_column_factors_conservatively():
 def test_dynamic_matrix_mask_requires_an_endpoint():
     with pytest.raises(ValueError, match="ao menos um endpoint"):
         _dynamic_matrix_mask(None, None)
+
+
+def test_full_coverage_collects_embedding_two_residuals_per_layer_and_pooler():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2), _full_coverage_config()
+    )
+    model.train()
+
+    _backward(
+        model,
+        torch.tensor([[2, 7, 9, 3]]),
+        torch.ones(1, 4, dtype=torch.long),
+    )
+
+    residual = model.get_residual_trackers()
+    assert len(residual) == 5
+    assert all(tracker.units == 8 for tracker in residual)
+    assert all(tracker.task_step.item() == 1 for tracker in residual)
+    assert model.pooler_tracker is not None
+    assert model.pooler_tracker.units == 8
+    assert model.pooler_tracker.task_step.item() == 1
+
+
+def test_full_coverage_padding_does_not_change_residual_utility():
+    torch.manual_seed(81)
+    short = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    )
+    padded = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    )
+    padded.load_state_dict(deepcopy(short.state_dict()))
+    short.train()
+    padded.train()
+
+    _backward(short, torch.tensor([[2, 7, 9, 3]]), torch.ones(1, 4, dtype=torch.long))
+    _backward(
+        padded,
+        torch.tensor([[2, 7, 9, 3, 0, 0]]),
+        torch.tensor([[1, 1, 1, 1, 0, 0]]),
+    )
+
+    for first, second in zip(
+        short.get_residual_trackers(),
+        padded.get_residual_trackers(),
+        strict=True,
+    ):
+        torch.testing.assert_close(first.task_ema, second.task_ema, atol=1e-5, rtol=1e-5)
+
+
+def test_full_coverage_binds_every_trainable_parameter_exactly_once():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2), _full_coverage_config()
+    )
+    bindings = model.mask_bindings()
+    identifiers = [id(binding.parameter) for binding in bindings]
+
+    assert len(identifiers) == len(set(identifiers))
+    assert model.uncovered_trainable_parameters() == []
+    assert {id(parameter) for parameter in model.parameters()} == set(identifiers)
+
+
+def test_full_coverage_masks_match_every_parameter_shape_by_broadcast():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    )
+    for tracker in model.get_slow_states():
+        tracker.slow_heat.copy_(
+            torch.linspace(0.0, 1.0, tracker.slow_heat.numel())
+        )
+
+    for binding in model.mask_bindings():
+        mask = binding.mask() if callable(binding.mask) else binding.mask
+        assert torch.broadcast_shapes(mask.shape, binding.parameter.shape) == binding.parameter.shape
+        assert torch.isfinite(mask).all()
+        assert torch.all((0.0 <= mask) & (mask <= 1.0))
+
+
+def test_full_coverage_attention_weight_obeys_both_endpoint_masks():
+    torch.manual_seed(91)
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    )
+    attention = model.attention_trackers[0]
+    input_residual = model.residual_trackers[0]
+    attention.slow_heat.copy_(torch.tensor([1.0, 0.0]))
+    input_residual.slow_heat.zero_()
+    input_residual.slow_heat[0] = 1.0
+
+    query = model.bert.encoder.layer[0].attention.self.query.weight
+    before = query.detach().clone()
+    optimizer = SlowHeatAdamW(model.parameters(), lr=0.01, weight_decay=0.1)
+    model.register_plasticity_masks(optimizer, hard=True)
+    _backward(model, torch.tensor([[2, 7, 3]]), torch.ones(1, 3, dtype=torch.long))
+    optimizer.step()
+
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    assert torch.equal(query[:head_dim], before[:head_dim])
+    assert torch.equal(query[head_dim:, 0], before[head_dim:, 0])
+    assert not torch.equal(query[head_dim:, 1:], before[head_dim:, 1:])
+
+
+def test_full_coverage_consolidates_every_tracker_family():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    )
+    _backward(model, torch.tensor([[2, 7, 3]]), torch.ones(1, 3, dtype=torch.long))
+
+    model.consolidate(strategy="max")
+
+    states = model.get_slow_states()
+    assert len(states) == 7
+    assert all(state.consolidated_tasks.item() == 1 for state in states)
+    assert all(state.task_step.item() == 0 for state in states)
+
+
+def test_full_coverage_scientific_state_stays_fp32_after_half():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    ).half()
+
+    assert all(state.slow_heat.dtype is torch.float32 for state in model.get_slow_states())
+    assert all(state.task_step.dtype is torch.int64 for state in model.get_slow_states())
+
+
+@pytest.mark.parametrize(
+    ("enabled", "expected_residuals", "expects_pooler"),
+    [
+        ({"track_embeddings": True}, 1, False),
+        ({"track_residual": True}, 5, False),
+        ({"protect_layer_norm": True}, 5, False),
+        ({"protect_pooler": True}, 0, True),
+    ],
+)
+def test_selective_coverage_creates_only_required_trackers(
+    enabled, expected_residuals, expects_pooler
+):
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2),
+        BertSlowHeatConfig(
+            track_ffn=False,
+            track_attention=False,
+            **enabled,
+        ),
+    )
+
+    assert len(model.get_residual_trackers()) == expected_residuals
+    assert (model.pooler_tracker is not None) is expects_pooler
+
+
+def test_pooler_only_consolidation_excludes_unused_residual_trackers():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2),
+        BertSlowHeatConfig(
+            track_ffn=False,
+            track_attention=False,
+            protect_pooler=True,
+            capacity_scope="hierarchical",
+        ),
+    )
+    _backward(model, torch.tensor([[2, 7, 3]]), torch.ones(1, 3, dtype=torch.long))
+
+    model.consolidate(strategy="max")
+
+    assert model.get_residual_trackers() == []
+    assert model.get_slow_states() == [model.pooler_tracker]
+    assert model.pooler_tracker is not None
+    assert model.pooler_tracker.consolidated_tasks.item() == 1
+    assert model.pooler_tracker.task_step.item() == 0
 
 
 def test_bert_fastheat_is_post_gelu_inside_each_ffn():
@@ -334,6 +520,34 @@ def test_no_consolidation_slowheat_bert_matches_native_adamw():
         assert torch.equal(parameter, native_parameters[name])
 
 
+def test_full_coverage_without_consolidation_matches_native_adamw():
+    torch.manual_seed(121)
+    native = transformers.BertForSequenceClassification(_bert_config(layers=2))
+    protected = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2), _full_coverage_config()
+    )
+    protected.load_state_dict(native.state_dict(), strict=False)
+    native_optimizer = torch.optim.AdamW(
+        native.parameters(), lr=1e-3, weight_decay=0.01
+    )
+    protected_optimizer = SlowHeatAdamW(
+        protected.parameters(), lr=1e-3, weight_decay=0.01
+    )
+    protected.register_plasticity_masks(protected_optimizer)
+    inputs = torch.tensor([[2, 5, 7, 3]])
+    mask = torch.ones_like(inputs)
+
+    _backward(native, inputs, mask)
+    _backward(protected, inputs, mask)
+    native_optimizer.step()
+    protected_optimizer.step()
+
+    native_parameters = dict(native.named_parameters())
+    assert set(native_parameters) == dict(protected.named_parameters()).keys()
+    for name, parameter in protected.named_parameters():
+        assert torch.equal(parameter, native_parameters[name]), name
+
+
 def test_bert_checkpoint_rejects_incompatible_head_topology():
     source = SlowHeatBertForSequenceClassification(_bert_config(heads=2))
     target = SlowHeatBertForSequenceClassification(_bert_config(heads=4))
@@ -408,6 +622,91 @@ def test_huggingface_roundtrip_restores_fastheat_protocol_and_rejects_mismatch(t
             tmp_path,
             slowheat_config=incompatible,
         )
+
+
+def test_full_coverage_huggingface_roundtrip_restores_residual_and_pooler_state(
+    tmp_path,
+):
+    source = SlowHeatBertForSequenceClassification(
+        _bert_config(layers=2), _full_coverage_config()
+    )
+    _backward(source, torch.tensor([[2, 5, 7, 3]]), torch.ones(1, 4, dtype=torch.long))
+    source.consolidate(strategy="max")
+    for index, tracker in enumerate(
+        [*source.get_residual_trackers(), source.pooler_tracker], start=1
+    ):
+        assert tracker is not None
+        tracker.importance_memory.fill_(index / 10)
+        tracker.slow_heat.fill_(index / 20)
+        tracker.task_ema.fill_(index / 30)
+        tracker.task_step.fill_(index)
+        tracker.consolidated_tasks.fill_(index + 1)
+    source.save_pretrained(tmp_path)
+
+    restored = SlowHeatBertForSequenceClassification.from_pretrained(tmp_path)
+
+    source_trackers = [*source.get_residual_trackers(), source.pooler_tracker]
+    restored_trackers = [*restored.get_residual_trackers(), restored.pooler_tracker]
+    assert len(restored.get_residual_trackers()) == 5
+    assert all(tracker is not None for tracker in restored_trackers)
+    for expected, actual in zip(source_trackers, restored_trackers, strict=True):
+        assert expected is not None and actual is not None
+        for buffer_name in (
+            "importance_memory",
+            "slow_heat",
+            "task_ema",
+            "task_step",
+            "consolidated_tasks",
+        ):
+            assert torch.equal(
+                getattr(actual, buffer_name), getattr(expected, buffer_name)
+            ), buffer_name
+
+
+def test_huggingface_rejects_schema_2_protocol_metadata(tmp_path):
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    )
+    model.save_pretrained(tmp_path)
+    config_path = tmp_path / "config.json"
+    config = json.loads(config_path.read_text())
+    config["dual_heater_slowheat"]["schema_version"] = 2
+    config_path.write_text(json.dumps(config))
+
+    with pytest.raises(RuntimeError, match="protocolo DualHeat inválido"):
+        SlowHeatBertForSequenceClassification.from_pretrained(tmp_path)
+
+
+def test_adjust_missing_keys_dispatches_legacy_loading_info_callback(monkeypatch):
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(), BertSlowHeatConfig(fast_heat=FastHeatConfig())
+    )
+    activation_name, activation = next(
+        (name, module)
+        for name, module in model.named_modules()
+        if isinstance(module, FastHeatActivation)
+    )
+    gate = activation.gate
+    gate.fast_heat.fill_(1.0)
+    loading_info = SimpleNamespace(
+        missing_keys=[f"{activation_name}.gate.fast_heat"], unexpected_keys=[]
+    )
+    sentinel = object()
+
+    def legacy_callback(_self, received_loading_info):
+        assert received_loading_info is loading_info
+        return sentinel
+
+    monkeypatch.setattr(
+        transformers.BertForSequenceClassification,
+        "_adjust_missing_and_unexpected_keys",
+        legacy_callback,
+    )
+
+    result = model._adjust_missing_and_unexpected_keys(loading_info)
+
+    assert result is sentinel
+    assert torch.equal(gate.fast_heat, torch.zeros_like(gate.fast_heat))
 
 
 def test_huggingface_from_pretrained_loads_native_bert_checkpoint(tmp_path):
