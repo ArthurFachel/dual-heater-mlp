@@ -12,6 +12,7 @@ from experiments.artifacts import read_torch_checkpoint
 from experiments.live_telemetry import read_events
 from experiments.split_clinc150 import (
     BERT_BASE_MODEL,
+    BERT_FULL_COVERAGE_VARIANTS,
     BERT_HEAT_VARIANTS,
     CLINC150_DOMAINS,
     SplitCLINC150Config,
@@ -118,6 +119,121 @@ def test_bert_heat_variant_preset_is_a_matched_four_method_ablation():
     assert resolved[-1].fast_heat.competition == "global_topk"
     assert all(item.protect_classifier for item in resolved)
     assert all(item.freeze_unbound_parameters for item in resolved)
+
+
+def test_full_coverage_variant_preset_contains_control_and_leave_one_out_methods():
+    assert BERT_FULL_COVERAGE_VARIANTS == (
+        "vanilla",
+        "slowheat_full_coverage",
+        "slowheat_all_minus_embeddings",
+        "slowheat_all_minus_layernorm",
+        "slowheat_all_minus_residual",
+        "slowheat_all_minus_attention",
+        "slowheat_all_minus_ffn",
+        "slowheat_all_minus_pooler",
+        "slowheat_all_minus_classifier",
+        "slowheat_ffn_attention",
+    )
+
+
+def test_full_coverage_variants_change_exactly_the_named_family():
+    config = SplitCLINC150Config(methods=BERT_FULL_COVERAGE_VARIANTS)
+    full = clinc_module._slowheat_config(config, "slowheat_full_coverage")
+    assert full.fast_heat is None
+    assert full.freeze_unbound_parameters is False
+    assert full.capacity_scope == "hierarchical"
+
+    fields = {
+        "embeddings": "track_embeddings",
+        "layernorm": "protect_layer_norm",
+        "residual": "track_residual",
+        "attention": "track_attention",
+        "ffn": "track_ffn",
+        "pooler": "protect_pooler",
+        "classifier": "protect_classifier",
+    }
+    for family, field in fields.items():
+        candidate = clinc_module._slowheat_config(
+            config, f"slowheat_all_minus_{family}"
+        )
+        for checked in fields.values():
+            expected = False if checked == field else getattr(full, checked)
+            assert getattr(candidate, checked) is expected
+
+    baseline = clinc_module._slowheat_config(config, "slowheat_ffn_attention")
+    assert baseline.track_ffn and baseline.track_attention
+    assert not baseline.track_embeddings
+    assert not baseline.track_residual
+    assert not baseline.protect_layer_norm
+    assert not baseline.protect_pooler
+    assert not baseline.protect_classifier
+
+
+def test_clinc_config_propagates_extended_capacity_budgets():
+    config = SplitCLINC150Config(
+        methods=("slowheat_full_coverage",),
+        residual_plasticity_budget=0.5,
+        pooler_plasticity_budget=0.75,
+    )
+    config.validate()
+    resolved = clinc_module._slowheat_config(config, "slowheat_full_coverage")
+
+    assert resolved.residual_plasticity_budget == 0.5
+    assert resolved.pooler_plasticity_budget == 0.75
+
+
+@pytest.mark.parametrize(
+    ("method", "uncovered_fragment"),
+    [
+        ("slowheat_all_minus_embeddings", "word_embeddings.weight"),
+        ("slowheat_all_minus_layernorm", "LayerNorm.weight"),
+        ("slowheat_all_minus_attention", "attention.self.query.bias"),
+        ("slowheat_all_minus_ffn", "intermediate.dense.bias"),
+        ("slowheat_all_minus_pooler", "pooler.dense.bias"),
+        ("slowheat_all_minus_classifier", "classifier.bias"),
+    ],
+)
+def test_leave_one_out_method_exposes_the_named_unmasked_family(
+    method, uncovered_fragment
+):
+    model_config = transformers.BertConfig(
+        vocab_size=64,
+        hidden_size=8,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        intermediate_size=12,
+        num_labels=4,
+    )
+    protocol = SplitCLINC150Config(methods=(method,))
+    model = clinc_module.SlowHeatBertForSequenceClassification(
+        model_config, clinc_module._slowheat_config(protocol, method)
+    )
+
+    assert any(
+        uncovered_fragment in name
+        for name in model.uncovered_trainable_parameters()
+    )
+
+
+def test_minus_residual_removes_column_and_residual_row_factors():
+    config = SplitCLINC150Config(methods=("slowheat_all_minus_residual",))
+    model = clinc_module.SlowHeatBertForSequenceClassification(
+        transformers.BertConfig(
+            vocab_size=64,
+            hidden_size=8,
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            intermediate_size=12,
+            num_labels=4,
+        ),
+        clinc_module._slowheat_config(config, "slowheat_all_minus_residual"),
+    )
+    kinds = {binding.kind for binding in model.mask_bindings()}
+
+    assert not any("residual_rows" in kind for kind in kinds)
+    assert not any("residual_columns" in kind for kind in kinds)
+    assert any("attention_rows" in kind for kind in kinds)
+    assert any("ffn_rows" in kind for kind in kinds)
 
 
 def test_clinc_builder_creates_official_domains_and_excludes_oos():
@@ -311,6 +427,19 @@ def test_cli_evaluate_test_defaults_to_false():
     assert parser.parse_args(["--no-evaluate-test"]).evaluate_test is False
 
 
+def test_cli_full_coverage_variants_is_exclusive_with_other_method_selectors():
+    parser = clinc_module.build_parser()
+    args = parser.parse_args(["--full-coverage-variants"])
+    assert args.full_coverage_variants is True
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--full-coverage-variants", "--heat-variants"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["--full-coverage-variants", "--methods", "slowheat_full_coverage"]
+        )
+
+
 def test_cli_rejects_test_access_without_frozen_manifest(monkeypatch, capsys):
     monkeypatch.setattr("sys.argv", ["split_clinc150", "--evaluate-test"])
     monkeypatch.setattr(
@@ -346,6 +475,23 @@ def _patch_tiny_bert(monkeypatch):
         "from_pretrained",
         classmethod(local_pretrained),
     )
+
+
+def test_tiny_full_coverage_run_reports_complete_mask_coverage(monkeypatch):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("slowheat_full_coverage",),
+    )
+
+    result = run_split_clinc150(config, tasks)["slowheat_full_coverage"]
+
+    assert result["mask_coverage"]["masked_fraction"] == pytest.approx(1.0)
 
 
 def test_incompatible_protocol_is_not_overwritten(monkeypatch, tmp_path):

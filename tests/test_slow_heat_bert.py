@@ -223,6 +223,20 @@ def test_full_coverage_scientific_state_stays_fp32_after_half():
     assert all(state.task_step.dtype is torch.int64 for state in model.get_slow_states())
 
 
+def test_mask_coverage_counts_bound_parameter_elements_without_expansion():
+    model = SlowHeatBertForSequenceClassification(
+        _bert_config(), _full_coverage_config()
+    )
+    summary = model.mask_coverage_summary()
+
+    assert summary["trainable_parameter_count"] == sum(
+        parameter.numel() for parameter in model.parameters() if parameter.requires_grad
+    )
+    assert summary["masked_parameter_count"] == summary["trainable_parameter_count"]
+    assert summary["masked_fraction"] == pytest.approx(1.0)
+    assert summary["binding_count"] == len(model.mask_bindings())
+
+
 @pytest.mark.parametrize(
     ("enabled", "expected_residuals", "expects_pooler"),
     [

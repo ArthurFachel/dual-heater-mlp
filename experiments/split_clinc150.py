@@ -138,6 +138,15 @@ SUPPORTED_METHODS = (
     "slowheat_global",
     "slowheat_hierarchical",
     "dualheat_global_topk",
+    "slowheat_full_coverage",
+    "slowheat_all_minus_embeddings",
+    "slowheat_all_minus_layernorm",
+    "slowheat_all_minus_residual",
+    "slowheat_all_minus_attention",
+    "slowheat_all_minus_ffn",
+    "slowheat_all_minus_pooler",
+    "slowheat_all_minus_classifier",
+    "slowheat_ffn_attention",
 )
 BERT_HEAT_VARIANTS = (
     "slowheat_bound",
@@ -145,12 +154,43 @@ BERT_HEAT_VARIANTS = (
     "slowheat_hierarchical",
     "dualheat_global_topk",
 )
+BERT_FULL_COVERAGE_VARIANTS = (
+    "vanilla",
+    "slowheat_full_coverage",
+    "slowheat_all_minus_embeddings",
+    "slowheat_all_minus_layernorm",
+    "slowheat_all_minus_residual",
+    "slowheat_all_minus_attention",
+    "slowheat_all_minus_ffn",
+    "slowheat_all_minus_pooler",
+    "slowheat_all_minus_classifier",
+    "slowheat_ffn_attention",
+)
+_FULL_COVERAGE_SWITCHES = {
+    "track_ffn": True,
+    "track_attention": True,
+    "track_embeddings": True,
+    "track_residual": True,
+    "protect_layer_norm": True,
+    "protect_pooler": True,
+    "protect_classifier": True,
+}
+_FULL_COVERAGE_REMOVALS = {
+    "slowheat_all_minus_embeddings": "track_embeddings",
+    "slowheat_all_minus_layernorm": "protect_layer_norm",
+    "slowheat_all_minus_residual": "track_residual",
+    "slowheat_all_minus_attention": "track_attention",
+    "slowheat_all_minus_ffn": "track_ffn",
+    "slowheat_all_minus_pooler": "protect_pooler",
+    "slowheat_all_minus_classifier": "protect_classifier",
+}
+_EXTENDED_SLOWHEAT_METHODS = set(BERT_FULL_COVERAGE_VARIANTS) - {"vanilla"}
 SLOWHEAT_METHODS = {
     "slowheat_none", "slowheat_ffn", "slowheat", "slowheat_replay",
     "slowheat_lora_replay", "slowheat_bound", "dualheat",
     "slowheat_bound_replay", "dualheat_replay",
     "slowheat_global", "slowheat_hierarchical", "dualheat_global_topk",
-}
+} | _EXTENDED_SLOWHEAT_METHODS
 REPLAY_METHODS = {
     "replay", "slowheat_replay", "lora_replay", "slowheat_lora_replay",
     "slowheat_bound_replay", "dualheat_replay",
@@ -195,6 +235,8 @@ class SplitCLINC150Config:
     slow_strength: float = 3.0
     ffn_plasticity_budget: float = 0.25
     attention_plasticity_budget: float = 0.25
+    residual_plasticity_budget: float = 0.25
+    pooler_plasticity_budget: float = 0.25
     importance_decay: float = 0.99
     importance_eps: float = 1e-8
     attention_combination: str = "max"
@@ -248,6 +290,8 @@ class SplitCLINC150Config:
             slow_strength=self.slow_strength,
             ffn_plasticity_budget=self.ffn_plasticity_budget,
             attention_plasticity_budget=self.attention_plasticity_budget,
+            residual_plasticity_budget=self.residual_plasticity_budget,
+            pooler_plasticity_budget=self.pooler_plasticity_budget,
             importance_decay=self.importance_decay,
             importance_eps=self.importance_eps,
             attention_combination=self.attention_combination,  # type: ignore[arg-type]
@@ -620,6 +664,23 @@ def _json_matrix(matrix: np.ndarray) -> list[list[float | None]]:
 
 
 def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatConfig:
+    coverage_switches: dict[str, bool] = {}
+    if method == "slowheat_full_coverage" or method in _FULL_COVERAGE_REMOVALS:
+        coverage_switches = dict(_FULL_COVERAGE_SWITCHES)
+        removed = _FULL_COVERAGE_REMOVALS.get(method)
+        if removed is not None:
+            coverage_switches[removed] = False
+    elif method == "slowheat_ffn_attention":
+        coverage_switches = {
+            "track_ffn": True,
+            "track_attention": True,
+            "track_embeddings": False,
+            "track_residual": False,
+            "protect_layer_norm": False,
+            "protect_pooler": False,
+            "protect_classifier": False,
+        }
+
     closed_protocol = method in {
         "slowheat_bound", "dualheat", "slowheat_bound_replay", "dualheat_replay",
         "slowheat_global", "slowheat_hierarchical", "dualheat_global_topk",
@@ -631,17 +692,27 @@ def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatCo
         "slowheat_global": "global",
         "slowheat_hierarchical": "hierarchical",
         "dualheat_global_topk": "global",
-    }.get(method, "local")
+    }.get(method, "hierarchical" if method in _EXTENDED_SLOWHEAT_METHODS else "local")
     return BertSlowHeatConfig(
         slow_strength=config.slow_strength,
         ffn_plasticity_budget=config.ffn_plasticity_budget,
         attention_plasticity_budget=config.attention_plasticity_budget,
+        residual_plasticity_budget=config.residual_plasticity_budget,
+        pooler_plasticity_budget=config.pooler_plasticity_budget,
         importance_decay=config.importance_decay,
         importance_eps=config.importance_eps,
         attention_combination=config.attention_combination,  # type: ignore[arg-type]
-        track_ffn=True,
-        track_attention=method != "slowheat_ffn",
-        protect_classifier=closed_protocol,
+        track_ffn=coverage_switches.get("track_ffn", True),
+        track_attention=coverage_switches.get(
+            "track_attention", method != "slowheat_ffn"
+        ),
+        track_embeddings=coverage_switches.get("track_embeddings", False),
+        track_residual=coverage_switches.get("track_residual", False),
+        protect_layer_norm=coverage_switches.get("protect_layer_norm", False),
+        protect_pooler=coverage_switches.get("protect_pooler", False),
+        protect_classifier=coverage_switches.get(
+            "protect_classifier", closed_protocol
+        ),
         fast_heat=(
             FastHeatConfig(
                 fast_decay=config.fast_decay,
@@ -658,7 +729,9 @@ def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatCo
             if use_fast_heat
             else None
         ),
-        freeze_unbound_parameters=closed_protocol,
+        freeze_unbound_parameters=(
+            False if method in _EXTENDED_SLOWHEAT_METHODS else closed_protocol
+        ),
         capacity_scope=capacity_scope,
     )
 
@@ -1325,6 +1398,11 @@ def _run_split_clinc150(
             ),
             "training_losses": training_losses,
             "capacity_history": capacity_history,
+            "mask_coverage": (
+                slow_model.mask_coverage_summary()
+                if slow_model is not None
+                else None
+            ),
             "tokens_processed": tokens_processed,
             "replay_memory_bytes": replay.memory_bytes,
             "trainable_parameters": sum(
@@ -1360,7 +1438,6 @@ def _run_split_clinc150(
                 metrics=metrics,
                 peak_memory=memory,
             )
-        slow_model = _find_slowheat_model(model)
         if slow_model is not None:
             slow_model.remove_slowheat_instrumentation()
         del model, optimizer, scheduler
@@ -1651,6 +1728,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="executa a ablação local/global/hierárquica/global+FastHeat top-k",
     )
+    method_group.add_argument(
+        "--full-coverage-variants",
+        action="store_true",
+        help="executa vanilla, cobertura SlowHeat total e ablações leave-one-family-out",
+    )
     parser.add_argument("--model-name", default=SplitCLINC150Config.model_name)
     parser.add_argument(
         "--batch-size", type=int, default=SplitCLINC150Config.batch_size
@@ -1703,7 +1785,9 @@ def main() -> None:
     config = SplitCLINC150Config(
         model_name=args.model_name,
         methods=(
-            BERT_HEAT_VARIANTS
+            BERT_FULL_COVERAGE_VARIANTS
+            if args.full_coverage_variants
+            else BERT_HEAT_VARIANTS
             if args.heat_variants
             else tuple(args.methods)
             if args.methods is not None

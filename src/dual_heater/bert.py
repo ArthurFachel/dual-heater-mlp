@@ -817,6 +817,13 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
 
     def mask_bindings(self, *, hard: bool = False) -> list[PlasticityMaskBinding]:
         bindings: list[PlasticityMaskBinding] = []
+        extended_coverage = any(
+            (
+                self.slowheat_config.track_embeddings,
+                self.slowheat_config.protect_layer_norm,
+                self.slowheat_config.protect_pooler,
+            )
+        )
 
         def source(state):
             return lambda: _factor(state, hard)
@@ -910,7 +917,11 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                         kind += "_attention_rows"
                     if input_source is not None:
                         kind += "_residual_columns"
-                    if input_source is None and attention_prefix is not None:
+                    if (
+                        input_source is None
+                        and attention_prefix is not None
+                        and not extended_coverage
+                    ):
                         kind = f"{attention_prefix}_{name}_rows"
                     append(
                         projection.weight,
@@ -972,7 +983,7 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                     kind += "_ffn_rows"
                 if attention_residual_source is not None:
                     kind += "_residual_columns"
-                if attention_residual_source is None:
+                if attention_residual_source is None and not extended_coverage:
                     kind = f"{ffn_prefix}_producer_rows"
                 append(
                     layer.intermediate.dense.weight,
@@ -997,7 +1008,7 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                     kind += "_residual_rows"
                 if ffn_source is not None:
                     kind += "_ffn_columns"
-                if block_source is None:
+                if block_source is None and not extended_coverage:
                     kind = f"{ffn_prefix}_consumer_columns"
                 append(
                     layer.output.dense.weight,
@@ -1106,6 +1117,26 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             for name, parameter in self.named_parameters()
             if parameter.requires_grad and id(parameter) not in bound
         ]
+
+    def mask_coverage_summary(self) -> dict[str, int | float]:
+        bindings = self.mask_bindings()
+        trainable = [parameter for parameter in self.parameters() if parameter.requires_grad]
+        trainable_ids = {id(parameter) for parameter in trainable}
+        masked = [
+            binding.parameter
+            for binding in bindings
+            if id(binding.parameter) in trainable_ids
+        ]
+        trainable_count = sum(parameter.numel() for parameter in trainable)
+        masked_count = sum(parameter.numel() for parameter in masked)
+        return {
+            "binding_count": len(bindings),
+            "trainable_parameter_count": trainable_count,
+            "masked_parameter_count": masked_count,
+            "masked_fraction": (
+                masked_count / trainable_count if trainable_count else 0.0
+            ),
+        }
 
     def validate_trainable_mask_coverage(self) -> None:
         """Fail when any trainable parameter can bypass plasticity masking."""
