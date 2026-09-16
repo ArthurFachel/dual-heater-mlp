@@ -45,11 +45,17 @@ class BertSlowHeatConfig:
     slow_strength: float = 3.0
     ffn_plasticity_budget: float = 0.25
     attention_plasticity_budget: float = 0.25
+    residual_plasticity_budget: float = 0.25
+    pooler_plasticity_budget: float = 0.25
     importance_decay: float = 0.99
     importance_eps: float = 1e-8
     attention_combination: AttentionCombination = "max"
     track_ffn: bool = True
     track_attention: bool = True
+    track_embeddings: bool = False
+    track_residual: bool = False
+    protect_layer_norm: bool = False
+    protect_pooler: bool = False
     protect_classifier: bool = False
     fast_heat: FastHeatConfig | None = None
     freeze_unbound_parameters: bool = False
@@ -60,6 +66,8 @@ class BertSlowHeatConfig:
             "slow_strength": self.slow_strength,
             "ffn_plasticity_budget": self.ffn_plasticity_budget,
             "attention_plasticity_budget": self.attention_plasticity_budget,
+            "residual_plasticity_budget": self.residual_plasticity_budget,
+            "pooler_plasticity_budget": self.pooler_plasticity_budget,
             "importance_decay": self.importance_decay,
             "importance_eps": self.importance_eps,
         }
@@ -71,6 +79,10 @@ class BertSlowHeatConfig:
             raise ValueError("ffn_plasticity_budget deve estar em [0, 1]")
         if not 0.0 <= self.attention_plasticity_budget <= 1.0:
             raise ValueError("attention_plasticity_budget deve estar em [0, 1]")
+        if not 0.0 <= self.residual_plasticity_budget <= 1.0:
+            raise ValueError("residual_plasticity_budget deve estar em [0, 1]")
+        if not 0.0 <= self.pooler_plasticity_budget <= 1.0:
+            raise ValueError("pooler_plasticity_budget deve estar em [0, 1]")
         if not 0.0 <= self.importance_decay < 1.0:
             raise ValueError("importance_decay deve estar em [0, 1)")
         if self.importance_eps <= 0.0:
@@ -87,9 +99,21 @@ class BertSlowHeatConfig:
             raise ValueError(
                 "capacity_scope deve ser 'local', 'global' ou 'hierarchical'"
             )
+        switches = {
+            "track_embeddings": self.track_embeddings,
+            "track_residual": self.track_residual,
+            "protect_layer_norm": self.protect_layer_norm,
+            "protect_pooler": self.protect_pooler,
+        }
+        if any(not isinstance(value, bool) for value in switches.values()):
+            raise TypeError("opções de cobertura BERT devem ser booleanas")
         if (
             not self.track_ffn
             and not self.track_attention
+            and not self.track_embeddings
+            and not self.track_residual
+            and not self.protect_layer_norm
+            and not self.protect_pooler
             and not self.protect_classifier
             and self.fast_heat is None
         ):

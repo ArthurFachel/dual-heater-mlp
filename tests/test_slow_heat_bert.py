@@ -45,6 +45,27 @@ def _backward(model, input_ids, attention_mask):
     output.loss.backward()
 
 
+def test_extended_bert_config_defaults_preserve_historical_scope():
+    config = BertSlowHeatConfig()
+
+    assert config.track_ffn is True
+    assert config.track_attention is True
+    assert config.track_embeddings is False
+    assert config.track_residual is False
+    assert config.protect_layer_norm is False
+    assert config.protect_pooler is False
+    assert config.protect_classifier is False
+    assert config.residual_plasticity_budget == 0.25
+    assert config.pooler_plasticity_budget == 0.25
+
+
+def test_extended_bert_config_validates_new_budgets():
+    with pytest.raises(ValueError, match="residual_plasticity_budget"):
+        BertSlowHeatConfig(residual_plasticity_budget=-0.1)
+    with pytest.raises(ValueError, match="pooler_plasticity_budget"):
+        BertSlowHeatConfig(pooler_plasticity_budget=1.1)
+
+
 def test_bert_fastheat_is_post_gelu_inside_each_ffn():
     fast = FastHeatConfig(
         fast_decay=0.9,
