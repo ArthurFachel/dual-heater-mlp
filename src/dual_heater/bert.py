@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar, Literal
 
@@ -169,6 +170,35 @@ def _factor(tracker: SlowHeatFFNTracker, hard: bool) -> Tensor:
     if hard:
         return (tracker.slow_heat <= 0.0).to(dtype=tracker.slow_heat.dtype)
     return tracker.get_lr_scales()
+
+
+FactorSource = Callable[[], Tensor]
+
+
+def _dynamic_matrix_mask(
+    row_source: FactorSource | None,
+    column_source: FactorSource | None,
+) -> FactorSource:
+    """Build one dynamic matrix mask from zero, one, or two endpoint factors."""
+
+    if row_source is None and column_source is None:
+        raise ValueError("ao menos um endpoint deve fornecer uma máscara")
+
+    def mask() -> Tensor:
+        rows = row_source().reshape(-1, 1) if row_source is not None else None
+        columns = (
+            column_source().reshape(1, -1) if column_source is not None else None
+        )
+        if rows is None:
+            assert columns is not None
+            return columns
+        if columns is None:
+            return rows
+        if rows.device != columns.device:
+            columns = columns.to(rows.device)
+        return torch.minimum(rows, columns)
+
+    return mask
 
 
 class SlowHeatBertForSequenceClassification(BertForSequenceClassification):

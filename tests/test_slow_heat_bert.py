@@ -10,6 +10,7 @@ from dual_heater.bert import (
     BertSlowHeatConfig,
     ExactSlowHeatLoRAConfig,
     SlowHeatBertForSequenceClassification,
+    _dynamic_matrix_mask,
     build_exact_slowheat_lora,
     register_exact_lora_masks,
 )
@@ -64,6 +65,22 @@ def test_extended_bert_config_validates_new_budgets():
         BertSlowHeatConfig(residual_plasticity_budget=-0.1)
     with pytest.raises(ValueError, match="pooler_plasticity_budget"):
         BertSlowHeatConfig(pooler_plasticity_budget=1.1)
+
+
+def test_dynamic_matrix_mask_combines_row_and_column_factors_conservatively():
+    rows = torch.tensor([1.0, 0.4])
+    columns = torch.tensor([0.2, 0.8, 1.0])
+    mask = _dynamic_matrix_mask(lambda: rows, lambda: columns)()
+
+    torch.testing.assert_close(
+        mask,
+        torch.tensor([[0.2, 0.8, 1.0], [0.2, 0.4, 0.4]]),
+    )
+
+
+def test_dynamic_matrix_mask_requires_an_endpoint():
+    with pytest.raises(ValueError, match="ao menos um endpoint"):
+        _dynamic_matrix_mask(None, None)
 
 
 def test_bert_fastheat_is_post_gelu_inside_each_ffn():
