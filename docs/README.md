@@ -1,6 +1,6 @@
 # Documentação do DualHeat
 
-Estado deste índice: 14 de setembro de 2026.
+Estado deste índice: 19 de setembro de 2026.
 
 Este arquivo é a entrada autoritativa para a documentação. O projeto é um
 protótipo de pesquisa em aprendizagem contínua. A presença de uma implementação
@@ -14,7 +14,7 @@ da arte.
 | Functional SlowHeat para MLP | implementado e testado | [functional_slowheat.md](functional_slowheat.md) |
 | SlowHeat para CNN, VGG11 e ResNet18 | implementado e testado | [functional_slowheat_cnn.md](functional_slowheat_cnn.md) |
 | Functional DualHeat e FastHeat | implementado; benchmarks visuais exploratórios concluídos | [functional_dualheat.md](functional_dualheat.md) |
-| BERT/CLINC150 | implementado; 11 runs históricas de uma seed documentadas | [bert_clinc150_results.md](bert_clinc150_results.md) |
+| BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos | [bert_slowheat_diagnostic_results.md](bert_slowheat_diagnostic_results.md) |
 | Trackers para Transformers | BERT implementado; SwiGLU, GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](functional_slowheat_transformers.md) |
 | RNN/LSTM | proposta de design, não implementada | [functional_slowheat_rnn_lstm.md](functional_slowheat_rnn_lstm.md) |
 | Replay seletivo | implementado com quatro estratégias | [replay_selection.md](replay_selection.md) |
@@ -48,6 +48,9 @@ O inventário das implementações e identificadores aceitos pelos runners está
 
 ## Resultados
 
+- [Diagnósticos BERT SlowHeat](bert_slowheat_diagnostic_results.md): comparação
+  de dez seeds contra BERT sequencial, controles hard aleatórios, interação com
+  replay, orçamento de memória e decisão de não escalar a configuração atual.
 - [Resultados históricos BERT/CLINC150](bert_clinc150_results.md): protocolo,
   tabela das 11 runs, artefatos-fonte e limitações.
 - [Functional DualHeat](functional_dualheat.md): piloto de FastHeat e resultados
@@ -92,6 +95,9 @@ O inventário das implementações e identificadores aceitos pelos runners está
   incompleto ou com proveniência limitada;
 - `planejado`: contrato ou proposta sem implementação disponível.
 
-Os resultados BERT atuais são históricos/exploratórios. Os benchmarks visuais
-de Functional DualHeat usam dez seeds pareadas, mas continuam marcados nos
-próprios artefatos como `exploratory_paired_benchmark`.
+Os resultados BERT incluem artefatos históricos e diagnósticos exploratórios
+atuais. O SlowHeat superou o BERT sequencial no diagnóstico de duas tarefas, mas
+não demonstrou vantagem aceitável sobre replay e não avançou para confirmação
+em dez tarefas. Os benchmarks visuais de Functional DualHeat usam dez seeds
+pareadas, mas continuam marcados nos próprios artefatos como
+`exploratory_paired_benchmark`.

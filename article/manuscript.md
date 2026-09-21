@@ -226,7 +226,51 @@ The legacy AdamW variant retained more final accuracy. A plausible explanation i
 
 MAX and mean were close in this short run. Sum was more restrictive. Three seeds cannot resolve these differences. The reduced-learning-rate and SGD controls were poorly matched to the short training horizon and require their own tuning before scientific comparison.
 
-## 6. Related Work and Positioning
+## 6. BERT/CLINC150 Mechanism Diagnostics
+
+We implemented Functional SlowHeat in Hugging Face BERT without replacing its
+native attention computation. Training-time trackers estimate normalized
+`|z dL/dz|` utility for post-GELU feed-forward units and for attention heads
+using Q, K, V and merged head outputs. The resulting factors mask producer rows
+and consumer columns through an optimizer-aware AdamW update. These runs use
+validation only and the first two domains of a 150-way Class-IL CLINC150 stream;
+they are mechanism diagnostics rather than a full benchmark.
+
+Across ten paired seeds, every evaluated SlowHeat configuration improved mean
+final accuracy over standard sequential BERT. Vanilla reached 48.47%, compared
+with 51.75%, 59.65% and 66.05% for soft beta 3, 10 and 30, respectively, and
+71.38% for learned hard protection. The learned-hard gain over vanilla was
+22.92 percentage points and was positive in all ten seeds; T1 forgetting fell
+from 90.90 to 41.03 points. This establishes that the Transformer integration
+is functional and beneficial relative to sequential fine-tuning in this
+two-task protocol.
+
+The mechanism controls narrow the claim. Learned hard protection improved final
+average accuracy by 3.65 points over matched random hard protection, but the
+sign reversed in three seeds. T1 retention improved by 9.37 points in all ten
+seeds, while T2 acquisition decreased by 2.07 points on average. Protected
+parameter drift was exactly zero, yet the learned-hard condition still forgot
+41.03 points of T1. The ranking therefore contains retention signal, while the
+current protected topology and plasticity allocation do not eliminate the
+stability-plasticity trade-off.
+
+A predeclared replay interaction test rejected scaling the mechanism. With 20
+stored examples per class, hard SlowHeat+replay trailed replay by 0.83 points of
+final average accuracy in all three seeds and required approximately 2.21 times
+the elapsed time. Under the primary one-example-per-class budget,
+hard SlowHeat+replay improved final average accuracy by 2.17 points in all three
+seeds, but reduced T2 acquisition by 3.67 points. This exceeded the predeclared
+maximum acceptable acquisition loss of two points. The secondary five- and
+ten-example budgets did not produce a consistent benefit.
+
+We therefore conclude that SlowHeat outperformed standard sequential BERT in
+the completed two-task diagnostic, but we do not advance this SlowHeat+replay
+configuration to the ten-task sequence. The evidence supports a functional
+Transformer implementation and a stability mechanism, not superiority over
+replay. Complete artifacts and provenance limitations are recorded in
+`docs/bert_slowheat_diagnostic_results.md`.
+
+## 7. Related Work and Positioning
 
 The closest conceptual precedents include:
 
@@ -239,7 +283,7 @@ The closest conceptual precedents include:
 
 No claim of being the first method to use neuron importance, MAX masks, lateral inhibition or importance-dependent plasticity is justified. Novelty, if established, must be argued at the level of the exact combination and its optimizer-aware formulation.
 
-## 7. Required Experiments Before Submission
+## 8. Required Experiments Before Submission
 
 1. Tune learning rate and protection strength separately for every optimizer family using a declared validation protocol.
 2. Use at least five seeds for screening and preferably ten for final tables.
@@ -259,7 +303,7 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 10. Repeat efficiency measurements after warm-up on the same hardware and
     software stack.
 
-## 8. Safe Claims
+## 9. Safe Claims
 
 Currently supported:
 
@@ -273,6 +317,11 @@ Currently supported:
 - The benchmark now uses paired initialization, fixed batches and a complete accuracy matrix.
 - In a historical pilot of the superseded method, stronger protection reduced
   measured forgetting while reducing final accuracy.
+- In a two-task BERT/CLINC150 diagnostic, SlowHeat improved final average
+  accuracy over sequential BERT in all ten learned-hard paired seeds. Learned
+  rankings improved old-task retention over matched random masks, while replay
+  comparisons exposed an acquisition-retention trade-off and failed the
+  predeclared scaling gate.
 
 Not currently supported:
 
@@ -280,9 +329,10 @@ Not currently supported:
 - MAX consolidation is novel by itself.
 - The method reduces forgetting by 34 percent in general.
 - The method is equivalent to EWC.
-- Results transfer to convolutional networks, transformers or real-world tasks.
+- Results generalize to other Transformer architectures, datasets, real-world
+  tasks or a full CLINC150 task sequence.
 
-## 9. Reproducibility Artifacts
+## 10. Reproducibility Artifacts
 
 - Core implementation: `src/dual_heater/`
 - Optimizer contract: `docs/optimizer_semantics.md`
@@ -292,6 +342,7 @@ Not currently supported:
 - Frozen confirmation protocol: `docs/confirmatory_protocol.md`
 - Split-CIFAR protocol: `docs/split_cifar.md`
 - Split-MNIST experiment record: `docs/split_mnist_experiment_log.md`
+- BERT/CLINC150 diagnostic decision: `docs/bert_slowheat_diagnostic_results.md`
 - Smoke config: `configs/synthetic_smoke.json`
 - Ablation pilot config: `configs/synthetic_ablation_pilot.json`
 - Experiment runner: `experiments/synthetic_cl.py`

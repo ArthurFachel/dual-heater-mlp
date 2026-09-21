@@ -248,6 +248,21 @@ def test_clinc_builder_creates_official_domains_and_excludes_oos():
     )
 
 
+def test_clinc_builder_can_keep_the_test_split_closed():
+    dataset = _fake_dataset()
+    dataset.pop("test")
+
+    tasks = build_clinc150_tasks(
+        dataset,
+        _FakeTokenizer(),
+        max_length=12,
+        include_test=False,
+    )
+
+    assert all(task.test is None for task in tasks)
+    assert len(text_task_fingerprint(tasks)) == 64
+
+
 def test_text_replay_round_trip_preserves_int64_token_fields():
     tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
     selected = select_replay_examples(tasks[0], per_class=1)
@@ -593,6 +608,12 @@ def test_resume_with_dropout_matches_uninterrupted_run(monkeypatch, tmp_path):
     with pytest.raises(_StopAfterFirstCheckpoint):
         run_split_clinc150(config, tasks, output_dir=live_dir)
 
+    partial_checkpoint = read_torch_checkpoint(
+        live_dir / "replay" / "checkpoint.pt"
+    )
+    assert partial_checkpoint["elapsed_seconds"] > 0.0
+    assert partial_checkpoint["peak_memory"]["peak_memory_bytes"] > 0
+
     monkeypatch.setattr(clinc_module, "write_torch_atomic", real_write)
     resumed = run_split_clinc150(config, tasks, output_dir=live_dir, resume=True)
 
@@ -602,6 +623,12 @@ def test_resume_with_dropout_matches_uninterrupted_run(monkeypatch, tmp_path):
     assert (
         resumed["replay"]["validation_accuracy_matrix"]
         == reference["replay"]["validation_accuracy_matrix"]
+    )
+    assert resumed["replay"]["elapsed_seconds"] >= partial_checkpoint[
+        "elapsed_seconds"
+    ]
+    assert resumed["replay"]["peak_memory"]["peak_memory_bytes"] >= (
+        partial_checkpoint["peak_memory"]["peak_memory_bytes"]
     )
 
 
@@ -621,7 +648,7 @@ def test_checkpoint_without_rng_state_is_rejected(monkeypatch, tmp_path):
 
     checkpoint_path = output_dir / "replay" / "checkpoint.pt"
     payload = read_torch_checkpoint(checkpoint_path)
-    payload["schema_version"] = 1
+    payload["schema_version"] = 2
     payload.pop("host_rng_state", None)
     torch.save(payload, checkpoint_path)
 
@@ -753,3 +780,282 @@ def test_multi_seed_uses_test_endpoints_when_explicitly_opened(monkeypatch, tmp_
 
     assert aggregate["endpoint_source"] == "test"
     assert aggregate["evaluate_test"] is True
+
+
+@pytest.mark.parametrize("mode", ["soft", "hard", "random_hard"])
+def test_clinc_config_accepts_diagnostic_mask_modes(mode):
+    SplitCLINC150Config(plasticity_mask_mode=mode).validate()
+
+
+def test_clinc_config_rejects_unknown_diagnostic_mask_mode():
+    with pytest.raises(ValueError, match="plasticity_mask_mode"):
+        SplitCLINC150Config(plasticity_mask_mode="unknown").validate()
+
+
+@pytest.mark.parametrize("task_limit", [2, 10, None])
+def test_clinc_config_accepts_valid_task_limits(task_limit):
+    SplitCLINC150Config(task_limit=task_limit).validate()
+
+
+@pytest.mark.parametrize("task_limit", [0, 1, 11, True])
+def test_clinc_config_rejects_invalid_task_limits(task_limit):
+    with pytest.raises((TypeError, ValueError), match="task_limit"):
+        SplitCLINC150Config(task_limit=task_limit).validate()
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_hard"),
+    [("soft", False), ("hard", True), ("random_hard", True)],
+)
+def test_optimizer_forwards_diagnostic_hard_mode(mode, expected_hard, monkeypatch):
+    model_config = transformers.BertConfig(
+        vocab_size=64,
+        hidden_size=8,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        intermediate_size=12,
+        num_labels=4,
+    )
+    config = SplitCLINC150Config(
+        methods=("slowheat_ffn_attention",),
+        plasticity_mask_mode=mode,
+    )
+    model = clinc_module.SlowHeatBertForSequenceClassification(
+        model_config,
+        clinc_module._slowheat_config(config, "slowheat_ffn_attention"),
+    )
+    received = []
+    monkeypatch.setattr(
+        model,
+        "register_plasticity_masks",
+        lambda optimizer, *, hard=False: received.append(hard),
+    )
+
+    clinc_module._build_optimizer_and_scheduler(
+        model, "slowheat_ffn_attention", config, total_steps=4
+    )
+
+    assert received == [expected_hard]
+
+
+def test_random_protection_is_deterministic_and_preserves_each_state_count():
+    model_config = transformers.BertConfig(
+        vocab_size=64,
+        hidden_size=8,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        intermediate_size=12,
+        num_labels=4,
+    )
+    config = SplitCLINC150Config(methods=("slowheat_ffn_attention",))
+
+    def prepared_model():
+        model = clinc_module.SlowHeatBertForSequenceClassification(
+            model_config,
+            clinc_module._slowheat_config(config, "slowheat_ffn_attention"),
+        )
+        for index, state in enumerate(model.get_slow_states()):
+            count = min(index + 1, state.slow_heat.numel())
+            state.slow_heat.zero_()
+            state.slow_heat[:count] = torch.linspace(1.0, 0.5, count)
+        return model
+
+    first = prepared_model()
+    second = prepared_model()
+    expected_counts = [
+        int(torch.count_nonzero(state.slow_heat))
+        for state in first.get_slow_states()
+    ]
+
+    clinc_module.randomize_slowheat_protection(first, seed=123)
+    clinc_module.randomize_slowheat_protection(second, seed=123)
+
+    assert [
+        int(torch.count_nonzero(state.slow_heat))
+        for state in first.get_slow_states()
+    ] == expected_counts
+    assert all(
+        torch.equal(left.slow_heat, right.slow_heat)
+        for left, right in zip(first.get_slow_states(), second.get_slow_states())
+    )
+    assert all(
+        set(torch.unique(state.slow_heat).tolist()) <= {0.0, 1.0}
+        for state in first.get_slow_states()
+    )
+
+
+def test_parameter_drift_separates_protected_and_plastic_entries():
+    parameter = torch.nn.Parameter(torch.tensor([[1.0, 2.0], [3.0, 4.0]]))
+    binding = clinc_module.PlasticityMaskBinding(
+        parameter=parameter,
+        mask=torch.tensor([[0.0], [1.0]]),
+        kind="test_weight",
+    )
+    reference = clinc_module.capture_parameter_drift_reference([binding])
+
+    with torch.no_grad():
+        parameter.add_(torch.tensor([[0.0, 0.0], [3.0, 4.0]]))
+
+    summary = clinc_module.summarize_parameter_drift(reference)
+
+    assert summary["protected_count"] == 2
+    assert summary["plastic_count"] == 2
+    assert summary["protected_rms"] == pytest.approx(0.0)
+    assert summary["protected_max_abs"] == pytest.approx(0.0)
+    assert summary["plastic_rms"] == pytest.approx(math.sqrt(12.5))
+    assert summary["plastic_max_abs"] == pytest.approx(4.0)
+
+
+def test_task_limit_runs_only_the_official_prefix(monkeypatch, tmp_path):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("vanilla",),
+        task_limit=2,
+    )
+
+    result = run_split_clinc150(config, tasks, output_dir=tmp_path / "run")["vanilla"]
+    protocol = json.loads(
+        (tmp_path / "run" / "protocol.json").read_text(encoding="utf-8")
+    )
+
+    assert len(result["validation_accuracy_matrix"]) == 2
+    assert all(len(row) == 2 for row in result["validation_accuracy_matrix"])
+    assert protocol["task_order"] == ["banking", "credit_cards"]
+    assert protocol["config"]["task_limit"] == 2
+
+
+def test_two_task_random_hard_run_records_zero_protected_drift_and_resumes(
+    monkeypatch, tmp_path
+):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=("slowheat_ffn_attention",),
+        plasticity_mask_mode="random_hard",
+        task_limit=2,
+    )
+    output_dir = tmp_path / "run"
+
+    first = run_split_clinc150(config, tasks, output_dir=output_dir)
+    resumed = run_split_clinc150(config, tasks, output_dir=output_dir, resume=True)
+    drift = first["slowheat_ffn_attention"]["parameter_drift_history"]
+
+    assert len(drift) == 2
+    assert drift[0]["protected_rms"] is None
+    assert drift[1]["protected_count"] > 0
+    assert drift[1]["protected_rms"] == pytest.approx(0.0)
+    assert drift[1]["protected_max_abs"] == pytest.approx(0.0)
+    assert resumed["slowheat_ffn_attention"]["parameter_drift_history"] == drift
+    assert resumed["slowheat_ffn_attention"]["elapsed_seconds"] == first[
+        "slowheat_ffn_attention"
+    ]["elapsed_seconds"]
+    assert resumed["slowheat_ffn_attention"]["peak_memory"] == first[
+        "slowheat_ffn_attention"
+    ]["peak_memory"]
+
+    result_path = output_dir / "slowheat_ffn_attention" / "results.json"
+    result_path.unlink()
+    checkpoint = read_torch_checkpoint(
+        output_dir / "slowheat_ffn_attention" / "checkpoint.pt"
+    )
+    rebuilt = run_split_clinc150(config, tasks, output_dir=output_dir, resume=True)
+
+    assert rebuilt["slowheat_ffn_attention"]["validation_accuracy_matrix"] == first[
+        "slowheat_ffn_attention"
+    ]["validation_accuracy_matrix"]
+    assert rebuilt["slowheat_ffn_attention"]["elapsed_seconds"] == checkpoint[
+        "elapsed_seconds"
+    ]
+    assert rebuilt["slowheat_ffn_attention"]["peak_memory"] == checkpoint[
+        "peak_memory"
+    ]
+
+
+def test_two_task_ffn_attention_hard_replay_records_memory_and_zero_drift(
+    monkeypatch, tmp_path
+):
+    _patch_tiny_bert(monkeypatch)
+    tasks = build_clinc150_tasks(_fake_dataset(), _FakeTokenizer(), max_length=12)
+    method = "slowheat_ffn_attention_replay"
+    config = SplitCLINC150Config(
+        max_length=12,
+        batch_size=30,
+        replay_batch_size=5,
+        replay_per_class=1,
+        epochs_per_task=1,
+        methods=(method,),
+        plasticity_mask_mode="hard",
+        task_limit=2,
+    )
+
+    result = run_split_clinc150(
+        config,
+        tasks,
+        output_dir=tmp_path / "run",
+    )[method]
+
+    assert result["replay_memory_bytes"] > 0
+    assert result["tokens_processed"] > 0
+    assert len(result["validation_accuracy_matrix"]) == 2
+    assert result["parameter_drift_history"][1]["protected_count"] > 0
+    assert result["parameter_drift_history"][1]["protected_rms"] == pytest.approx(0.0)
+    assert result["parameter_drift_history"][1]["protected_max_abs"] == pytest.approx(0.0)
+
+
+def test_peak_memory_merge_preserves_absolute_maxima_across_resume():
+    previous = {
+        "peak_memory_available": True,
+        "peak_memory_backend": "cuda_allocator_allocated",
+        "peak_memory_bytes": 300,
+        "peak_memory_baseline_bytes": 100,
+        "peak_memory_delta_bytes": 200,
+        "peak_cuda_reserved_bytes": 400,
+        "peak_memory_sampling_interval_seconds": None,
+    }
+    current = {
+        "peak_memory_available": True,
+        "peak_memory_backend": "cuda_allocator_allocated",
+        "peak_memory_bytes": 250,
+        "peak_memory_baseline_bytes": 120,
+        "peak_memory_delta_bytes": 130,
+        "peak_cuda_reserved_bytes": 500,
+        "peak_memory_sampling_interval_seconds": None,
+    }
+
+    merged = clinc_module._merge_peak_memory(previous, current)
+
+    assert merged["peak_memory_bytes"] == 300
+    assert merged["peak_memory_delta_bytes"] == 200
+    assert merged["peak_cuda_reserved_bytes"] == 500
+    assert merged["peak_memory_baseline_bytes"] == 100
+
+
+def test_ffn_attention_replay_combines_existing_coverage_and_replay_flags():
+    method = "slowheat_ffn_attention_replay"
+
+    assert method in clinc_module.SUPPORTED_METHODS
+    assert method in clinc_module.SLOWHEAT_METHODS
+    assert method in clinc_module.REPLAY_METHODS
+
+    resolved = clinc_module._slowheat_config(
+        SplitCLINC150Config(methods=(method,)), method
+    )
+    assert resolved.track_ffn is True
+    assert resolved.track_attention is True
+    assert resolved.track_embeddings is False
+    assert resolved.track_residual is False
+    assert resolved.protect_layer_norm is False
+    assert resolved.protect_pooler is False
+    assert resolved.protect_classifier is False
+    assert resolved.freeze_unbound_parameters is False

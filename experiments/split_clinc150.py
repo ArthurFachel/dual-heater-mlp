@@ -37,7 +37,7 @@ from dual_heater.bert import (
 )
 from dual_heater.fast_heat import FastHeatConfig
 from dual_heater.metrics import compute_cl_metrics
-from dual_heater.optim import SlowHeatAdamW
+from dual_heater.optim import PlasticityMaskBinding, SlowHeatAdamW
 from experiments.artifacts import (
     read_json_object,
     read_torch_checkpoint,
@@ -147,7 +147,9 @@ SUPPORTED_METHODS = (
     "slowheat_all_minus_pooler",
     "slowheat_all_minus_classifier",
     "slowheat_ffn_attention",
+    "slowheat_ffn_attention_replay",
 )
+PlasticityMaskMode = Literal["soft", "hard", "random_hard"]
 BERT_HEAT_VARIANTS = (
     "slowheat_bound",
     "slowheat_global",
@@ -166,6 +168,10 @@ BERT_FULL_COVERAGE_VARIANTS = (
     "slowheat_all_minus_classifier",
     "slowheat_ffn_attention",
 )
+FFN_ATTENTION_METHODS = {
+    "slowheat_ffn_attention",
+    "slowheat_ffn_attention_replay",
+}
 _FULL_COVERAGE_SWITCHES = {
     "track_ffn": True,
     "track_attention": True,
@@ -184,7 +190,9 @@ _FULL_COVERAGE_REMOVALS = {
     "slowheat_all_minus_pooler": "protect_pooler",
     "slowheat_all_minus_classifier": "protect_classifier",
 }
-_EXTENDED_SLOWHEAT_METHODS = set(BERT_FULL_COVERAGE_VARIANTS) - {"vanilla"}
+_EXTENDED_SLOWHEAT_METHODS = (
+    set(BERT_FULL_COVERAGE_VARIANTS) - {"vanilla"}
+) | FFN_ATTENTION_METHODS
 SLOWHEAT_METHODS = {
     "slowheat_none", "slowheat_ffn", "slowheat", "slowheat_replay",
     "slowheat_lora_replay", "slowheat_bound", "dualheat",
@@ -193,10 +201,10 @@ SLOWHEAT_METHODS = {
 } | _EXTENDED_SLOWHEAT_METHODS
 REPLAY_METHODS = {
     "replay", "slowheat_replay", "lora_replay", "slowheat_lora_replay",
-    "slowheat_bound_replay", "dualheat_replay",
+    "slowheat_bound_replay", "dualheat_replay", "slowheat_ffn_attention_replay",
 }
 LORA_METHODS = {"lora_replay", "slowheat_lora_replay"}
-CHECKPOINT_SCHEMA_VERSION = 2
+CHECKPOINT_SCHEMA_VERSION = 3
 BERT_MINI_MODEL = "google/bert_uncased_L-4_H-256_A-4"
 BERT_BASE_MODEL = "google-bert/bert-base-uncased"
 DEFAULT_CALIBRATION_GRID = tuple(
@@ -249,6 +257,8 @@ class SplitCLINC150Config:
     lora_alpha: float = 16.0
     evaluate_test: bool = False
     scheduler_scope: Literal["task", "stream"] = "task"
+    plasticity_mask_mode: PlasticityMaskMode = "soft"
+    task_limit: int | None = None
     methods: tuple[str, ...] = (
         "vanilla", "slowheat_none", "slowheat_ffn", "slowheat", "replay",
         "slowheat_replay",
@@ -283,6 +293,15 @@ class SplitCLINC150Config:
             raise TypeError("evaluate_test deve ser booleano")
         if self.scheduler_scope not in ("task", "stream"):
             raise ValueError("scheduler_scope deve ser 'task' ou 'stream'")
+        if self.plasticity_mask_mode not in ("soft", "hard", "random_hard"):
+            raise ValueError(
+                "plasticity_mask_mode deve ser 'soft', 'hard' ou 'random_hard'"
+            )
+        if self.task_limit is not None:
+            if not isinstance(self.task_limit, int) or isinstance(self.task_limit, bool):
+                raise TypeError("task_limit deve ser inteiro ou None")
+            if not 2 <= self.task_limit <= len(CLINC150_DOMAINS):
+                raise ValueError("task_limit deve estar entre 2 e 10")
         unknown = set(self.methods) - set(SUPPORTED_METHODS)
         if unknown or not self.methods or len(set(self.methods)) != len(self.methods):
             raise ValueError(f"lista de métodos inválida: {sorted(unknown)}")
@@ -352,7 +371,7 @@ class CLINC150Task:
     classes: tuple[int, ...]
     train: TokenizedTextSplit
     validation: TokenizedTextSplit
-    test: TokenizedTextSplit
+    test: TokenizedTextSplit | None
 
 
 class TextReplayBuffer:
@@ -460,13 +479,16 @@ def build_clinc150_tasks(
     tokenizer,
     *,
     max_length: int = 128,
+    include_test: bool = True,
 ) -> list[CLINC150Task]:
     """Materialize ten official CLINC150 domains and exclude OOS records."""
 
     intent_to_id = {name: index for index, name in enumerate(_intent_order())}
     if len(intent_to_id) != 150:
         raise RuntimeError("mapa oficial CLINC150 deve conter 150 intenções únicas")
-    split_names = {"train": "train", "validation": "validation", "test": "test"}
+    split_names = {"train": "train", "validation": "validation"}
+    if include_test:
+        split_names["test"] = "test"
     tasks: list[CLINC150Task] = []
     for domain, intents in CLINC150_DOMAINS.items():
         materialized: dict[str, TokenizedTextSplit] = {}
@@ -501,7 +523,7 @@ def build_clinc150_tasks(
                 classes=tuple(intent_to_id[intent] for intent in intents),
                 train=materialized["train"],
                 validation=materialized["validation"],
-                test=materialized["test"],
+                test=materialized.get("test"),
             )
         )
     return tasks
@@ -509,6 +531,8 @@ def build_clinc150_tasks(
 
 def load_clinc150_tasks(
     config: SplitCLINC150Config,
+    *,
+    include_test: bool = True,
 ) -> tuple[list[CLINC150Task], dict[str, Any]]:
     """Download/tokenize the configured dataset and return provenance metadata."""
 
@@ -517,18 +541,31 @@ def load_clinc150_tasks(
         from transformers import AutoTokenizer
     except ImportError as error:  # pragma: no cover - optional dependency path
         raise ImportError("CLINC150 requer o extra opcional 'nlp'") from error
-    dataset = load_dataset(
-        config.dataset_name,
-        config.dataset_config,
-        revision=config.dataset_revision,
-    )
+    dataset_kwargs = {
+        "path": config.dataset_name,
+        "name": config.dataset_config,
+        "revision": config.dataset_revision,
+    }
+    if include_test:
+        dataset = load_dataset(**dataset_kwargs)
+    else:
+        train, validation = load_dataset(
+            **dataset_kwargs,
+            split=["train", "validation"],
+        )
+        dataset = {"train": train, "validation": validation}
     tokenizer_name = config.tokenizer_name or config.model_name
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_name,
         revision=config.tokenizer_revision or config.model_revision,
         use_fast=True,
     )
-    tasks = build_clinc150_tasks(dataset, tokenizer, max_length=config.max_length)
+    tasks = build_clinc150_tasks(
+        dataset,
+        tokenizer,
+        max_length=config.max_length,
+        include_test=include_test,
+    )
     metadata = {
         "dataset_name": config.dataset_name,
         "dataset_config": config.dataset_config,
@@ -554,6 +591,8 @@ def text_task_fingerprint(tasks: list[CLINC150Task]) -> str:
         digest.update(json.dumps(task.classes).encode())
         for split_name in ("train", "validation", "test"):
             split = getattr(task, split_name)
+            if split is None:
+                continue
             for tensor in split.tensors():
                 contiguous = tensor.contiguous()
                 digest.update(str(contiguous.dtype).encode())
@@ -663,6 +702,37 @@ def _json_matrix(matrix: np.ndarray) -> list[list[float | None]]:
     ]
 
 
+def _merge_peak_memory(
+    previous: dict[str, Any] | None,
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    if previous is None:
+        return dict(current)
+    if previous.get("peak_memory_backend") != current.get("peak_memory_backend"):
+        raise RuntimeError("backend de memória mudou durante resume")
+    merged = dict(current)
+    for key in (
+        "peak_memory_bytes",
+        "peak_memory_delta_bytes",
+        "peak_cuda_reserved_bytes",
+    ):
+        values = [
+            value
+            for value in (previous.get(key), current.get(key))
+            if value is not None
+        ]
+        merged[key] = max(values) if values else None
+    merged["peak_memory_baseline_bytes"] = previous.get(
+        "peak_memory_baseline_bytes",
+        current.get("peak_memory_baseline_bytes"),
+    )
+    merged["peak_memory_available"] = bool(
+        previous.get("peak_memory_available")
+        and current.get("peak_memory_available")
+    )
+    return merged
+
+
 def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatConfig:
     coverage_switches: dict[str, bool] = {}
     if method == "slowheat_full_coverage" or method in _FULL_COVERAGE_REMOVALS:
@@ -670,7 +740,7 @@ def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatCo
         removed = _FULL_COVERAGE_REMOVALS.get(method)
         if removed is not None:
             coverage_switches[removed] = False
-    elif method == "slowheat_ffn_attention":
+    elif method in FFN_ATTENTION_METHODS:
         coverage_switches = {
             "track_ffn": True,
             "track_attention": True,
@@ -747,6 +817,92 @@ def _find_slowheat_model(model: nn.Module) -> SlowHeatBertForSequenceClassificat
     )
 
 
+def randomize_slowheat_protection(
+    model: SlowHeatBertForSequenceClassification,
+    *,
+    seed: int,
+) -> None:
+    """Randomize protected identities without changing per-state capacity."""
+
+    generator = torch.Generator(device="cpu").manual_seed(seed)
+    with torch.no_grad():
+        for state in model.get_slow_states():
+            protected = int(torch.count_nonzero(state.slow_heat).item())
+            state.slow_heat.zero_()
+            if protected == 0:
+                continue
+            indices = torch.randperm(
+                state.slow_heat.numel(), generator=generator
+            )[:protected].to(state.slow_heat.device)
+            state.slow_heat[indices] = 1.0
+
+
+@dataclass(frozen=True)
+class ParameterDriftReference:
+    kind: str
+    parameter: nn.Parameter
+    before: Tensor
+    protected: Tensor
+
+
+def capture_parameter_drift_reference(
+    bindings: Sequence[PlasticityMaskBinding],
+) -> list[ParameterDriftReference]:
+    references: list[ParameterDriftReference] = []
+    for binding in bindings:
+        raw_mask = binding.mask() if callable(binding.mask) else binding.mask
+        mask = torch.broadcast_to(
+            raw_mask.detach().to(binding.parameter.device),
+            binding.parameter.shape,
+        )
+        references.append(
+            ParameterDriftReference(
+                kind=binding.kind,
+                parameter=binding.parameter,
+                before=binding.parameter.detach().cpu().float().clone(),
+                protected=(mask <= 0.0).detach().cpu(),
+            )
+        )
+    return references
+
+
+def summarize_parameter_drift(
+    references: Sequence[ParameterDriftReference],
+) -> dict[str, float | int | None]:
+    totals: dict[str, dict[str, float | int]] = {
+        "protected": {"count": 0, "sum_sq": 0.0, "max_abs": 0.0},
+        "plastic": {"count": 0, "sum_sq": 0.0, "max_abs": 0.0},
+    }
+    for reference in references:
+        delta = reference.parameter.detach().cpu().float() - reference.before
+        for name, selected in (
+            ("protected", reference.protected),
+            ("plastic", ~reference.protected),
+        ):
+            values = delta[selected]
+            if values.numel() == 0:
+                continue
+            totals[name]["count"] = int(totals[name]["count"]) + values.numel()
+            totals[name]["sum_sq"] = float(totals[name]["sum_sq"]) + float(
+                values.square().sum()
+            )
+            totals[name]["max_abs"] = max(
+                float(totals[name]["max_abs"]), float(values.abs().max())
+            )
+
+    result: dict[str, float | int | None] = {}
+    for name in ("protected", "plastic"):
+        count = int(totals[name]["count"])
+        result[f"{name}_count"] = count
+        result[f"{name}_rms"] = (
+            math.sqrt(float(totals[name]["sum_sq"]) / count) if count else None
+        )
+        result[f"{name}_max_abs"] = (
+            float(totals[name]["max_abs"]) if count else None
+        )
+    return result
+
+
 def _build_model(
     method: str,
     config: SplitCLINC150Config,
@@ -790,9 +946,16 @@ def _build_optimizer_and_scheduler(
         slow_model = _find_slowheat_model(model)
         assert slow_model is not None
         if method == "slowheat_lora_replay":
-            register_exact_lora_masks(model, optimizer)
+            register_exact_lora_masks(
+                model,
+                optimizer,
+                hard=config.plasticity_mask_mode != "soft",
+            )
         else:
-            slow_model.register_plasticity_masks(optimizer)
+            slow_model.register_plasticity_masks(
+                optimizer,
+                hard=config.plasticity_mask_mode != "soft",
+            )
     else:
         optimizer = torch.optim.AdamW(parameters, **kwargs)
     warmup_steps = int(total_steps * config.warmup_ratio)
@@ -878,12 +1041,13 @@ def _checkpoint_identity(
     config: SplitCLINC150Config,
     metadata: dict[str, Any],
     data_sha256: str,
+    tasks: Sequence[CLINC150Task],
 ) -> dict[str, Any]:
     return {
         "config": asdict(config),
         "data_sha256": data_sha256,
         "metadata": metadata,
-        "task_order": list(CLINC150_DOMAINS),
+        "task_order": [task.domain for task in tasks],
     }
 
 
@@ -905,6 +1069,8 @@ def _run_split_clinc150(
         raise ValueError("CLINC150 requer dez tasks de quinze classes")
     if tuple(task.domain for task in tasks) != tuple(CLINC150_DOMAINS):
         raise ValueError("ordem de domínios diverge do protocolo")
+    if config.task_limit is not None:
+        tasks = tasks[: config.task_limit]
     metadata = {} if metadata is None else dict(metadata)
     data_sha256 = text_task_fingerprint(tasks)
     destination = None if output_dir is None else Path(output_dir)
@@ -927,7 +1093,7 @@ def _run_split_clinc150(
     metadata["resolved_model_commit"] = getattr(template.config, "_commit_hash", None)
     del template
     identity = {
-        **_checkpoint_identity(config, metadata, data_sha256),
+        **_checkpoint_identity(config, metadata, data_sha256, tasks),
         "source_sha256": source_fingerprint(Path(__file__).resolve().parents[1]),
     }
     protocol_path = None if destination is None else destination / "protocol.json"
@@ -970,7 +1136,6 @@ def _run_split_clinc150(
     results: dict[str, dict[str, Any]] = {}
 
     for method in config.methods:
-        method_started = time.perf_counter()
         telemetry_overhead_start = (
             telemetry_writer.overhead_seconds
             if telemetry_writer is not None
@@ -987,8 +1152,15 @@ def _run_split_clinc150(
         macro_f1 = np.full_like(accuracy, np.nan)
         training_losses: list[list[float]] = []
         capacity_history: list[list[dict[str, float]]] = []
+        parameter_drift_history: list[dict[str, float | int | None]] = []
         tokens_processed = 0
         next_stage = 0
+        loaded_checkpoint = False
+        previous_elapsed_seconds = 0.0
+        previous_peak_memory: dict[str, Any] | None = None
+        finalize_from_checkpoint = False
+        last_checkpoint_elapsed_seconds: float | None = None
+        last_checkpoint_memory: dict[str, Any] | None = None
         checkpoint_path = (
             None if destination is None else destination / method / "checkpoint.pt"
         )
@@ -998,11 +1170,11 @@ def _run_split_clinc150(
                     f"checkpoint existente para {method}; use resume=True"
                 )
             checkpoint = read_torch_checkpoint(checkpoint_path)
+            loaded_checkpoint = True
             if checkpoint.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
                 raise RuntimeError(
                     "versão de checkpoint CLINC150 incompatível; "
-                    "checkpoints anteriores à v2 não guardam estado de RNG "
-                    "e devem ser reexecutados do início"
+                    "reinicie a execução com um diretório novo"
                 )
             if checkpoint.get("identity") != identity:
                 raise RuntimeError("checkpoint CLINC150 não corresponde ao protocolo")
@@ -1016,8 +1188,11 @@ def _run_split_clinc150(
             macro_f1 = checkpoint["macro_f1"].numpy()
             training_losses = checkpoint["training_losses"]
             capacity_history = checkpoint["capacity_history"]
+            parameter_drift_history = checkpoint["parameter_drift_history"]
             tokens_processed = int(checkpoint["tokens_processed"])
             next_stage = int(checkpoint["next_stage"])
+            previous_elapsed_seconds = float(checkpoint["elapsed_seconds"])
+            previous_peak_memory = dict(checkpoint["peak_memory"])
             _restore_rng_state(checkpoint["host_rng_state"])
             torch.set_rng_state(checkpoint["torch_rng_state"])
             cuda_rng_states = checkpoint.get("cuda_rng_states")
@@ -1025,6 +1200,20 @@ def _run_split_clinc150(
                 torch.cuda.set_rng_state_all(cuda_rng_states)
 
         slow_model = _find_slowheat_model(model)
+        if loaded_checkpoint and next_stage == len(tasks):
+            assert destination is not None
+            result_path = destination / method / "results.json"
+            if result_path.is_file():
+                results[method] = read_json_object(result_path)
+                if slow_model is not None:
+                    slow_model.remove_slowheat_instrumentation()
+                del model, optimizer, scheduler
+                gc.collect()
+                if torch.device(config.device).type == "cuda":
+                    torch.cuda.empty_cache()
+                continue
+            finalize_from_checkpoint = True
+        session_started = time.perf_counter()
         method_step = sum(task_steps[:next_stage])
         session_start_step = method_step
         session_start_tokens = tokens_processed
@@ -1058,11 +1247,24 @@ def _run_split_clinc150(
                     "phase": "method_start",
                 },
             )
-        memory_tracker = PeakMemoryTracker(config.device).start()
+        memory_tracker = (
+            None
+            if finalize_from_checkpoint
+            else PeakMemoryTracker(config.device).start()
+        )
         for stage in range(next_stage, len(tasks)):
             task = tasks[stage]
             seen = _seen_classes(tasks, stage)
             stage_losses: list[float] = []
+            drift_reference = (
+                capture_parameter_drift_reference(slow_model.mask_bindings(hard=True))
+                if (
+                    slow_model is not None
+                    and stage > 0
+                    and method != "slowheat_lora_replay"
+                )
+                else []
+            )
             if config.scheduler_scope == "task":
                 # Each task restarts warmup/decay so LR does not encode position.
                 scheduler = build_stage_scheduler(
@@ -1226,6 +1428,24 @@ def _run_split_clinc150(
                             epoch_snapshot=True,
                         )
             training_losses.append(stage_losses)
+            empty_drift = {
+                "protected_count": 0,
+                "protected_rms": None,
+                "protected_max_abs": None,
+                "plastic_count": 0,
+                "plastic_rms": None,
+                "plastic_max_abs": None,
+            }
+            parameter_drift_history.append(
+                {
+                    "stage": stage,
+                    **(
+                        summarize_parameter_drift(drift_reference)
+                        if drift_reference
+                        else empty_drift
+                    ),
+                }
+            )
 
             if method in REPLAY_METHODS:
                 replay.append(
@@ -1236,6 +1456,11 @@ def _run_split_clinc150(
             if method in SLOWHEAT_METHODS and method != "slowheat_none":
                 assert slow_model is not None
                 slow_model.consolidate(strategy="max")
+                if config.plasticity_mask_mode == "random_hard":
+                    randomize_slowheat_protection(
+                        slow_model,
+                        seed=config.seed * 1_000_003 + stage * 10_007 + 97,
+                    )
                 capacity_history.append(slow_model.capacity_metrics())
                 if telemetry_writer is not None:
                     telemetry_writer.emit(
@@ -1282,9 +1507,14 @@ def _run_split_clinc150(
                 )
                 validation_accuracy[stage, task_index] = validation_class_il
                 if config.evaluate_test:
+                    test_split = tasks[task_index].test
+                    if test_split is None:
+                        raise RuntimeError(
+                            "evaluate_test=True requer que o split de teste seja carregado"
+                        )
                     class_il, aware, f1 = _evaluate(
                         model,
-                        tasks[task_index].test,
+                        test_split,
                         task_classes=tasks[task_index].classes,
                         seen_classes=seen,
                         batch_size=config.batch_size,
@@ -1314,6 +1544,16 @@ def _run_split_clinc150(
                 )
 
             if checkpoint_path is not None:
+                assert memory_tracker is not None
+                checkpoint_memory = _merge_peak_memory(
+                    previous_peak_memory,
+                    memory_tracker.snapshot(),
+                )
+                checkpoint_elapsed_seconds = previous_elapsed_seconds + (
+                    time.perf_counter() - session_started
+                )
+                last_checkpoint_elapsed_seconds = checkpoint_elapsed_seconds
+                last_checkpoint_memory = checkpoint_memory
                 write_torch_atomic(
                     checkpoint_path,
                     {
@@ -1333,7 +1573,10 @@ def _run_split_clinc150(
                         "macro_f1": torch.from_numpy(macro_f1.copy()),
                         "training_losses": training_losses,
                         "capacity_history": capacity_history,
+                        "parameter_drift_history": parameter_drift_history,
                         "tokens_processed": tokens_processed,
+                        "elapsed_seconds": checkpoint_elapsed_seconds,
+                        "peak_memory": checkpoint_memory,
                         "host_rng_state": _encode_rng_state(),
                         "torch_rng_state": torch.get_rng_state(),
                         "cuda_rng_states": (
@@ -1369,7 +1612,29 @@ def _run_split_clinc150(
                     ),
                 )
 
-        memory = memory_tracker.stop()
+        if finalize_from_checkpoint:
+            if previous_peak_memory is None:
+                raise RuntimeError("checkpoint completo não contém pico de memória")
+            memory = previous_peak_memory
+            elapsed_seconds = previous_elapsed_seconds
+        else:
+            assert memory_tracker is not None
+            stopped_memory = _merge_peak_memory(
+                previous_peak_memory,
+                memory_tracker.stop(),
+            )
+            if (
+                checkpoint_path is not None
+                and last_checkpoint_memory is not None
+                and last_checkpoint_elapsed_seconds is not None
+            ):
+                memory = last_checkpoint_memory
+                elapsed_seconds = last_checkpoint_elapsed_seconds
+            else:
+                memory = stopped_memory
+                elapsed_seconds = previous_elapsed_seconds + (
+                    time.perf_counter() - session_started
+                )
         validation_metrics = asdict(compute_cl_metrics(validation_accuracy))
         metrics = (
             asdict(compute_cl_metrics(accuracy)) if config.evaluate_test else None
@@ -1398,6 +1663,7 @@ def _run_split_clinc150(
             ),
             "training_losses": training_losses,
             "capacity_history": capacity_history,
+            "parameter_drift_history": parameter_drift_history,
             "mask_coverage": (
                 slow_model.mask_coverage_summary()
                 if slow_model is not None
@@ -1409,7 +1675,7 @@ def _run_split_clinc150(
                 parameter.numel() for parameter in model.parameters() if parameter.requires_grad
             ),
             "total_parameters": sum(parameter.numel() for parameter in model.parameters()),
-            "elapsed_seconds": time.perf_counter() - method_started,
+            "elapsed_seconds": elapsed_seconds,
             "peak_memory": memory,
         }
         results[method] = result

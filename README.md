@@ -169,8 +169,11 @@ optimizer = SlowHeatAdamW(model.parameters(), lr=1e-3)
 optimizer.register_slow_heat_model(model)
 ```
 
+### How SlowHeat is implemented in BERT
+
 For BERT sequence classification, install the optional NLP dependencies and
-instrument a pretrained classifier without replacing its attention kernel:
+instrument a pretrained classifier without replacing its native attention
+kernel:
 
 ```bash
 pip install -e '.[nlp]'
@@ -199,13 +202,56 @@ optimizer = SlowHeatAdamW(trainable, lr=5e-5, weight_decay=1e-2)
 model.register_plasticity_masks(optimizer)
 ```
 
-In this closed-mask protocol, FastHeat is applied after GELU and before the FFN
-output projection. Every trainable parameter is covered by a SlowHeat mask.
-Embeddings, both LayerNorm families, the pooler and the two unbound output
-biases are frozen. The classifier is explicitly tracked and masked. This avoids
-claiming functional protection while an unmasked residual path remains plastic.
-LayerNorm can attenuate a gate's global scale, but does not generally undo its
-non-uniform per-unit directional effect.
+`SlowHeatBertForSequenceClassification` subclasses Hugging Face's
+`BertForSequenceClassification`. It preserves the pretrained BERT computation
+and adds training-time trackers and optimizer masks:
+
+1. **FFN tracking.** FFN means *feed-forward network* (sometimes shortened to
+   FF). It is the two-linear-layer MLP inside each Transformer block. BERT first
+   expands the hidden representation with `intermediate.dense`, applies GELU,
+   and projects it back with `output.dense`. SlowHeat observes the post-GELU
+   activation and maintains one importance value per intermediate FFN unit.
+2. **Attention tracking.** SlowHeat observes Q, K, V and the merged attention
+   output without replacing the attention kernel. It reduces these signals to
+   one importance value per attention head.
+3. **Functional importance.** During backward, both trackers accumulate the
+   normalized first-order utility `|z * dL/dz|`. Padding tokens are removed with
+   the BERT attention mask. At a task boundary, `consolidate(strategy="max")`
+   keeps persistent evidence from previous tasks.
+4. **Factorized protection.** FFN importance masks producer rows in
+   `intermediate.dense` and consumer columns in `output.dense`. Attention-head
+   importance masks rows of Q/K/V and columns of the attention output
+   projection. Extended presets can also cover embeddings, residual dimensions,
+   LayerNorm, pooler and classifier.
+5. **Optimizer-aware updates.** `SlowHeatAdamW` applies each mask to the complete
+   AdamW parameter update, including weight decay, and by default to matching
+   tensor-valued optimizer-state changes. This avoids treating raw-gradient
+   scaling as an effective learning-rate change under AdamW.
+
+#### What beta means
+
+`slow_strength` is beta (`β`), the strength of **soft** protection. After
+importance has been normalized into `slow_heat` in `[0, 1]`, the update factor
+for a protected unit is:
+
+```text
+plasticity_scale = 1 / (1 + beta * slow_heat)
+```
+
+`β = 0` leaves the native update unchanged. Increasing `β` makes important
+units change less: when `slow_heat = 1`, beta 3 keeps `1/4` of the native
+update, beta 10 keeps `1/11`, and beta 30 keeps `1/31`. Beta is not the optimizer
+learning rate; it is a per-unit protection multiplier applied after AdamW has
+formed its update. In **hard** mode, selected units receive scale zero and beta
+does not set their residual update. `plasticity_budget` is separate from beta:
+it guarantees the fraction of units left available for learning the new task.
+
+The default FFN+attention diagnostic tracks only those two unit families and
+leaves unrelated parameters trainable. In the separate closed-mask protocol,
+every trainable parameter is covered by a SlowHeat mask: embeddings, both
+LayerNorm families, the pooler and unbound output biases are frozen, while the
+classifier is explicitly tracked and masked. FastHeat, when enabled, is applied
+after GELU and before the FFN output projection.
 
 `save_pretrained()` stores the complete SlowHeat/FastHeat protocol in
 `config.json`. `from_pretrained()` reconstructs it when omitted and rejects an
@@ -240,6 +286,42 @@ The CLINC150 runner exposes the matched closed-mask pair
 `slowheat_bound` versus `dualheat`, plus replay variants
 `slowheat_bound_replay` versus `dualheat_replay`. FastHeat parameters are
 reachable through `--fast-decay`, `--fast-strength` and `--fast-threshold`.
+
+### Completed BERT SlowHeat diagnostics
+
+Three validation-only diagnostics are complete on the first two CLINC150
+domains. The ten-seed mechanism study shows that SlowHeat was implemented
+successfully and improves over standard sequential BERT in this protocol:
+
+| Condition | Final average accuracy | Gain over vanilla | T1 forgetting |
+|---|---:|---:|---:|
+| BERT vanilla | 48.47% | — | 90.90 pp |
+| SlowHeat beta 3 | 51.75% | +3.28 pp | 83.63 pp |
+| SlowHeat beta 10 | 59.65% | +11.18 pp | 67.20 pp |
+| SlowHeat beta 30 | 66.05% | +17.58 pp | 53.47 pp |
+| SlowHeat learned hard | 71.38% | +22.92 pp | 41.03 pp |
+
+Beta 10, beta 30 and learned hard beat vanilla in all 10 paired seeds; beta 3
+did so in 9/10. Learned hard protection also retained T1 better than matched
+random hard masks in all 10 seeds, and its protected parameter drift was exactly
+zero. This demonstrates functional BERT integration and an informative ranking.
+
+The stronger claim against replay did not pass. At 20 stored examples per class,
+hard SlowHeat+replay lost 0.83 percentage points of final average accuracy to
+replay and took about 2.21x as long. At the predeclared one-example primary
+budget, it gained 2.17 points of final average accuracy but lost 3.67 points of
+T2 acquisition, violating the 2-point acquisition gate. Budgets 5 and 10 did
+not provide a consistent alternative.
+
+The current conclusion is therefore specific: SlowHeat outperformed standard
+sequential BERT in the completed two-task diagnostic, but did not demonstrate an
+acceptable advantage over replay. The full protocol, paired contrasts,
+provenance limitations and primary artifact paths are documented in
+[`docs/bert_slowheat_diagnostic_results.md`](docs/bert_slowheat_diagnostic_results.md).
+The three executable runners remain available under
+`experiments.bert_slowheat_diagnostic`,
+`experiments.bert_slowheat_replay_diagnostic` and
+`experiments.bert_slowheat_replay_budget_diagnostic`.
 
 Enable the local read-only live dashboard by adding telemetry to the training
 command:
@@ -381,10 +463,11 @@ See `docs/synthetic_ablation_pilot.md`.
 
 ## Known limitations
 
-- No completed result on a harder visual or language continual-learning
-  benchmark is versioned. Partial Split-CIFAR-10 per-seed artifacts are kept as
-  execution diagnostics; there is no completed CIFAR aggregate or Split-CIFAR-100
-  result.
+- No confirmatory full-sequence result on a harder visual or language
+  continual-learning benchmark is versioned. BERT/CLINC150 has a completed
+  exploratory two-task diagnostic, and partial Split-CIFAR-10 per-seed artifacts
+  are kept as execution diagnostics; there is no completed CIFAR aggregate or
+  Split-CIFAR-100 result.
 - Replay, DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are implemented in
   the shared Split-MNIST/visual runner, but they have not all received
   method-specific tuning or independent replication. MAS, UCB, HAT, NAI,
@@ -424,7 +507,10 @@ Supported:
 - factorized registration protects output rows and downstream input columns;
 - capacity budgeting enforces a minimum realized plastic fraction;
 - the synthetic runner pairs initialization and minibatches;
-- a tiny diagnostic pilot exposed a stability-plasticity trade-off.
+- a tiny diagnostic pilot exposed a stability-plasticity trade-off;
+- in a two-task BERT/CLINC150 diagnostic, SlowHeat improved final average
+  accuracy over sequential BERT, while replay comparisons exposed an
+  acquisition-retention trade-off.
 
 Not supported:
 
@@ -432,7 +518,8 @@ Not supported:
 - superiority to EWC or other continual-learning baselines;
 - novelty of MAX consolidation by itself;
 - guaranteed convergence, specialization or neuron recruitment;
-- validated effectiveness on convolutional networks, transformers or real-world tasks.
+- validated effectiveness across other Transformer architectures, datasets,
+  real-world tasks or a full CLINC150 task sequence.
 
 ## Project structure
 
