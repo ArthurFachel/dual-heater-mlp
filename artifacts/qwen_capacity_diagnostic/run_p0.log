@@ -1,0 +1,58 @@
+Using the latest cached version of the dataset since clinc/clinc_oos couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'plus' at .hf-cache/datasets/clinc___clinc_oos/plus/0.0.0/155b9c710419136e17307b80d0a13e68cd46b4ec (last modified on Tue Sep 22 01:21:47 2026).
+tasks: ['banking', 'credit_cards']
+Some weights of SlowHeatQwen2ForSequenceClassification were not initialized from the model checkpoint at Qwen/Qwen2.5-0.5B and are newly initialized: ['score.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+stage 0 (banking): loss 16.188 -> 2.058 | density 1.000 | PR 13009.9 | protected 87552
+stage 1 (credit_cards): loss 11.673 -> 0.550 | density 1.000 | PR 13430.1 | protected 87552
+           churn: jaccard 0.870 | free-pool turnover 0.345
+
+effective plasticity grid (rows = budget, cols = beta)
+  budget |        1        3       10       30      100
+  -----------------------------------------------------
+    0.10 |    0.955    0.884    0.726    0.528    0.335
+    0.25 |    0.960    0.897    0.760    0.594    0.436
+    0.50 |    0.969    0.922    0.826    0.714    0.613
+    0.75 |    0.981    0.953    0.901    0.845    0.799
+    0.90 |    0.990    0.976    0.953    0.932    0.916
+
+reachable plasticity interval per budget (floor = free fraction)
+  budget | floor    reachable E
+  --------------------------------------
+    0.10 | 0.100    [0.100, 1.000]
+    0.25 | 0.250    [0.250, 1.000]
+    0.50 | 0.500    [0.500, 1.000]
+    0.75 | 0.750    [0.750, 1.000]
+    0.90 | 0.900    [0.900, 1.000]
+  note: beta cannot push E below the floor, so budget and beta are
+        not interchangeable knobs.
+
+protection concentration (is the protected set functional?)
+  budget | protected  effective  ratio  >=0.5  >=0.1  q50
+  --------------------------------------------------------------
+    0.10 |   105,048      53751  0.512    142 12,693 0.043
+    0.25 |    87,552      45460  0.519    142 12,693 0.047
+    0.50 |    58,368      30746  0.527    142 12,693 0.054
+    0.75 |    29,184      15586  0.534    142 10,104 0.070
+    0.90 |    11,664       6428  0.551    142  5,733 0.098
+  ratio = effective/nominal protected units. Low ratio means the
+  protected count is nominal: a few extreme units set the normalizer
+  and most 'protected' units keep nearly full plasticity.
+
+iso-plasticity family at E* = 0.75
+  budget | protected        beta        achieved E
+  --------------------------------------------------
+    0.05 |   110,880 (95%)        8.14  0.750000
+    0.10 |   105,048 (90%)        8.61  0.750000
+    0.25 |    87,552 (75%)       10.75  0.750000
+    0.50 |    58,368 (50%)       21.00  0.750000
+  spread: 1.90x in protected count at matched plasticity
+
+iso-plasticity family at E* = 0.5
+  budget | protected        beta        achieved E
+  --------------------------------------------------
+    0.05 |   110,880 (95%)       31.17  0.500000
+    0.10 |   105,048 (90%)       35.00  0.500000
+    0.25 |    87,552 (75%)       58.25  0.500000
+  spread: 1.27x in protected count at matched plasticity
+manifest written: results/qwen_capacity_diagnostic/manifest.json

@@ -1,0 +1,770 @@
+{
+  "criterion": {
+    "rule": "largest slow_strength with effective_plasticity >= floor",
+    "budget": 0.25,
+    "minimum_effective_plasticity": null,
+    "declared_before_run": false,
+    "reads_accuracy": false
+  },
+  "iso_plasticity": {
+    "rule": "solve beta so effective_plasticity == target at each budget",
+    "budgets": [
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      0.75
+    ],
+    "targets": [
+      0.75,
+      0.5
+    ],
+    "families": {
+      "0.75": [
+        {
+          "target_plasticity": 0.75,
+          "budget": 0.05,
+          "slow_strength": 8.139020442962646,
+          "protected_units": 110880,
+          "protected_fraction": 0.9498355263157895,
+          "achieved_plasticity": 0.75
+        },
+        {
+          "target_plasticity": 0.75,
+          "budget": 0.1,
+          "slow_strength": 8.614396572113037,
+          "protected_units": 105048,
+          "protected_fraction": 0.8998766447368421,
+          "achieved_plasticity": 0.75
+        },
+        {
+          "target_plasticity": 0.75,
+          "budget": 0.25,
+          "slow_strength": 10.75381326675415,
+          "protected_units": 87552,
+          "protected_fraction": 0.75,
+          "achieved_plasticity": 0.7500000596046448
+        },
+        {
+          "target_plasticity": 0.75,
+          "budget": 0.5,
+          "slow_strength": 20.99830150604248,
+          "protected_units": 58368,
+          "protected_fraction": 0.5,
+          "achieved_plasticity": 0.75
+        }
+      ],
+      "0.5": [
+        {
+          "target_plasticity": 0.5,
+          "budget": 0.05,
+          "slow_strength": 31.167901039123535,
+          "protected_units": 110880,
+          "protected_fraction": 0.9498355263157895,
+          "achieved_plasticity": 0.5000000596046448
+        },
+        {
+          "target_plasticity": 0.5,
+          "budget": 0.1,
+          "slow_strength": 35.00247764587402,
+          "protected_units": 105048,
+          "protected_fraction": 0.8998766447368421,
+          "achieved_plasticity": 0.5
+        },
+        {
+          "target_plasticity": 0.5,
+          "budget": 0.25,
+          "slow_strength": 58.2478084564209,
+          "protected_units": 87552,
+          "protected_fraction": 0.75,
+          "achieved_plasticity": 0.5
+        }
+      ]
+    }
+  },
+  "capacity_scope": "local",
+  "bounds": {
+    "0.1": {
+      "floor": 0.10012335330247879,
+      "protected_units": 105048
+    },
+    "0.25": {
+      "floor": 0.25,
+      "protected_units": 87552
+    },
+    "0.5": {
+      "floor": 0.5,
+      "protected_units": 58368
+    },
+    "0.75": {
+      "floor": 0.75,
+      "protected_units": 29184
+    },
+    "0.9": {
+      "floor": 0.9000822305679321,
+      "protected_units": 11664
+    }
+  },
+  "signal": {
+    "pooled_units": 116736,
+    "positive_fraction": 1.0,
+    "participation_ratio": 13429.992016373393,
+    "participation_fraction": 0.1150458471797337,
+    "heavy_tailed_warning": false
+  },
+  "protocol": {
+    "model": "Qwen/Qwen2.5-0.5B",
+    "dataset": "clinc/clinc_oos:plus",
+    "tasks": [
+      "banking",
+      "credit_cards"
+    ],
+    "max_length": 64,
+    "batch_size": 8,
+    "steps_per_task": 30,
+    "learning_rate": 1e-05,
+    "seed": 0
+  },
+  "stages": [
+    {
+      "stage": 0,
+      "domain": "banking",
+      "steps": 30,
+      "first_loss": 16.18843650817871,
+      "last_loss": 2.0578653812408447,
+      "pooled_units": 116736,
+      "positive_fraction": 1.0,
+      "participation_ratio": 13009.808936665237,
+      "importance_growth": 116735.9921875,
+      "protected_units": 87552,
+      "layers": [
+        {
+          "layer": 0,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3659.179971395735,
+          "protected_units": 3648,
+          "mean_heat": 0.060470469295978546,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 1,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3445.614011952261,
+          "protected_units": 3648,
+          "mean_heat": 0.02664261683821678,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 2,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3308.3351649169504,
+          "protected_units": 3648,
+          "mean_heat": 0.021512895822525024,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 3,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 95.03905828623938,
+          "protected_units": 3648,
+          "mean_heat": 0.0022327781189233065,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 4,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3660.2855006051414,
+          "protected_units": 3648,
+          "mean_heat": 0.056956008076667786,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 5,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 2409.3788883896345,
+          "protected_units": 3648,
+          "mean_heat": 0.0163226667791605,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 6,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3669.7677952638433,
+          "protected_units": 3648,
+          "mean_heat": 0.02652575448155403,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 7,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 4028.1198514838434,
+          "protected_units": 3648,
+          "mean_heat": 0.07122301310300827,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 8,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 4105.2271104988195,
+          "protected_units": 3648,
+          "mean_heat": 0.08055734634399414,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 9,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3634.79843363194,
+          "protected_units": 3648,
+          "mean_heat": 0.08882255852222443,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 10,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3370.467455483001,
+          "protected_units": 3648,
+          "mean_heat": 0.0500858798623085,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 11,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3158.8677770202844,
+          "protected_units": 3648,
+          "mean_heat": 0.06156867370009422,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 12,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3138.058723832401,
+          "protected_units": 3648,
+          "mean_heat": 0.069347083568573,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 13,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3245.73575858004,
+          "protected_units": 3648,
+          "mean_heat": 0.06384310871362686,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 14,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3373.6525128010885,
+          "protected_units": 3648,
+          "mean_heat": 0.09258774667978287,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 15,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3004.4557692810913,
+          "protected_units": 3648,
+          "mean_heat": 0.043437909334897995,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 16,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 2989.6846794193375,
+          "protected_units": 3648,
+          "mean_heat": 0.04576181247830391,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 17,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3493.029369429926,
+          "protected_units": 3648,
+          "mean_heat": 0.049482766538858414,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 18,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3034.936844943719,
+          "protected_units": 3648,
+          "mean_heat": 0.021983889862895012,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 19,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 2492.6607969583865,
+          "protected_units": 3648,
+          "mean_heat": 0.027743788436055183,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 20,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 2268.7916248480647,
+          "protected_units": 3648,
+          "mean_heat": 0.023791197687387466,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 21,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 39.87246024112746,
+          "protected_units": 3648,
+          "mean_heat": 0.001283428049646318,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 22,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 1211.6092950977793,
+          "protected_units": 3648,
+          "mean_heat": 0.016595399007201195,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 23,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 628.1396237866533,
+          "protected_units": 3648,
+          "mean_heat": 0.014271149411797523,
+          "max_heat": 1.0
+        }
+      ]
+    },
+    {
+      "stage": 1,
+      "domain": "credit_cards",
+      "steps": 30,
+      "first_loss": 11.672754287719727,
+      "last_loss": 0.5498697757720947,
+      "pooled_units": 116736,
+      "positive_fraction": 1.0,
+      "participation_ratio": 13429.992016373393,
+      "importance_growth": 9942.5,
+      "protected_units": 87552,
+      "layers": [
+        {
+          "layer": 0,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3708.487994806099,
+          "protected_units": 3648,
+          "mean_heat": 0.06463272869586945,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 1,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3488.8037291841447,
+          "protected_units": 3648,
+          "mean_heat": 0.02808847464621067,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 2,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3259.829659694544,
+          "protected_units": 3648,
+          "mean_heat": 0.020321864634752274,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 3,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 104.77727910953472,
+          "protected_units": 3648,
+          "mean_heat": 0.0023448308929800987,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 4,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3405.243531069843,
+          "protected_units": 3648,
+          "mean_heat": 0.036036886274814606,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 5,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 2419.9797227021672,
+          "protected_units": 3648,
+          "mean_heat": 0.017579182982444763,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 6,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3718.632220184329,
+          "protected_units": 3648,
+          "mean_heat": 0.028586117550730705,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 7,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 4060.5782035465654,
+          "protected_units": 3648,
+          "mean_heat": 0.07583548873662949,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 8,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 4117.56593318445,
+          "protected_units": 3648,
+          "mean_heat": 0.08530335873365402,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 9,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3660.250707178463,
+          "protected_units": 3648,
+          "mean_heat": 0.09434864670038223,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 10,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3411.715445488507,
+          "protected_units": 3648,
+          "mean_heat": 0.047394730150699615,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 11,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3244.8009668373147,
+          "protected_units": 3648,
+          "mean_heat": 0.06556719541549683,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 12,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3212.53454977296,
+          "protected_units": 3648,
+          "mean_heat": 0.0739917978644371,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 13,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3309.323330089972,
+          "protected_units": 3648,
+          "mean_heat": 0.06852491199970245,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 14,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3409.798733273782,
+          "protected_units": 3648,
+          "mean_heat": 0.09783826023340225,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 15,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3050.9799656603336,
+          "protected_units": 3648,
+          "mean_heat": 0.045322269201278687,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 16,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3061.5958322307606,
+          "protected_units": 3648,
+          "mean_heat": 0.048603080213069916,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 17,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3455.4810997533186,
+          "protected_units": 3648,
+          "mean_heat": 0.05393991991877556,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 18,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 3149.175714163082,
+          "protected_units": 3648,
+          "mean_heat": 0.024204226210713387,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 19,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 2312.3743901888743,
+          "protected_units": 3648,
+          "mean_heat": 0.029805108904838562,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 20,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 2203.7180210938127,
+          "protected_units": 3648,
+          "mean_heat": 0.024716055020689964,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 21,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 42.386418955100716,
+          "protected_units": 3648,
+          "mean_heat": 0.0013332910602912307,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 22,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 1348.2760008050395,
+          "protected_units": 3648,
+          "mean_heat": 0.019125908613204956,
+          "max_heat": 1.0
+        },
+        {
+          "layer": 23,
+          "units": 4864,
+          "positive_fraction": 1.0,
+          "participation_ratio": 527.2696190226608,
+          "protected_units": 3648,
+          "mean_heat": 0.01124499086290598,
+          "max_heat": 1.0
+        }
+      ],
+      "protection_jaccard_vs_previous": 0.8698702546852475,
+      "free_pool_turnover": 0.3454375372055447
+    }
+  ],
+  "grid": [
+    {
+      "slow_strength": 1.0,
+      "budget": 0.1,
+      "protected_units": 105048,
+      "protected_fraction": 0.8998766447368421,
+      "effective_plasticity": 0.9550712704658508
+    },
+    {
+      "slow_strength": 3.0,
+      "budget": 0.1,
+      "protected_units": 105048,
+      "protected_fraction": 0.8998766447368421,
+      "effective_plasticity": 0.8835601806640625
+    },
+    {
+      "slow_strength": 10.0,
+      "budget": 0.1,
+      "protected_units": 105048,
+      "protected_fraction": 0.8998766447368421,
+      "effective_plasticity": 0.7258511185646057
+    },
+    {
+      "slow_strength": 30.0,
+      "budget": 0.1,
+      "protected_units": 105048,
+      "protected_fraction": 0.8998766447368421,
+      "effective_plasticity": 0.527910590171814
+    },
+    {
+      "slow_strength": 100.0,
+      "budget": 0.1,
+      "protected_units": 105048,
+      "protected_fraction": 0.8998766447368421,
+      "effective_plasticity": 0.3346412479877472
+    },
+    {
+      "slow_strength": 1.0,
+      "budget": 0.25,
+      "protected_units": 87552,
+      "protected_fraction": 0.75,
+      "effective_plasticity": 0.9598397612571716
+    },
+    {
+      "slow_strength": 3.0,
+      "budget": 0.25,
+      "protected_units": 87552,
+      "protected_fraction": 0.75,
+      "effective_plasticity": 0.8967087864875793
+    },
+    {
+      "slow_strength": 10.0,
+      "budget": 0.25,
+      "protected_units": 87552,
+      "protected_fraction": 0.75,
+      "effective_plasticity": 0.7603560090065002
+    },
+    {
+      "slow_strength": 30.0,
+      "budget": 0.25,
+      "protected_units": 87552,
+      "protected_fraction": 0.75,
+      "effective_plasticity": 0.594058632850647
+    },
+    {
+      "slow_strength": 100.0,
+      "budget": 0.25,
+      "protected_units": 87552,
+      "protected_fraction": 0.75,
+      "effective_plasticity": 0.4362901449203491
+    },
+    {
+      "slow_strength": 1.0,
+      "budget": 0.5,
+      "protected_units": 58368,
+      "protected_fraction": 0.5,
+      "effective_plasticity": 0.9693002104759216
+    },
+    {
+      "slow_strength": 3.0,
+      "budget": 0.5,
+      "protected_units": 58368,
+      "protected_fraction": 0.5,
+      "effective_plasticity": 0.922411322593689
+    },
+    {
+      "slow_strength": 10.0,
+      "budget": 0.5,
+      "protected_units": 58368,
+      "protected_fraction": 0.5,
+      "effective_plasticity": 0.825566291809082
+    },
+    {
+      "slow_strength": 30.0,
+      "budget": 0.5,
+      "protected_units": 58368,
+      "protected_fraction": 0.5,
+      "effective_plasticity": 0.7139229774475098
+    },
+    {
+      "slow_strength": 100.0,
+      "budget": 0.5,
+      "protected_units": 58368,
+      "protected_fraction": 0.5,
+      "effective_plasticity": 0.6133760809898376
+    },
+    {
+      "slow_strength": 1.0,
+      "budget": 0.75,
+      "protected_units": 29184,
+      "protected_fraction": 0.25,
+      "effective_plasticity": 0.9809299111366272
+    },
+    {
+      "slow_strength": 3.0,
+      "budget": 0.75,
+      "protected_units": 29184,
+      "protected_fraction": 0.25,
+      "effective_plasticity": 0.9533520936965942
+    },
+    {
+      "slow_strength": 10.0,
+      "budget": 0.75,
+      "protected_units": 29184,
+      "protected_fraction": 0.25,
+      "effective_plasticity": 0.9006580710411072
+    },
+    {
+      "slow_strength": 30.0,
+      "budget": 0.75,
+      "protected_units": 29184,
+      "protected_fraction": 0.25,
+      "effective_plasticity": 0.8451784253120422
+    },
+    {
+      "slow_strength": 100.0,
+      "budget": 0.75,
+      "protected_units": 29184,
+      "protected_fraction": 0.25,
+      "effective_plasticity": 0.7989634871482849
+    },
+    {
+      "slow_strength": 1.0,
+      "budget": 0.9,
+      "protected_units": 11664,
+      "protected_fraction": 0.09991776315789473,
+      "effective_plasticity": 0.9898638725280762
+    },
+    {
+      "slow_strength": 3.0,
+      "budget": 0.9,
+      "protected_units": 11664,
+      "protected_fraction": 0.09991776315789473,
+      "effective_plasticity": 0.9764121770858765
+    },
+    {
+      "slow_strength": 10.0,
+      "budget": 0.9,
+      "protected_units": 11664,
+      "protected_fraction": 0.09991776315789473,
+      "effective_plasticity": 0.9534494876861572
+    },
+    {
+      "slow_strength": 30.0,
+      "budget": 0.9,
+      "protected_units": 11664,
+      "protected_fraction": 0.09991776315789473,
+      "effective_plasticity": 0.9320855140686035
+    },
+    {
+      "slow_strength": 100.0,
+      "budget": 0.9,
+      "protected_units": 11664,
+      "protected_fraction": 0.09991776315789473,
+      "effective_plasticity": 0.915976881980896
+    }
+  ],
+  "selection": null
+}
