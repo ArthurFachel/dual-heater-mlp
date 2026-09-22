@@ -4,8 +4,9 @@
 > não é editado depois de ver acurácia. Se um valor mudar, o commit que o muda
 > tem de vir antes da run correspondente, e a mudança fica registrada abaixo.
 
-**Estado: RASCUNHO — NÃO CONGELADO.** Congelar exige fechar os itens do bloco A.
-Enquanto houver item em aberto, este documento não autoriza run com acurácia.
+**Estado: CONGELADO em 22/09/2026.** As decisões A1 a A4 estão fechadas na
+seção A. A partir deste commit o arquivo não é editado: qualquer mudança exige
+um commit anterior à run correspondente, registrado na tabela K.
 
 Última atualização: 22 de setembro de 2026.
 Gate 0: fechado — `concentration_ratio` 0,512 a 0,551, conjunto protegido é
@@ -13,19 +14,23 @@ funcional (`goals/qwen_heat_roadmap.md`, Meta 0).
 
 ---
 
-## A. Decisões pendentes (bloqueiam o congelamento)
+## A. Decisões congeladas
 
-| # | Decisão | Valor no rascunho | Status |
+| # | Decisão | Valor congelado | Justificativa |
 |---|---|---|---|
-| A1 | `E*` declarados | 0,75 (primário) e 0,50 (secundário) | a confirmar |
-| A2 | `beta` fixo ou re-resolvido por fronteira | re-resolvido por fronteira | a confirmar |
-| A3 | Seeds de calibração / confirmação | {0, 1, 2} / 10 seeds a declarar | a confirmar |
-| A4 | `minimum_effective_plasticity` do critério declarado | 0,60, avaliado em `b=0,25` | a confirmar |
+| A1 | `E*` declarados | 0,75 primário, 0,50 secundário | `E*=0,75` tem 4 budgets alcançáveis e contraste de 1,90x em contagem protegida; `E*=0,50` tem 3 e contraste de 1,27x, então replica a direção sem carregar o contraste |
+| A2 | `beta` fixo ou re-resolvido por fronteira | re-resolvido a cada fronteira | mantém `E` no alvo declarado quando a importância consolidada muda; `beta` fixo deixaria `E` derivar e o braço deixaria de ser iso-`E` |
+| A3 | Seeds de calibração / confirmação | calibração {0, 1, 2}; confirmação {10, 11, 12, 13, 14, 15, 16, 17, 18, 19} | as 10 de confirmação são declaradas **agora**, antes de qualquer acurácia; escolhê-las depois invalidaria o pré-registro |
+| A4 | `minimum_effective_plasticity` do critério declarado | 0,60, avaliado em `b=0,25` | o regime medido é informativo (`heavy_tailed_warning=False`, `PR/N` agregado 11,5% contra guard-rail de 5%); o piso seleciona `beta=10` (`E=0,760`) na grade |
 
 Regra de A4: o critério de `docs/qwen_capacity_calibration.md` lê **somente
-mecanismo** e falha em vez de relaxar o piso. Nesta run ele nunca foi aplicado
-(`selection=None`). Se o piso 0,60 não for atingível, o resultado é "critério
-falhou" e isso é registrado, não contornado.
+mecanismo** e falha em vez de relaxar o piso. Se o piso 0,60 não for atingível
+numa run futura, o resultado é "critério falhou" e isso é registrado, não
+contornado.
+
+Consequência de A2 que precisa ser reportada: `beta` só existe a partir da
+fronteira 1->2, porque é resolvido sobre a importância consolidada. O `beta` da
+primeira fronteira é reportado separado, para comparabilidade com Gate 0.
 
 ---
 
@@ -53,8 +58,8 @@ há tentativa de salvar o endpoint do BERT.
 |---|---|
 | Modelo | `Qwen/Qwen2.5-0.5B`, `num_labels=150`, fp32 em memória, `fp16=True` no Trainer |
 | Dataset | `clinc/clinc_oos:plus`, Class-IL por domínio |
-| Tarefas na calibração | 2 (`banking -> credit_cards`) |
-| Tarefas na confirmação | 10 (sequência completa dos domínios) |
+| Tarefas na calibração | 2, na ordem `banking -> credit_cards` |
+| Tarefas na confirmação | 10, na ordem de `CLINC150_DOMAINS` |
 | `max_length` | 64 |
 | `batch_size` | 2 |
 | Passos por tarefa | 30 |
@@ -62,6 +67,11 @@ há tentativa de salvar o endpoint do BERT.
 | Escopo de capacidade | `local` (default de produção, obrigatório) |
 | `freeze_unbound_parameters` | `True` |
 | Cabeça de classificação | treinável e sem máscara; contagem reportada separada |
+| Seeds de calibração | 0, 1, 2 |
+| Seeds de confirmação | 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 |
+
+**A ordem das tarefas é parte do protocolo.** Declarada acima e passada
+explicitamente por `--domains`, nunca inferida de uma contagem.
 
 **Escopo de capacidade é parte do mecanismo.** Toda aritmética de heat usa as
 variantes `*_scoped`. Concatenar camadas e normalizar por máximo global erra por
@@ -82,11 +92,15 @@ busca em grade com acurácia no loop**.
 | Braço | budget | protegidas | `beta` | papel |
 |---|---:|---:|---:|---|
 | iso-E muitas-fracas | 0,05 | 110.880 (95%) | 8,139 | muitas unidades, proteção fraca |
+| iso-E muitas-fracas-2 | 0,10 | 105.048 (90%) | 8,614 | ponto intermediário do lado fraco |
 | iso-E intermediário | 0,25 | 87.552 (75%) | 10,754 | intermediário |
 | iso-E poucas-fortes | 0,50 | 58.368 (50%) | 20,998 | poucas unidades, proteção forte |
 
-Spread de contagem 1,90x; spread de `beta` 2,58x. `b=0,10` (105.048, beta 8,614)
-fica disponível como quarto braço e não é primário.
+Spread de contagem 1,90x; spread de `beta` 2,58x, medidos entre `b=0,05` e
+`b=0,50`. Os quatro budgets são braços declarados: a grade de budgets é
+`{0,05; 0,10; 0,25; 0,50}` e todo budget alcançável vira braço, sem seleção
+posterior. Os valores de `beta` na tabela são os de Gate 0 e servem de
+referência; na run cada `beta` é re-resolvido por fronteira (A2).
 
 ### E.2 Família secundária, `E* = 0,50`
 
@@ -108,6 +122,9 @@ de `E*=0,75` é a que carrega o contraste; a de 0,50 é replicação de direçã
 | iso-E aleatório | **permutação do vetor de heat** que preserva a distribuição | o ranking informa? |
 | LR reduzido | `lr * E*`, **sem máscara nenhuma** | o mecanismo é redutível a LR menor? |
 | vanilla | `E = 1`, sem consolidação, sem máscara | âncora de forgetting |
+
+Contagem de braços: 4 iso-E + 3 controles = **7** em `E*=0,75`; 3 iso-E + 3
+controles = **6** em `E*=0,50`. Total 13 por seed.
 
 Controle de LR reduzido é **obrigatório, não opcional**. É o controle que o
 diagnóstico de BERT não tinha.
@@ -168,11 +185,14 @@ Asserções obrigatórias:
 
 1. todo braço atinge o `E*` declarado dentro de 1e-6;
 2. o braço aleatório tem **distribuição de heat idêntica** ao aprendido
-   (mesmo histograma ordenado) e `E` idêntico;
-3. o braço de LR reduzido **não registra máscara nenhuma**;
+   (mesmo histograma ordenado) e `E` idêntico, com `permutation != identity`
+   verificado;
+3. o braço de LR reduzido **não registra máscara nenhuma** (`mask_bindings()`
+   vazio);
 4. drift protegido é exatamente zero sob máscara hard;
 5. o manifesto contém todos os braços, `beta` resolvidos por fronteira, `E`
-   atingido, escopo de capacidade e o protocolo.
+   atingido, escopo de capacidade, o protocolo e **a lista de budgets
+   descartados por inalcançáveis**.
 
 Mutações a injetar, cada uma tem de quebrar algum teste:
 
@@ -182,10 +202,13 @@ Mutações a injetar, cada uma tem de quebrar algum teste:
 | trocar permutação por proteção hard | 2 |
 | ignorar `capacity_scope` | 1 |
 | aplicar `E*` errado num braço | 1 |
-| saturar `beta` em vez de descartar budget inalcançável | 1 |
-| esquecer `seen_tasks` na avaliação | 5 |
+| saturar `beta` em vez de descartar budget inalcançável | 5 |
+| registrar máscara no braço de LR reduzido | 3 |
+| esquecer `seen_classes` na avaliação | teste de avaliação Class-IL |
 
 Teste novo verde de primeira é suspeito: injetar as mutações e confirmar.
+Mutação sobrevivente é lacuna de teste ou equivalência provada; investigar e
+documentar qual das duas, sem deixar a sobrevivente sem explicação.
 
 ## I. Gate 1 (fecha a calibração)
 
@@ -215,4 +238,7 @@ benchmark completo.
 | Data | Alteração | Antes da run? |
 |---|---|---|
 | 22/09 | criação do rascunho; Gate 0 registrado | sim |
-| | **congelamento pendente dos itens A1-A4** | |
+| 22/09 | **congelamento.** A1 = 0,75 primário e 0,50 secundário; A2 = `beta` re-resolvido por fronteira; A3 = calibração {0,1,2} e confirmação {10..19}; A4 = piso 0,60 em `b=0,25`. Ordem das tarefas declarada em D. `b=0,10` promovido a braço declarado em E.1 (4 braços iso-E, 7 no total em `E*=0,75`). Tabela H corrigida: `seen_classes` (não `seen_tasks`), saturação de `beta` mapeada para a asserção 5, mutação de máscara no braço de LR reduzido adicionada. | sim — nenhuma acurácia observada |
+
+A partir daqui, qualquer alteração exige commit anterior à run correspondente e
+uma linha nova nesta tabela.
