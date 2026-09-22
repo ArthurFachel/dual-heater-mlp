@@ -36,6 +36,11 @@ from .transformer import (
     AttentionCombination,
     SlowHeatAttentionTracker,
     SlowHeatFFNTracker,
+    apply_family_capacity,
+    apply_global_capacity,
+    apply_hierarchical_capacity,
+    dynamic_matrix_mask,
+    merge_task_importance,
 )
 
 
@@ -175,30 +180,9 @@ def _factor(tracker: SlowHeatFFNTracker, hard: bool) -> Tensor:
 FactorSource = Callable[[], Tensor]
 
 
-def _dynamic_matrix_mask(
-    row_source: FactorSource | None,
-    column_source: FactorSource | None,
-) -> FactorSource:
-    """Build one dynamic matrix mask from zero, one, or two endpoint factors."""
-
-    if row_source is None and column_source is None:
-        raise ValueError("ao menos um endpoint deve fornecer uma máscara")
-
-    def mask() -> Tensor:
-        rows = row_source().reshape(-1, 1) if row_source is not None else None
-        columns = (
-            column_source().reshape(1, -1) if column_source is not None else None
-        )
-        if rows is None:
-            assert columns is not None
-            return columns
-        if columns is None:
-            return rows
-        if rows.device != columns.device:
-            columns = columns.to(rows.device)
-        return torch.minimum(rows, columns)
-
-    return mask
+# Kept as a module-level alias: the shared implementation now lives in
+# `transformer` so BERT and Qwen cannot drift apart.
+_dynamic_matrix_mask = dynamic_matrix_mask
 
 
 class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
@@ -669,149 +653,25 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             states.append(self.classifier_tracker)
         return states
 
-    @staticmethod
-    def _merge_task_importance(
-        states: list[SlowHeatFFNTracker | SlowHeatAttentionTracker],
-        strategy: Literal["max", "mean", "sum"],
-    ) -> None:
-        if strategy not in {"max", "mean", "sum"}:
-            raise ValueError("strategy deve ser 'max', 'mean' ou 'sum'")
-        if any(state.task_step.item() == 0 for state in states):
-            raise RuntimeError("não é possível consolidar uma task sem backward")
-        with torch.no_grad():
-            for state in states:
-                if strategy == "max":
-                    state.importance_memory.copy_(
-                        torch.maximum(state.importance_memory, state.task_ema)
-                    )
-                elif strategy == "mean":
-                    count = int(state.consolidated_tasks.item()) + 1
-                    state.importance_memory.add_(
-                        (state.task_ema - state.importance_memory) / count
-                    )
-                else:
-                    state.importance_memory.add_(state.task_ema)
-                state.consolidated_tasks.add_(1)
-                state.task_ema.zero_()
-                state.task_step.zero_()
-
-    @staticmethod
-    @torch.no_grad()
-    def _apply_global_capacity(
-        states: list[SlowHeatFFNTracker | SlowHeatAttentionTracker],
-    ) -> None:
-        if not states:
-            return
-        budget = states[0].plasticity_budget
-        if any(state.plasticity_budget != budget for state in states[1:]):
-            raise RuntimeError("o budget global deve ser uniforme dentro da família")
-        importance = torch.cat([state.importance_memory for state in states])
-        protected = min(
-            math.floor((1.0 - budget) * importance.numel() + 1e-12),
-            int(torch.count_nonzero(importance > 0.0).item()),
-        )
-        for state in states:
-            state.slow_heat.zero_()
-        if protected == 0:
-            return
-        selected = torch.argsort(importance, descending=True, stable=True)[:protected]
-        heat = torch.zeros_like(importance)
-        heat[selected] = importance[selected] / importance[selected].max().clamp_min(
-            states[0].importance_eps
-        )
-        offset = 0
-        for state in states:
-            width = state.slow_heat.numel()
-            state.slow_heat.copy_(heat[offset : offset + width])
-            offset += width
-
-    @staticmethod
-    @torch.no_grad()
-    def _apply_hierarchical_capacity(
-        states: list[SlowHeatFFNTracker | SlowHeatAttentionTracker],
-    ) -> None:
-        if not states:
-            return
-        budget = states[0].plasticity_budget
-        if any(state.plasticity_budget != budget for state in states[1:]):
-            raise RuntimeError("o budget hierárquico deve ser uniforme dentro da família")
-        capacities = [
-            int(torch.count_nonzero(state.importance_memory > 0.0).item())
-            for state in states
-        ]
-        protected = min(
-            math.floor(
-                (1.0 - budget)
-                * sum(state.importance_memory.numel() for state in states)
-                + 1e-12
-            ),
-            sum(capacities),
-        )
-        for state in states:
-            state.slow_heat.zero_()
-        if protected == 0:
-            return
-        weights = [float(state.importance_memory.mean()) for state in states]
-        weight_sum = sum(weights)
-        if weight_sum <= 0.0:
-            weights = [float(capacity) for capacity in capacities]
-            weight_sum = sum(weights)
-        ideals = [protected * weight / weight_sum for weight in weights]
-        quotas = [min(capacity, math.floor(ideal)) for capacity, ideal in zip(capacities, ideals, strict=True)]
-        remaining = protected - sum(quotas)
-        priority = sorted(
-            range(len(states)),
-            key=lambda index: (ideals[index] - math.floor(ideals[index]), weights[index], -index),
-            reverse=True,
-        )
-        while remaining:
-            progressed = False
-            for index in priority:
-                if quotas[index] < capacities[index]:
-                    quotas[index] += 1
-                    remaining -= 1
-                    progressed = True
-                    if remaining == 0:
-                        break
-            if not progressed:
-                raise RuntimeError("não foi possível distribuir o budget hierárquico")
-        maxima = [
-            state.importance_memory[
-                torch.argsort(state.importance_memory, descending=True, stable=True)[:quota]
-            ].max()
-            for state, quota in zip(states, quotas, strict=True)
-            if quota
-        ]
-        normalizer = torch.stack(maxima).max().clamp_min(states[0].importance_eps)
-        for state, quota in zip(states, quotas, strict=True):
-            if quota == 0:
-                continue
-            selected = torch.argsort(
-                state.importance_memory, descending=True, stable=True
-            )[:quota]
-            state.slow_heat[selected] = state.importance_memory[selected] / normalizer
+    # Capacity arithmetic is shared with the Qwen host; these thin wrappers keep
+    # the historical BERT call sites and names intact.
+    _merge_task_importance = staticmethod(merge_task_importance)
+    _apply_global_capacity = staticmethod(apply_global_capacity)
+    _apply_hierarchical_capacity = staticmethod(apply_hierarchical_capacity)
 
     def consolidate(self, strategy: Literal["max", "mean", "sum"] = "max") -> None:
-        scope = self.slowheat_config.capacity_scope
-        if scope == "local":
-            for state in self.get_slow_states():
-                state.consolidate(strategy=strategy)
-            return
-        families: list[list[SlowHeatFFNTracker | SlowHeatAttentionTracker]] = [
-            list(self.ffn_trackers),
-            list(self.attention_trackers),
-            list(self.residual_trackers),
-            [self.pooler_tracker] if self.pooler_tracker is not None else [],
-            [self.classifier_tracker] if self.classifier_tracker is not None else [],
-        ]
-        for states in families:
-            if not states:
-                continue
-            self._merge_task_importance(states, strategy)
-            if scope == "global":
-                self._apply_global_capacity(states)
-            else:
-                self._apply_hierarchical_capacity(states)
+        apply_family_capacity(
+            [
+                list(self.ffn_trackers),
+                list(self.attention_trackers),
+                list(self.residual_trackers),
+                [self.pooler_tracker] if self.pooler_tracker is not None else [],
+                [self.classifier_tracker] if self.classifier_tracker is not None else [],
+            ],
+            scope=self.slowheat_config.capacity_scope,
+            strategy=strategy,
+        )
+
     def capacity_metrics(self) -> list[dict[str, float]]:
         return [state.capacity_metrics() for state in self.get_slow_states()]
 

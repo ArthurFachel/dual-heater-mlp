@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+import math
+from collections.abc import Callable
+from typing import Literal, TypeAlias
 
 import torch
 from torch import Tensor, nn
@@ -10,6 +12,7 @@ from torch import Tensor, nn
 from .slow_heat import _SlowHeatImportanceMixin
 
 AttentionCombination = Literal["max", "mean", "sum"]
+CapacityScope = Literal["local", "global", "hierarchical"]
 
 
 def _validated_token_mask(
@@ -235,3 +238,189 @@ class SlowHeatAttentionTracker(_SlowHeatImportanceMixin, nn.Module):
             f"combine={self.combination}, beta={self.slow_strength}, "
             f"plasticity={self.plasticity_budget:.3f}"
         )
+
+
+SlowHeatState: TypeAlias = "SlowHeatFFNTracker | SlowHeatAttentionTracker"
+FactorSource: TypeAlias = Callable[[], Tensor]
+
+
+def dynamic_matrix_mask(
+    row_source: FactorSource | None,
+    column_source: FactorSource | None,
+) -> FactorSource:
+    """Build one dynamic matrix mask from zero, one, or two endpoint factors.
+
+    Two endpoints are combined with the elementwise minimum so a weight is only
+    as plastic as its most-protected endpoint. Registering one binding per
+    parameter keeps optimizer ownership unambiguous.
+    """
+
+    if row_source is None and column_source is None:
+        raise ValueError("ao menos um endpoint deve fornecer uma máscara")
+
+    def mask() -> Tensor:
+        rows = row_source().reshape(-1, 1) if row_source is not None else None
+        columns = column_source().reshape(1, -1) if column_source is not None else None
+        if rows is None:
+            assert columns is not None
+            return columns
+        if columns is None:
+            return rows
+        if rows.device != columns.device:
+            columns = columns.to(rows.device)
+        return torch.minimum(rows, columns)
+
+    return mask
+
+
+def merge_task_importance(states, strategy: AttentionCombination) -> None:
+    """Fold the finished task's EMA into persistent importance memory."""
+
+    if strategy not in {"max", "mean", "sum"}:
+        raise ValueError("strategy deve ser 'max', 'mean' ou 'sum'")
+    if any(state.task_step.item() == 0 for state in states):
+        raise RuntimeError("não é possível consolidar uma task sem backward")
+    with torch.no_grad():
+        for state in states:
+            if strategy == "max":
+                state.importance_memory.copy_(
+                    torch.maximum(state.importance_memory, state.task_ema)
+                )
+            elif strategy == "mean":
+                count = int(state.consolidated_tasks.item()) + 1
+                state.importance_memory.add_(
+                    (state.task_ema - state.importance_memory) / count
+                )
+            else:
+                state.importance_memory.add_(state.task_ema)
+            state.consolidated_tasks.add_(1)
+            state.task_ema.zero_()
+            state.task_step.zero_()
+
+
+@torch.no_grad()
+def apply_global_capacity(states) -> None:
+    """Rank one family's units jointly and protect the global top fraction."""
+
+    if not states:
+        return
+    budget = states[0].plasticity_budget
+    if any(state.plasticity_budget != budget for state in states[1:]):
+        raise RuntimeError("o budget global deve ser uniforme dentro da família")
+    importance = torch.cat([state.importance_memory for state in states])
+    protected = min(
+        math.floor((1.0 - budget) * importance.numel() + 1e-12),
+        int(torch.count_nonzero(importance > 0.0).item()),
+    )
+    for state in states:
+        state.slow_heat.zero_()
+    if protected == 0:
+        return
+    selected = torch.argsort(importance, descending=True, stable=True)[:protected]
+    heat = torch.zeros_like(importance)
+    heat[selected] = importance[selected] / importance[selected].max().clamp_min(
+        states[0].importance_eps
+    )
+    offset = 0
+    for state in states:
+        width = state.slow_heat.numel()
+        state.slow_heat.copy_(heat[offset : offset + width])
+        offset += width
+
+
+@torch.no_grad()
+def apply_hierarchical_capacity(states) -> None:
+    """Split one family's global budget into per-layer quotas, then rank locally."""
+
+    if not states:
+        return
+    budget = states[0].plasticity_budget
+    if any(state.plasticity_budget != budget for state in states[1:]):
+        raise RuntimeError("o budget hierárquico deve ser uniforme dentro da família")
+    capacities = [
+        int(torch.count_nonzero(state.importance_memory > 0.0).item())
+        for state in states
+    ]
+    protected = min(
+        math.floor(
+            (1.0 - budget)
+            * sum(state.importance_memory.numel() for state in states)
+            + 1e-12
+        ),
+        sum(capacities),
+    )
+    for state in states:
+        state.slow_heat.zero_()
+    if protected == 0:
+        return
+    weights = [float(state.importance_memory.mean()) for state in states]
+    weight_sum = sum(weights)
+    if weight_sum <= 0.0:
+        weights = [float(capacity) for capacity in capacities]
+        weight_sum = sum(weights)
+    ideals = [protected * weight / weight_sum for weight in weights]
+    quotas = [
+        min(capacity, math.floor(ideal))
+        for capacity, ideal in zip(capacities, ideals, strict=True)
+    ]
+    remaining = protected - sum(quotas)
+    priority = sorted(
+        range(len(states)),
+        key=lambda index: (
+            ideals[index] - math.floor(ideals[index]),
+            weights[index],
+            -index,
+        ),
+        reverse=True,
+    )
+    while remaining:
+        progressed = False
+        for index in priority:
+            if quotas[index] < capacities[index]:
+                quotas[index] += 1
+                remaining -= 1
+                progressed = True
+                if remaining == 0:
+                    break
+        if not progressed:
+            raise RuntimeError("não foi possível distribuir o budget hierárquico")
+    maxima = [
+        state.importance_memory[
+            torch.argsort(state.importance_memory, descending=True, stable=True)[:quota]
+        ].max()
+        for state, quota in zip(states, quotas, strict=True)
+        if quota
+    ]
+    normalizer = torch.stack(maxima).max().clamp_min(states[0].importance_eps)
+    for state, quota in zip(states, quotas, strict=True):
+        if quota == 0:
+            continue
+        selected = torch.argsort(
+            state.importance_memory, descending=True, stable=True
+        )[:quota]
+        state.slow_heat[selected] = state.importance_memory[selected] / normalizer
+
+
+def apply_family_capacity(
+    families,
+    *,
+    scope: CapacityScope,
+    strategy: AttentionCombination,
+) -> None:
+    """Consolidate every family under the requested capacity scope."""
+
+    if scope == "local":
+        for states in families:
+            for state in states:
+                state.consolidate(strategy=strategy)
+        return
+    if scope not in {"global", "hierarchical"}:
+        raise ValueError("scope deve ser 'local', 'global' ou 'hierarchical'")
+    for states in families:
+        if not states:
+            continue
+        merge_task_importance(states, strategy)
+        if scope == "global":
+            apply_global_capacity(states)
+        else:
+            apply_hierarchical_capacity(states)

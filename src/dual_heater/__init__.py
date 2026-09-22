@@ -28,6 +28,11 @@ _BERT_EXPORTS = {
     "register_exact_lora_masks",
 }
 
+_QWEN_EXPORTS = {
+    "QwenSlowHeatConfig",
+    "SlowHeatQwen2ForSequenceClassification",
+}
+
 
 def __getattr__(name: str):
     """Load optional BERT/PEFT integrations only when requested."""
@@ -36,6 +41,10 @@ def __getattr__(name: str):
         from . import bert
 
         return getattr(bert, name)
+    if name in _QWEN_EXPORTS:
+        from . import qwen
+
+        return getattr(qwen, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
