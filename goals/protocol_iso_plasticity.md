@@ -62,7 +62,7 @@ há tentativa de salvar o endpoint do BERT.
 | Tarefas na confirmação | 10, na ordem de `CLINC150_DOMAINS` |
 | `max_length` | 64 |
 | `batch_size` | 2 |
-| Passos por tarefa | 30 |
+| Passos por tarefa | 120 (era 30; ver tabela K, 22/09) |
 | `learning_rate` | 1e-5 |
 | Escopo de capacidade | `local` (default de produção, obrigatório) |
 | `freeze_unbound_parameters` | `True` |
@@ -257,6 +257,7 @@ benchmark completo.
 | 22/09 | criação do rascunho; Gate 0 registrado | sim |
 | 22/09 | **congelamento.** A1 = 0,75 primário e 0,50 secundário; A2 = `beta` re-resolvido por fronteira; A3 = calibração {0,1,2} e confirmação {10..19}; A4 = piso 0,60 em `b=0,25`. Ordem das tarefas declarada em D. `b=0,10` promovido a braço declarado em E.1 (4 braços iso-E, 7 no total em `E*=0,75`). Tabela H corrigida: `seen_classes` (não `seen_tasks`), saturação de `beta` mapeada para a asserção 5, mutação de máscara no braço de LR reduzido adicionada. | sim — nenhuma acurácia observada |
 | 22/09 | **fp16 -> fp32 no treino.** Medição (sem acurácia) mostrou que sob autocast fp16 as camadas 0 a 18 registram importância exatamente zero: `positive_fraction` 0,2083 em vez de 1,00, piso em `b=0,25` de 0,84 em vez de 0,25, e nenhum braço iso-E alcançável. Custo medido de fp32: +0,03 GiB de pico e +8% de tempo. Ver seção D. | sim — a run descartada por este motivo não teve nenhum endpoint lido |
+| 22/09 | **30 -> 120 passos por tarefa.** Medição de aquisição pura (uma tarefa isolada, sem mecanismo, sem comparação entre braços): com 30 passos e `batch_size=2` são 4 exemplos por classe e a acurácia fica em 0,31, contra teto prático de ~0,94. O modelo era interrompido no início da curva, então não havia conhecimento consolidado para nenhum mecanismo preservar — e no piloto de 10 tarefas os 4 braços iso ficaram indistinguíveis no piso (FAA 0,066 a 0,084, retenção ~0,015 = acaso). Com 120 passos (16 ex/classe) a acurácia é 0,78-0,81, o joelho da curva: 240 compra +0,06 por 60% mais tempo, e 960 já mostra overfitting em `credit_cards` (0,943 -> 0,870). Ver `results/run_logs/steps_sweep.log`. | sim — só aquisição de tarefa única foi lida; nenhum endpoint comparativo entre braços foi observado, o pré-registro segue intacto |
 
 A partir daqui, qualquer alteração exige commit anterior à run correspondente e
 uma linha nova nesta tabela.
