@@ -34,13 +34,18 @@ Three controls per family, all matched on ``E*``:
 
 Precision
 ---------
-Weights are always held in fp32 and fp16 is applied through autocast plus a
-gradient scaler. Loading fp16 weights *and* enabling the scaler is the one
-combination that breaks, because the scaler expects fp32 master weights.
+Training is fp32. fp16 is NOT supported and is rejected, because it silently
+destroys the measurement: under autocast fp16 the gradient reaching
+``down_proj``'s input underflows in the early layers, so ``|z dL/dz|`` rounds
+to exactly zero and layers 0 to 18 of 24 record no importance at all. The
+``GradScaler`` does not help, since the product is already zero before the
+unscale. Measured on a GTX 1080 Ti: ``positive_fraction`` drops from 1.00 to
+0.2083 (5/24), the floor at ``b=0.25`` rises from 0.25 to 0.84, and every
+iso-``E`` arm becomes unreachable.
 
-The gradient scaler does not bias the importance estimator: the tracker
-normalizes each step's signal by its own mean before the EMA, so a uniform
-scale factor cancels exactly, even when the scaler changes scale mid-task.
+fp32 costs almost nothing here: peak allocated 5.48 GiB against 5.45 GiB, and
+6.8s against 6.3s for 30 steps, on the most protected arm. It fits an 11 GB
+Pascal card with room to spare.
 
 Run (CPU smoke, tiny budget):
     CUDA_VISIBLE_DEVICES= HF_HOME=.hf-cache PYTHONPATH=. \\
@@ -468,6 +473,41 @@ def _endpoints(matrix: list[list[float | None]]) -> dict[str, float | None]:
     }
 
 
+def assert_importance_is_live(model, *, stage: int) -> dict[str, Any]:
+    """Fail when whole layers recorded no importance at all.
+
+    A layer whose ``task_ema`` is identically zero contributed nothing to the
+    measurement, and the capacity arithmetic will still happily report a floor
+    and a beta computed over the survivors. That is how an fp16 run produced a
+    floor of 0.84 at ``b=0.25`` while looking superficially healthy: 19 of 24
+    layers had underflowed to exactly zero and the arithmetic was reading the
+    remaining 5.
+
+    Raising here is the point. A silently truncated mechanism is worse than a
+    failed run, because the failed run is visible.
+    """
+
+    densities = [
+        float((tracker.task_ema.detach() > 0.0).float().mean().item())
+        for tracker in model.get_ffn_trackers()
+    ]
+    dead = [index for index, value in enumerate(densities) if value == 0.0]
+    if dead:
+        raise RuntimeError(
+            f"tarefa {stage}: {len(dead)} de {len(densities)} camadas não "
+            f"registraram importância nenhuma (camadas {dead[:8]}"
+            f"{'...' if len(dead) > 8 else ''}). Sob fp16 isso é underflow do "
+            "gradiente; o mecanismo estaria sendo medido em um subconjunto das "
+            "camadas e reportado como se fossem todas."
+        )
+    return {
+        "layer_density_min": min(densities),
+        "layer_density_mean": sum(densities) / len(densities),
+        "layers_with_signal": len(densities) - len(dead),
+        "layers_total": len(densities),
+    }
+
+
 def _release(model, optimizer, device: torch.device) -> None:
     """Free an arm's GPU memory before the next arm allocates its own.
 
@@ -612,6 +652,9 @@ def _run_arm_body(
             generator=generator,
             autocast_dtype=autocast_dtype,
         )
+        # Checked BEFORE consolidation, which zeroes `task_ema` and would make
+        # a dead layer indistinguishable from a consolidated one.
+        health = assert_importance_is_live(model, stage=stage)
         model.eval()
         evaluations = _evaluate_seen(
             model, tasks, stage=stage, batch_size=batch_size, device=device
@@ -628,6 +671,7 @@ def _run_arm_body(
                 "first_loss": losses[0] if losses else None,
                 "last_loss": losses[-1] if losses else None,
                 "evaluations": evaluations,
+                "importance_health": health,
                 # Drift is split by protected identity (heat > 0), taken from
                 # the hard bindings, while the optimizer applies the soft mask.
                 # Under a soft mask no factor is exactly zero, so asking for
@@ -761,7 +805,16 @@ def main() -> None:
     )
     parser.add_argument("--capacity-scope", default="local", choices=("local", "global", "hierarchical"))
     parser.add_argument("--device", default="cpu")
-    parser.add_argument("--precision", default="fp32", choices=("fp32", "fp16"))
+    parser.add_argument(
+        "--precision",
+        default="fp32",
+        choices=("fp32",),
+        help=(
+            "fp32 only. fp16 underflows the importance estimator and silently "
+            "drops 19 of 24 layers; see the module docstring and section D of "
+            "the protocol."
+        ),
+    )
     parser.add_argument(
         "--output", default="results/qwen_iso_plasticity/manifest.json"
     )
@@ -777,9 +830,8 @@ def main() -> None:
 
     targets = tuple(args.target_plasticity or ISO_TARGETS)
     device = torch.device(args.device)
-    autocast_dtype = torch.float16 if args.precision == "fp16" else None
-    if autocast_dtype is not None and device.type != "cuda":
-        raise ValueError("fp16 exige --device cuda")
+    # fp32 is the only supported precision; see the module docstring.
+    autocast_dtype = None
 
     from datasets import load_dataset
     from transformers import AutoTokenizer

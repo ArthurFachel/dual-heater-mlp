@@ -674,6 +674,67 @@ def test_evaluation_restores_training_mode():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# importance health guard-rail
+# ---------------------------------------------------------------------------
+
+
+def test_health_check_passes_when_every_layer_recorded_signal():
+    from experiments.qwen_iso_plasticity import assert_importance_is_live
+
+    model = _model(layers=2)
+    with torch.no_grad():
+        for tracker in model.get_ffn_trackers():
+            tracker.task_ema.copy_(torch.linspace(0.1, 1.0, tracker.units))
+            tracker.task_step.fill_(1)
+
+    health = assert_importance_is_live(model, stage=0)
+
+    assert health["layers_with_signal"] == 2
+    assert health["layers_total"] == 2
+    assert health["layer_density_min"] == pytest.approx(1.0)
+
+
+def test_health_check_rejects_a_layer_that_recorded_nothing():
+    """The fp16 failure mode: whole layers underflow to exactly zero.
+
+    The capacity arithmetic still returns a floor and a beta computed over the
+    surviving layers, so without this guard the run reports a mechanism
+    measured on a subset as if it covered all 24 layers. On the real model that
+    pushed the floor at b=0.25 from 0.25 to 0.84 and made every iso-E arm
+    unreachable, with no error raised anywhere.
+    """
+
+    from experiments.qwen_iso_plasticity import assert_importance_is_live
+
+    model = _model(layers=3)
+    with torch.no_grad():
+        trackers = model.get_ffn_trackers()
+        trackers[0].task_ema.copy_(torch.linspace(0.1, 1.0, trackers[0].units))
+        trackers[1].task_ema.zero_()  # underflowed
+        trackers[2].task_ema.copy_(torch.linspace(0.1, 1.0, trackers[2].units))
+
+    with pytest.raises(RuntimeError, match="não registraram importância"):
+        assert_importance_is_live(model, stage=0)
+
+
+def test_health_check_names_the_dead_layers():
+    from experiments.qwen_iso_plasticity import assert_importance_is_live
+
+    model = _model(layers=2)
+    with torch.no_grad():
+        for tracker in model.get_ffn_trackers():
+            tracker.task_ema.zero_()
+
+    with pytest.raises(RuntimeError) as error:
+        assert_importance_is_live(model, stage=1)
+
+    message = str(error.value)
+    assert "tarefa 1" in message
+    assert "2 de 2" in message
+    assert "[0, 1]" in message
+
+
 def test_release_drops_the_model_so_the_next_arm_can_allocate():
     """Regression: arms leaked and the second one hit CUDA OOM on an 11 GB card.
 

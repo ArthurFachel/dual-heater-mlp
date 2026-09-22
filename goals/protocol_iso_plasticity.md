@@ -56,7 +56,7 @@ há tentativa de salvar o endpoint do BERT.
 
 | Item | Valor |
 |---|---|
-| Modelo | `Qwen/Qwen2.5-0.5B`, `num_labels=150`, fp32 em memória, `fp16=True` no Trainer |
+| Modelo | `Qwen/Qwen2.5-0.5B`, `num_labels=150`, fp32 em memória e **fp32 no treino** |
 | Dataset | `clinc/clinc_oos:plus`, Class-IL por domínio |
 | Tarefas na calibração | 2, na ordem `banking -> credit_cards` |
 | Tarefas na confirmação | 10, na ordem de `CLINC150_DOMAINS` |
@@ -78,8 +78,25 @@ variantes `*_scoped`. Concatenar camadas e normalizar por máximo global erra po
 ~2 ordens de magnitude — foi o bug de 22/09.
 
 **Hardware.** GPUs heterogêneas (2x GTX 1080 Ti + 1x Titan Xp, Pascal CC 6.x):
-fp16 obrigatório, `CUDA_VISIBLE_DEVICES` fixado em **uma** placa, DDP
-desabilitado. Run em GPU exige autorização do Fachel.
+`CUDA_VISIBLE_DEVICES` fixado em **uma** placa, DDP desabilitado. Run em GPU
+exige autorização do Fachel.
+
+**Precisão é fp32, não fp16.** Medido em 22/09 numa 1080 Ti: sob autocast fp16
+com `GradScaler`, as camadas 0 a 18 registram importância **exatamente zero**;
+só as 5 últimas gravam sinal. O gradiente que chega à entrada de `down_proj`
+nas camadas iniciais faz underflow em fp16, e o estimador `|z dL/dz|` zera com
+ele. O `GradScaler` não resolve: ele reescala a loss, mas o produto já foi
+arredondado a zero no forward-backward antes do unscale.
+
+Consequência se fosse mantido: `positive_fraction` cai de 1,00 para 0,2083
+(5/24), o piso em `b=0,25` sobe de 0,25 para 0,84, e **nenhum braço iso-E é
+alcançável**. O mecanismo seria medido em 5 camadas e reportado como se fossem
+24.
+
+Custo de usar fp32, medido na mesma placa com o braço mais protegido
+(`b=0,50`): pico alocado 5,48 GiB contra 5,45 GiB em fp16, e 6,8s contra 6,3s
+para 30 passos. Cabe com folga em 11 GB. A economia de fp16 é de 0,03 GiB e
+~8% de tempo, contra perder 19 das 24 camadas.
 
 ## E. Braços
 
@@ -239,6 +256,7 @@ benchmark completo.
 |---|---|---|
 | 22/09 | criação do rascunho; Gate 0 registrado | sim |
 | 22/09 | **congelamento.** A1 = 0,75 primário e 0,50 secundário; A2 = `beta` re-resolvido por fronteira; A3 = calibração {0,1,2} e confirmação {10..19}; A4 = piso 0,60 em `b=0,25`. Ordem das tarefas declarada em D. `b=0,10` promovido a braço declarado em E.1 (4 braços iso-E, 7 no total em `E*=0,75`). Tabela H corrigida: `seen_classes` (não `seen_tasks`), saturação de `beta` mapeada para a asserção 5, mutação de máscara no braço de LR reduzido adicionada. | sim — nenhuma acurácia observada |
+| 22/09 | **fp16 -> fp32 no treino.** Medição (sem acurácia) mostrou que sob autocast fp16 as camadas 0 a 18 registram importância exatamente zero: `positive_fraction` 0,2083 em vez de 1,00, piso em `b=0,25` de 0,84 em vez de 0,25, e nenhum braço iso-E alcançável. Custo medido de fp32: +0,03 GiB de pico e +8% de tempo. Ver seção D. | sim — a run descartada por este motivo não teve nenhum endpoint lido |
 
 A partir daqui, qualquer alteração exige commit anterior à run correspondente e
 uma linha nova nesta tabela.
