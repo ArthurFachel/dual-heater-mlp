@@ -797,6 +797,44 @@ def test_concentration_handles_a_fully_plastic_group():
     assert report["concentration_ratio"] == 0.0
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="precisa de CUDA")
+def test_new_helpers_accept_cuda_tensors():
+    """The runner passes live CUDA tensors, so CPU-only helpers crash there.
+
+    `dominant_unit_overlap` built its membership mask on the CPU and indexed it
+    with CUDA indices, which raises. CPU tests cannot see this, so the guard is
+    explicit.
+    """
+
+    device = torch.device("cuda")
+    first = torch.rand(512, device=device)
+    second = torch.rand(512, device=device)
+
+    overlap = dominant_unit_overlap(first, second, k=10)
+    profile = importance_profile(first)
+
+    assert 0.0 <= overlap["overlap"] <= 1.0
+    assert overlap["chance"] == pytest.approx(10 / 512)
+    assert profile["units"] == 512.0
+    # Same answer as the CPU path, not merely "no crash".
+    expected = dominant_unit_overlap(first.cpu(), second.cpu(), k=10)
+    assert overlap == expected
+
+
+def test_overlap_is_device_agnostic_for_a_known_answer():
+    """A pinned answer both devices must agree on."""
+
+    first = torch.tensor([9.0, 8.0, 7.0, 1.0, 0.5])
+    second = torch.tensor([0.1, 8.5, 7.5, 9.9, 0.2])
+
+    result = dominant_unit_overlap(first, second, k=3)
+
+    # top-3 of first = {0,1,2}; top-3 of second = {3,1,2}; intersection {1,2}
+    assert result["intersection"] == 2.0
+    assert result["overlap"] == pytest.approx(2 / 3)
+    assert result["jaccard"] == pytest.approx(2 / 4)
+
+
 def test_concentration_on_real_scoped_heat_flags_outlier_normalization():
     """A group with extreme outliers yields a low concentration ratio."""
 

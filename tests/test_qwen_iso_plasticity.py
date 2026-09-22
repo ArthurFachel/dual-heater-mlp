@@ -17,10 +17,16 @@ from dual_heater.optim import SlowHeatAdamW
 from dual_heater.qwen import (
     QwenSlowHeatConfig,
     SlowHeatQwen2ForSequenceClassification,
+    _factor,
 )
 from experiments.capacity_calibration import (
     effective_plasticity,
+    free_fraction_scoped,
     protected_heat_scoped,
+)
+from experiments.split_clinc150 import (
+    capture_parameter_drift_reference,
+    summarize_parameter_drift,
 )
 from experiments.qwen_iso_plasticity import (
     ArmSpec,
@@ -33,6 +39,7 @@ from experiments.qwen_iso_plasticity import (
     reachable_iso_points,
     register_reduced_lr_arm,
     resolve_beta,
+    _run_arm_body,
 )
 
 
@@ -101,7 +108,7 @@ def _seed_distinct_importance(model, *, seed=5):
 # ---------------------------------------------------------------------------
 
 
-def test_every_declared_budget_becomes_an_arm_plus_three_controls():
+def test_every_declared_budget_becomes_an_arm_plus_four_controls():
     arms = build_arms(
         target_plasticity=0.75,
         budgets=[0.05, 0.10, 0.25, 0.50],
@@ -111,9 +118,10 @@ def test_every_declared_budget_becomes_an_arm_plus_three_controls():
     kinds = [arm.kind for arm in arms]
     assert kinds.count("iso") == 4
     assert kinds.count("permuted") == 1
+    assert kinds.count("hard") == 1
     assert kinds.count("reduced_lr") == 1
     assert kinds.count("vanilla") == 1
-    assert len(arms) == 7
+    assert len(arms) == 8
     assert all(arm.target_plasticity == 0.75 for arm in arms)
 
 
@@ -780,6 +788,254 @@ def test_release_tolerates_a_half_built_arm():
     from experiments.qwen_iso_plasticity import _release
 
     _release(None, None, torch.device("cpu"))  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# hard mask arm
+# ---------------------------------------------------------------------------
+
+
+def test_hard_arm_is_declared_at_budget_equal_to_target():
+    """Under a hard mask E is the budget, so only b = E* is iso-E.
+
+    The factor is 1 on free units and exactly 0 on protected ones, so the mean
+    over units is just the free fraction. There is no beta to solve, and no
+    other budget can reach the target.
+    """
+
+    arms = build_arms(target_plasticity=0.75, budgets=(0.05, 0.25), permuted_budget=0.25)
+    hard = [a for a in arms if a.kind == "hard"]
+
+    assert len(hard) == 1
+    assert hard[0].budget == 0.75
+    assert hard[0].target_plasticity == 0.75
+    assert hard[0].name == "hard_b0.75"
+
+
+def test_hard_arm_registers_a_binary_factor():
+    """Every mask factor is exactly 0 or exactly 1, never in between."""
+
+    model = _model(layers=2)
+    with torch.no_grad():
+        for tracker in model.get_ffn_trackers():
+            tracker.importance_memory.copy_(torch.linspace(0.0, 1.0, tracker.units))
+            tracker.slow_heat.copy_(torch.linspace(0.0, 1.0, tracker.units))
+            tracker.slow_strength = 7.0
+
+    for binding in model.mask_bindings(hard=True):
+        factor = binding.mask() if callable(binding.mask) else binding.mask
+        if factor is None:
+            continue
+        values = torch.as_tensor(factor).flatten()
+        assert torch.all((values == 0.0) | (values == 1.0)), "fator hard não é binário"
+
+
+def test_soft_factor_is_never_exactly_zero_which_is_why_hard_is_needed():
+    """This is the reason the Gate 1 drift assertion could not close on soft.
+
+    A soft factor is 1/(1+beta*h), which is strictly positive for any finite
+    beta. No protected parameter is ever fully frozen, so protected drift is
+    small but nonzero by construction, not by bug.
+    """
+
+    model = _model(layers=1)
+    with torch.no_grad():
+        tracker = model.get_ffn_trackers()[0]
+        tracker.slow_heat.copy_(torch.linspace(0.0, 1.0, tracker.units))
+        tracker.slow_strength = 1000.0
+
+    scales = model.get_ffn_trackers()[0].get_lr_scales()
+
+    assert torch.all(scales > 0.0)
+    assert float(scales.min()) < 0.01  # strongly suppressed
+    assert float(scales.min()) != 0.0  # but never frozen
+
+
+def test_hard_mask_freezes_protected_parameters_exactly():
+    """Gate 1 assertion 4: protected drift is exactly zero under a hard mask.
+
+    Not "small". Exactly zero, including after AdamW's decoupled weight decay,
+    which is the step that leaks drift when only the gradient is masked.
+    """
+
+    model = _model(layers=2)
+    with torch.no_grad():
+        for tracker in model.get_ffn_trackers():
+            heat = torch.zeros(tracker.units)
+            heat[: tracker.units // 2] = 1.0  # first half protected
+            tracker.slow_heat.copy_(heat)
+            tracker.importance_memory.copy_(heat)
+
+    optimizer = SlowHeatAdamW(
+        [p for p in model.parameters() if p.requires_grad], lr=0.5, weight_decay=0.1
+    )
+    model.register_plasticity_masks(optimizer, hard=True)
+    reference = capture_parameter_drift_reference(model.mask_bindings(hard=True))
+
+    for _ in range(3):
+        optimizer.zero_grad(set_to_none=True)
+        out = model(
+            input_ids=torch.randint(0, 40, (2, 6)),
+            attention_mask=torch.ones(2, 6, dtype=torch.long),
+            labels=torch.randint(0, 5, (2,)),
+        )
+        out.loss.backward()
+        optimizer.step()
+
+    drift = summarize_parameter_drift(reference)
+
+    assert drift["protected_count"] > 0
+    assert drift["protected_max_abs"] == 0.0, "máscara hard deixou vazar drift"
+    assert drift["plastic_max_abs"] > 0.0, "nada se moveu; o teste não prova nada"
+
+
+def test_runner_registers_a_hard_mask_for_the_hard_arm():
+    """M12: the runner could pass hard=False and nothing would notice.
+
+    The earlier version of this test re-called `register_plasticity_masks`
+    itself, which tests the model API, not the runner's decision. It has to go
+    through the runner body and capture the optimizer the runner actually built.
+    `_run_arm_body` is the seam: `run_arm` itself would download a checkpoint.
+    """
+
+    captured: dict[str, object] = {}
+    tasks = [
+        _fake_task("a", (0, 1), labels=[0, 1, 0, 1]),
+        _fake_task("b", (2, 3), labels=[2, 3, 2, 3]),
+    ]
+    model = _model(layers=2, budget=0.75)
+
+    record = _run_arm_body(
+        ArmSpec(
+            name="hard_b0.75", kind="hard", target_plasticity=0.75, budget=0.75
+        ),
+        tasks,
+        model=model,
+        scope="local",
+        steps_per_task=1,
+        batch_size=2,
+        learning_rate=0.01,
+        device=torch.device("cpu"),
+        seed=0,
+        beta_policy="per_boundary",
+        autocast_dtype=None,
+        generator=torch.Generator(device="cpu").manual_seed(0),
+        optimizer_sink=lambda opt: captured.setdefault("optimizer", opt),
+    )
+
+    masks = getattr(captured["optimizer"], "_plasticity_masks", {})
+    assert masks, "o runner não registrou máscara nenhuma"
+    # A freshly built tracker has slow_strength 0, which makes even a SOFT
+    # factor 1/(1+0*h) == 1.0 everywhere — binary by accident. Force a state
+    # where soft and hard genuinely differ before inspecting.
+    for tracker in model.get_ffn_trackers():
+        tracker.slow_strength = 5.0
+    assert float(torch.cat([t.slow_heat for t in model.get_ffn_trackers()]).max()) > 0.0, (
+        "sem heat consolidado, soft e hard coincidem e o teste não separa nada"
+    )
+
+    checked = 0
+    for _parameter, mask, _kind in masks.values():
+        factor = mask() if callable(mask) else mask
+        if factor is None:
+            continue
+        values = torch.as_tensor(factor).flatten().float()
+        assert torch.all((values == 0.0) | (values == 1.0)), (
+            "o runner registrou fator não-binário no braço hard (máscara soft)"
+        )
+        checked += 1
+    assert checked > 0, "nenhum fator inspecionado; o teste não prova nada"
+
+    # M16: the manifest must not report a beta for an arm that has none.
+    boundaries = record["boundaries"]
+    assert boundaries, "braço hard não registrou fronteira"
+    for boundary in boundaries:
+        assert boundary["mask"] == "hard"
+        assert boundary["slow_strength"] is None, (
+            "braço hard reportou beta; sob máscara hard beta não existe"
+        )
+        assert boundary["plasticity_error"] < 1e-6
+
+
+def test_runner_registers_a_soft_mask_for_the_iso_arm():
+    """The mirror image: the iso arm must NOT be hard."""
+
+    captured: dict[str, object] = {}
+    tasks = [
+        _fake_task("a", (0, 1), labels=[0, 1, 0, 1]),
+        _fake_task("b", (2, 3), labels=[2, 3, 2, 3]),
+    ]
+    model = _model(layers=2, budget=0.25)
+
+    _run_arm_body(
+        ArmSpec(
+            name="iso_b0.25", kind="iso", target_plasticity=0.75, budget=0.25
+        ),
+        tasks,
+        model=model,
+        scope="local",
+        steps_per_task=1,
+        batch_size=2,
+        learning_rate=0.01,
+        device=torch.device("cpu"),
+        seed=0,
+        beta_policy="per_boundary",
+        autocast_dtype=None,
+        generator=torch.Generator(device="cpu").manual_seed(0),
+        optimizer_sink=lambda opt: captured.setdefault("optimizer", opt),
+    )
+
+    masks = getattr(captured["optimizer"], "_plasticity_masks", {})
+    saw_fractional = False
+    for _parameter, mask, _kind in masks.values():
+        factor = mask() if callable(mask) else mask
+        if factor is None:
+            continue
+        values = torch.as_tensor(factor).flatten().float()
+        if torch.any((values > 0.0) & (values < 1.0)):
+            saw_fractional = True
+            break
+    assert saw_fractional, "braço iso registrou máscara binária (deveria ser soft)"
+
+
+def test_hard_mask_protects_the_important_units_not_the_free_ones():
+    """M13: an inverted hard factor freezes exactly the wrong half.
+
+    Drift alone cannot catch this, because "some set was frozen exactly" holds
+    either way. The test pins WHICH units moved: high-heat units must be the
+    frozen ones.
+    """
+
+    model = _model(layers=1)
+    tracker = model.get_ffn_trackers()[0]
+    half = tracker.units // 2
+    with torch.no_grad():
+        heat = torch.zeros(tracker.units)
+        heat[:half] = 1.0  # first half is important
+        tracker.slow_heat.copy_(heat)
+        tracker.importance_memory.copy_(heat)
+
+    factor = _factor(tracker, True)
+
+    # Important units get factor 0 (frozen); unimportant get 1 (free).
+    assert torch.all(factor[:half] == 0.0), "unidades importantes não foram congeladas"
+    assert torch.all(factor[half:] == 1.0), "unidades livres foram congeladas"
+
+
+def test_hard_arm_records_no_beta_and_hits_target_from_the_budget():
+    model = _model(layers=2)
+    arm = ArmSpec(
+        name="hard_b0.75", kind="hard", target_plasticity=0.75, budget=0.75
+    )
+    with torch.no_grad():
+        for tracker in model.get_ffn_trackers():
+            tracker.importance_memory.copy_(torch.rand(tracker.units) + 0.1)
+
+    achieved = free_fraction_scoped(
+        layer_importances(model), arm.budget, scope="local"
+    )
+
+    assert achieved == pytest.approx(0.75, abs=1e-6)
 
 
 def test_two_boundaries_keep_every_arm_on_target_with_per_boundary_betas():

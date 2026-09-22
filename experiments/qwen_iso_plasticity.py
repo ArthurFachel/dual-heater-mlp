@@ -89,7 +89,7 @@ from experiments.split_clinc150 import (
     text_task_fingerprint,
 )
 
-ArmKind = Literal["iso", "permuted", "reduced_lr", "vanilla"]
+ArmKind = Literal["iso", "permuted", "hard", "vanilla", "reduced_lr"]
 
 # Declared in the frozen protocol, section E.
 ISO_BUDGETS: tuple[float, ...] = (0.05, 0.10, 0.25, 0.50)
@@ -109,7 +109,7 @@ class ArmSpec:
     def __post_init__(self) -> None:
         if not 0.0 < self.target_plasticity <= 1.0:
             raise ValueError("target_plasticity deve estar em (0, 1]")
-        masked = self.kind in {"iso", "permuted"}
+        masked = self.kind in {"iso", "permuted", "hard"}
         if masked and self.budget is None:
             raise ValueError(f"braço {self.name} com máscara exige budget")
         if not masked and self.budget is not None:
@@ -149,6 +149,14 @@ def build_arms(
             kind="permuted",
             target_plasticity=target_plasticity,
             budget=permuted_budget,
+        )
+    )
+    arms.append(
+        ArmSpec(
+            name=f"hard_b{target_plasticity:g}",
+            kind="hard",
+            target_plasticity=target_plasticity,
+            budget=target_plasticity,
         )
     )
     arms.append(
@@ -602,7 +610,8 @@ def _run_arm_body(
     generator: torch.Generator,
     optimizer_sink,
 ) -> dict[str, Any]:
-    masked = arm.kind in {"iso", "permuted"}
+    masked = arm.kind in {"iso", "permuted", "hard"}
+    hard = arm.kind == "hard"
     lr = (
         learning_rate * arm.target_plasticity
         if arm.kind == "reduced_lr"
@@ -616,7 +625,7 @@ def _run_arm_body(
         # The mask source is a callable reading `slow_heat` and `slow_strength`
         # live, so registering once is enough: re-resolved betas take effect
         # without re-registering.
-        model.register_plasticity_masks(optimizer, hard=False)
+        model.register_plasticity_masks(optimizer, hard=hard)
     else:
         register_reduced_lr_arm(model, optimizer)
 
@@ -689,6 +698,31 @@ def _run_arm_body(
             continue
 
         model.consolidate(strategy="max")
+        if hard:
+            # No beta exists under a hard mask: the factor is 1 on free units
+            # and exactly 0 on protected ones, so E is the free fraction, which
+            # the budget sets directly. This arm is the beta -> infinity limit
+            # of the iso arm at the same budget, and it is reachable at exactly
+            # one budget per family: b = E*.
+            achieved = free_fraction_scoped(
+                layer_importances(model), arm.budget, scope=scope
+            )
+            boundaries.append(
+                {
+                    "boundary": f"{stage}->{stage + 1}",
+                    "target_plasticity": arm.target_plasticity,
+                    "achieved_plasticity": achieved,
+                    "plasticity_error": abs(achieved - arm.target_plasticity),
+                    "slow_strength": None,
+                    "mask": "hard",
+                    "protected_units": sum(
+                        int(torch.count_nonzero(tracker.slow_heat > 0.0).item())
+                        for tracker in model.get_ffn_trackers()
+                    ),
+                    "permutation_reordered": None,
+                }
+            )
+            continue
         if beta_policy == "per_boundary" or resolved_beta is None:
             candidate = resolve_beta(model, arm=arm, scope=scope)
             if candidate is None:
@@ -715,6 +749,7 @@ def _run_arm_body(
             {
                 "boundary": f"{stage}->{stage + 1}",
                 "slow_strength": resolved_beta,
+                "mask": "soft",
                 "achieved_plasticity": achieved,
                 "target_plasticity": arm.target_plasticity,
                 "plasticity_error": abs(achieved - arm.target_plasticity),

@@ -156,7 +156,9 @@ def importance_profile(
 
     if importance.ndim != 1:
         raise ValueError("importance deve ser um vetor 1-D")
-    values = importance.detach().to(dtype=torch.float32)
+    # CPU for the same reason as `dominant_unit_overlap`, plus `torch.quantile`
+    # carries a tensor-size limit on CUDA that a pooled vector can exceed.
+    values = importance.detach().to(device="cpu", dtype=torch.float32)
     units = values.numel()
     if units == 0:
         raise ValueError("importance não pode ser vazia")
@@ -213,8 +215,11 @@ def dominant_unit_overlap(
     if k < 1:
         raise ValueError("k deve ser >= 1")
     top = min(k, units)
-    left = first.detach().to(dtype=torch.float32)
-    right = second.detach().to(dtype=torch.float32)
+    # Move to CPU first: callers pass live CUDA tensors, and mixing a CPU
+    # membership mask with CUDA indices raises. Everything below is O(units)
+    # bookkeeping, so the copy costs nothing worth optimizing.
+    left = first.detach().to(device="cpu", dtype=torch.float32)
+    right = second.detach().to(device="cpu", dtype=torch.float32)
     left_top = torch.argsort(left, descending=True, stable=True)[:top]
     right_top = torch.argsort(right, descending=True, stable=True)[:top]
     membership = torch.zeros(units, dtype=torch.bool)
