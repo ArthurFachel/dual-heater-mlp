@@ -38,8 +38,10 @@ from dual_heater.qwen import (
     SlowHeatQwen2ForSequenceClassification,
 )
 from experiments.capacity_calibration import (
+    dominant_unit_overlap,
     free_fraction_scoped,
     heat_concentration,
+    importance_profile,
     iso_plasticity_family_scoped,
     jaccard,
     participation_ratio,
@@ -83,6 +85,31 @@ def _pooled_importance(model) -> Tensor:
     return torch.cat(_layer_importances(model))
 
 
+def _resolve_domains(domains: list[str] | None, tasks: int) -> list[str]:
+    """Declared task sequence, in training order.
+
+    ``--domains`` wins over ``--tasks`` because order is part of the protocol:
+    the anomaly diagnostic has to be able to state ``credit_cards -> banking``
+    explicitly rather than have it inferred from a count and a dict order.
+    """
+
+    if domains is None:
+        if not 2 <= tasks <= len(CLINC150_DOMAINS):
+            raise ValueError("--tasks deve estar entre 2 e 10")
+        return list(CLINC150_DOMAINS)[:tasks]
+    if len(domains) < 2:
+        raise ValueError("--domains exige ao menos dois domínios")
+    unknown = [name for name in domains if name not in CLINC150_DOMAINS]
+    if unknown:
+        raise ValueError(
+            "domínio desconhecido: " + ", ".join(unknown) + "; válidos: "
+            + ", ".join(CLINC150_DOMAINS)
+        )
+    if len(set(domains)) != len(domains):
+        raise ValueError("--domains não pode repetir domínios")
+    return list(domains)
+
+
 def _layer_report(model, budget: float, scope: str) -> list[dict[str, float]]:
     """Per-layer signal stats plus the protection the chosen scope assigns."""
 
@@ -106,6 +133,10 @@ def _layer_report(model, budget: float, scope: str) -> list[dict[str, float]]:
                 "mean_heat": float(layer_heat.mean().item()),
                 "max_heat": float(layer_heat.max().item()),
                 **heat_concentration(layer_heat),
+                # Raw shape, before the budget truncates and the maximum
+                # normalizes: distinguishes "one unit carries the layer" from
+                # "a small group carries the layer".
+                "raw": importance_profile(memory),
             }
         )
     return report
@@ -117,6 +148,17 @@ def main() -> None:
     parser.add_argument("--dataset", default="clinc/clinc_oos")
     parser.add_argument("--dataset-config", default="plus")
     parser.add_argument("--tasks", type=int, default=2)
+    parser.add_argument(
+        "--domains",
+        nargs="+",
+        default=None,
+        help=(
+            "explicit domain sequence, in training order (e.g. "
+            "--domains credit_cards banking). Overrides --tasks. Every name "
+            "must exist in CLINC150_DOMAINS and appear at most once; task "
+            "order is part of the protocol, so it is declared, never inferred."
+        ),
+    )
     parser.add_argument("--max-length", type=int, default=64)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--steps-per-task", type=int, default=30)
@@ -160,8 +202,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not 2 <= args.tasks <= len(CLINC150_DOMAINS):
-        raise ValueError("--tasks deve estar entre 2 e 10")
+    domains = _resolve_domains(args.domains, args.tasks)
 
     torch.manual_seed(args.seed)
     device = torch.device(args.device)
@@ -172,9 +213,13 @@ def main() -> None:
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     dataset = load_dataset(args.dataset, args.dataset_config)
-    tasks = build_clinc150_tasks(
-        dataset, tokenizer, max_length=args.max_length, include_test=False
-    )[: args.tasks]
+    by_domain = {
+        task.domain: task
+        for task in build_clinc150_tasks(
+            dataset, tokenizer, max_length=args.max_length, include_test=False
+        )
+    }
+    tasks = [by_domain[name] for name in domains]
     print(f"tasks: {[task.domain for task in tasks]}")
 
     slowheat = QwenSlowHeatConfig(
@@ -204,6 +249,10 @@ def main() -> None:
 
     stages: list[dict[str, Any]] = []
     previous_mask: Tensor | None = None
+    # Per-task, per-layer importance captured BEFORE consolidation merges it
+    # into the persistent memory. Needed for the cross-task top-k overlap: once
+    # `consolidate` runs, `task_ema` is zeroed and the per-task signal is gone.
+    task_importances: list[list[Tensor]] = []
 
     for stage, task in enumerate(tasks):
         split = task.train
@@ -226,6 +275,12 @@ def main() -> None:
             losses.append(float(output.loss.item()))
 
         pooled_before = _pooled_importance(model)
+        task_importances.append(
+            [
+                tracker.task_ema.detach().clone()
+                for tracker in model.get_ffn_trackers()
+            ]
+        )
         model.consolidate()
         layers = _layer_importances(model)
         pooled = torch.cat(layers)
@@ -319,6 +374,35 @@ def main() -> None:
         "  and most 'protected' units keep nearly full plasticity."
     )
 
+    # Cross-task dominant-unit overlap: are the units that carry a layer the
+    # same ones across tasks, or does each task claim a different handful?
+    # Compared against chance (k/N); overlap at chance means the ranking carries
+    # no cross-task information and per-layer concentration is task-specific.
+    overlap_ks = (10, 100)
+    layer_overlap: list[dict[str, Any]] = []
+    if len(task_importances) >= 2:
+        first_task, last_task = task_importances[0], task_importances[-1]
+        print(
+            f"\ndominant-unit overlap between task 0 ({domains[0]}) and task "
+            f"{len(task_importances) - 1} ({domains[len(task_importances) - 1]})"
+        )
+        print("  layer |   k=10 (chance)     k=100 (chance)")
+        print("  " + "-" * 46)
+        for index, (left, right) in enumerate(
+            zip(first_task, last_task, strict=True)
+        ):
+            entry: dict[str, Any] = {"layer": index}
+            for k in overlap_ks:
+                entry[f"top_{k}"] = dominant_unit_overlap(left, right, k=k)
+            layer_overlap.append(entry)
+            first = entry[f"top_{overlap_ks[0]}"]
+            second = entry[f"top_{overlap_ks[1]}"]
+            print(
+                f"  {index:>5} | {first['overlap']:>6.3f} "
+                f"({first['chance']:.4f})   {second['overlap']:>6.3f} "
+                f"({second['chance']:.4f})"
+            )
+
     iso_families: dict[str, list[dict[str, Any]]] = {}
     if args.iso_plasticity:
         for target in args.iso_plasticity:
@@ -401,6 +485,14 @@ def main() -> None:
             for budget in DEFAULT_BUDGETS
         },
         "concentration": concentration,
+        "dominant_unit_overlap": {
+            "rule": (
+                "top-k intersection of per-task importance (task_ema captured "
+                "before consolidation), first task vs last task"
+            ),
+            "k": list(overlap_ks),
+            "layers": layer_overlap,
+        },
         "signal": {
             "pooled_units": int(pooled.numel()),
             "positive_fraction": positive_fraction(pooled),
@@ -412,6 +504,7 @@ def main() -> None:
             "model": args.model,
             "dataset": f"{args.dataset}:{args.dataset_config}",
             "tasks": [task.domain for task in tasks],
+            "task_order_declared": args.domains is not None,
             "max_length": args.max_length,
             "batch_size": args.batch_size,
             "steps_per_task": args.steps_per_task,

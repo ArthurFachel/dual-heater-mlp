@@ -134,6 +134,103 @@ def jaccard(first: Tensor, second: Tensor) -> float:
     return intersection / union
 
 
+def importance_profile(
+    importance: Tensor,
+    *,
+    quantiles: Sequence[float] = (0.5, 0.9, 0.99, 0.999),
+    top_counts: Sequence[int] = (1, 10, 100),
+) -> dict[str, float]:
+    """Shape of a raw importance vector, before any budget or normalization.
+
+    ``heat_concentration`` describes the *protected* vector, which is already
+    normalized by the selected maximum and truncated by the budget. When a
+    layer's concentration ratio is anomalous, the question is whether the raw
+    signal itself is degenerate, and that has to be read before the budget
+    touches it.
+
+    ``top_{n}_mass`` is the share of total importance held by the ``n`` largest
+    units. A layer where ``top_1_mass`` is near 1 has a single unit carrying the
+    layer; one where ``top_100_mass`` is near 1 has a small group. The two cases
+    look identical in the participation ratio alone.
+    """
+
+    if importance.ndim != 1:
+        raise ValueError("importance deve ser um vetor 1-D")
+    values = importance.detach().to(dtype=torch.float32)
+    units = values.numel()
+    if units == 0:
+        raise ValueError("importance não pode ser vazia")
+    total = float(values.sum().item())
+    report: dict[str, float] = {
+        "units": float(units),
+        "total": total,
+        "mean": float(values.mean().item()),
+        "max": float(values.max().item()),
+        "participation_ratio": participation_ratio(values),
+        "positive_fraction": positive_fraction(values),
+    }
+    for quantile in quantiles:
+        key = f"q{quantile:g}".replace(".", "p")
+        report[key] = float(torch.quantile(values, quantile).item())
+    ordered = torch.sort(values, descending=True).values
+    for count in top_counts:
+        taken = min(count, units)
+        mass = float(ordered[:taken].sum().item())
+        report[f"top_{count}_mass"] = mass / total if total > 0.0 else 0.0
+    return report
+
+
+def dominant_unit_overlap(
+    first: Tensor,
+    second: Tensor,
+    *,
+    k: int,
+) -> dict[str, float]:
+    """Agreement between the top-``k`` units of two importance vectors.
+
+    Answers a question ``heat_concentration`` cannot: when a layer concentrates
+    its importance on a handful of units, are they the *same* units across
+    tasks? If they are, the concentration is a stable property of the layer and
+    protecting it transfers; if they are not, each task claims a different
+    handful and the protected set is rewritten at every boundary.
+
+    ``overlap`` is the fraction of the top-``k`` set shared by both vectors and
+    ``jaccard`` the symmetric version. Both are compared against ``chance``,
+    ``k / N``, which is the expected ``overlap`` for independent rankings. An
+    overlap near chance means the ranking carries no cross-task information.
+
+    Ranking uses a stable descending sort, matching :func:`protected_heat`, so
+    ties resolve by index in both vectors and cannot manufacture disagreement.
+    """
+
+    if first.ndim != 1 or second.ndim != 1:
+        raise ValueError("as importâncias devem ser vetores 1-D")
+    if first.numel() != second.numel():
+        raise ValueError("as importâncias devem ter o mesmo número de unidades")
+    units = first.numel()
+    if units == 0:
+        raise ValueError("as importâncias não podem ser vazias")
+    if k < 1:
+        raise ValueError("k deve ser >= 1")
+    top = min(k, units)
+    left = first.detach().to(dtype=torch.float32)
+    right = second.detach().to(dtype=torch.float32)
+    left_top = torch.argsort(left, descending=True, stable=True)[:top]
+    right_top = torch.argsort(right, descending=True, stable=True)[:top]
+    membership = torch.zeros(units, dtype=torch.bool)
+    membership[left_top] = True
+    intersection = int(membership[right_top].sum().item())
+    union = 2 * top - intersection
+    return {
+        "k": float(top),
+        "units": float(units),
+        "intersection": float(intersection),
+        "overlap": intersection / top,
+        "jaccard": intersection / union if union else 1.0,
+        "chance": top / units,
+    }
+
+
 @dataclass(frozen=True)
 class CapacityPoint:
     """One (beta, budget) candidate evaluated on a fixed importance vector."""

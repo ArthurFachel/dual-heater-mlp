@@ -10,9 +10,11 @@ import pytest
 import torch
 
 from experiments.capacity_calibration import (
+    dominant_unit_overlap,
     effective_plasticity,
     free_fraction,
     heat_concentration,
+    importance_profile,
     iso_plasticity_family,
     iso_plasticity_family_scoped,
     jaccard,
@@ -809,3 +811,200 @@ def test_concentration_on_real_scoped_heat_flags_outlier_normalization():
     # Nominally 750 protected, functionally a handful.
     assert report["concentration_ratio"] < 0.05
     assert report["units_above_0p5"] <= 3
+
+
+# ---------------------------------------------------------------------------
+# raw importance profile
+# ---------------------------------------------------------------------------
+
+
+def test_profile_of_uniform_importance_spreads_mass_evenly():
+    report = importance_profile(torch.ones(1000))
+
+    assert report["units"] == 1000
+    assert report["total"] == pytest.approx(1000.0)
+    assert report["participation_ratio"] == pytest.approx(1000.0)
+    assert report["positive_fraction"] == pytest.approx(1.0)
+    # n largest units of a flat vector hold exactly n/N of the mass.
+    assert report["top_1_mass"] == pytest.approx(0.001)
+    assert report["top_10_mass"] == pytest.approx(0.01)
+    assert report["top_100_mass"] == pytest.approx(0.1)
+
+
+def test_profile_separates_one_dominant_unit_from_a_dominant_group():
+    """Participation ratio alone cannot tell these two apart cleanly.
+
+    The leaders are placed away from index 0 on purpose: reading the first n
+    entries instead of the n largest would pass on a head-loaded fixture.
+    """
+
+    single = torch.full((1000,), 1e-6)
+    single[700] = 1.0
+
+    group = torch.full((1000,), 1e-6)
+    group[300:350] = 0.02  # same total mass, spread over 50 units
+
+    one = importance_profile(single)
+    many = importance_profile(group)
+
+    assert one["top_1_mass"] > 0.99
+    assert many["top_1_mass"] < 0.05
+    # Both concentrate almost everything in their top 100.
+    assert one["top_100_mass"] > 0.99
+    assert many["top_100_mass"] > 0.99
+
+
+def test_profile_ranks_by_magnitude_not_by_position():
+    """`top_n_mass` must sort; the largest units sit at the tail here."""
+
+    values = torch.zeros(200)
+    values[-10:] = 1.0
+
+    report = importance_profile(values)
+
+    assert report["top_10_mass"] == pytest.approx(1.0)
+    assert report["top_1_mass"] == pytest.approx(0.1)
+
+
+def test_profile_quantiles_are_read_from_the_raw_vector():
+    """Quantiles are in importance units, not rescaled by the maximum.
+
+    The scale matters for the anomaly reading: two layers whose magnitudes
+    differ by orders of magnitude must not report identical quantiles.
+    """
+
+    values = torch.linspace(0.0, 50.0, 1001)
+
+    report = importance_profile(values)
+
+    assert report["q0p5"] == pytest.approx(25.0, abs=1e-4)
+    assert report["q0p9"] == pytest.approx(45.0, abs=1e-4)
+    assert report["max"] == pytest.approx(50.0)
+    # Zero is present, so density is below one.
+    assert report["positive_fraction"] == pytest.approx(1000 / 1001, abs=1e-6)
+
+
+def test_profile_handles_an_all_zero_layer_without_dividing_by_zero():
+    report = importance_profile(torch.zeros(64))
+
+    assert report["total"] == 0.0
+    assert report["participation_ratio"] == 0.0
+    assert report["top_1_mass"] == 0.0
+    assert report["top_100_mass"] == 0.0
+
+
+def test_profile_rejects_non_vector_and_empty_input():
+    with pytest.raises(ValueError, match="1-D"):
+        importance_profile(torch.ones(4, 4))
+    with pytest.raises(ValueError, match="vazia"):
+        importance_profile(torch.zeros(0))
+
+
+# ---------------------------------------------------------------------------
+# dominant unit overlap
+# ---------------------------------------------------------------------------
+
+
+def test_overlap_of_a_vector_with_itself_is_total():
+    torch.manual_seed(3)
+    importance = torch.rand(500)
+
+    report = dominant_unit_overlap(importance, importance, k=100)
+
+    assert report["intersection"] == 100
+    assert report["overlap"] == pytest.approx(1.0)
+    assert report["jaccard"] == pytest.approx(1.0)
+    assert report["chance"] == pytest.approx(0.2)
+
+
+def test_overlap_of_disjoint_leaders_is_zero():
+    """Two vectors whose top-k sets are constructed to be disjoint."""
+
+    units = 200
+    first = torch.zeros(units)
+    second = torch.zeros(units)
+    first[:10] = torch.linspace(1.0, 2.0, 10)
+    second[10:20] = torch.linspace(1.0, 2.0, 10)
+
+    report = dominant_unit_overlap(first, second, k=10)
+
+    assert report["intersection"] == 0
+    assert report["overlap"] == 0.0
+    assert report["jaccard"] == 0.0
+
+
+def test_overlap_counts_a_known_partial_intersection():
+    """6 of 10 leaders shared: overlap 0.6, Jaccard 6/14."""
+
+    units = 100
+    first = torch.zeros(units)
+    second = torch.zeros(units)
+    first[0:10] = torch.linspace(2.0, 1.0, 10)
+    second[4:14] = torch.linspace(2.0, 1.0, 10)
+
+    report = dominant_unit_overlap(first, second, k=10)
+
+    assert report["intersection"] == 6
+    assert report["overlap"] == pytest.approx(0.6)
+    assert report["jaccard"] == pytest.approx(6 / 14)
+
+
+def test_overlap_of_independent_rankings_sits_near_chance():
+    """The baseline the diagnostic reads against: k/N."""
+
+    torch.manual_seed(17)
+    first = torch.rand(4864)
+    second = torch.rand(4864)
+
+    report = dominant_unit_overlap(first, second, k=100)
+
+    assert report["chance"] == pytest.approx(100 / 4864)
+    assert report["overlap"] < 0.05
+
+
+def test_overlap_is_symmetric():
+    torch.manual_seed(23)
+    first = torch.rand(300)
+    second = torch.rand(300)
+
+    forward = dominant_unit_overlap(first, second, k=50)
+    backward = dominant_unit_overlap(second, first, k=50)
+
+    assert forward["overlap"] == pytest.approx(backward["overlap"])
+    assert forward["jaccard"] == pytest.approx(backward["jaccard"])
+
+
+def test_overlap_clamps_k_to_the_unit_count():
+    first = torch.tensor([3.0, 1.0, 2.0])
+    second = torch.tensor([1.0, 3.0, 2.0])
+
+    report = dominant_unit_overlap(first, second, k=100)
+
+    assert report["k"] == 3
+    # Every unit is in both top-3 sets by construction.
+    assert report["overlap"] == pytest.approx(1.0)
+    assert report["chance"] == pytest.approx(1.0)
+
+
+def test_overlap_breaks_ties_by_index_in_both_vectors():
+    """A constant vector must not manufacture disagreement with itself.
+
+    `protected_heat` uses a stable descending sort, so an all-equal layer picks
+    the lowest indices. Using an unstable sort here would report spurious
+    ranking churn for exactly the degenerate layers this diagnostic targets.
+    """
+
+    flat = torch.ones(1000)
+
+    report = dominant_unit_overlap(flat, flat.clone(), k=100)
+
+    assert report["overlap"] == pytest.approx(1.0)
+
+
+def test_overlap_rejects_mismatched_and_invalid_input():
+    with pytest.raises(ValueError, match="mesmo número"):
+        dominant_unit_overlap(torch.ones(10), torch.ones(11), k=5)
+    with pytest.raises(ValueError, match="1-D"):
+        dominant_unit_overlap(torch.ones(4, 4), torch.ones(4, 4), k=2)
+    with pytest.raises(ValueError, match="k deve ser"):
+        dominant_unit_overlap(torch.ones(10), torch.ones(10), k=0)
