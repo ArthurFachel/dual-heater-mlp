@@ -63,9 +63,15 @@ def test_generalization_configs_preserve_scenario_semantics():
     assert configs["split_cifar10"].methods == ALL_VISUAL_METHODS
     assert configs["split_cifar100"].methods == ALL_VISUAL_METHODS
     assert len(ALL_VISUAL_METHODS) == len(set(ALL_VISUAL_METHODS)) == 33
+    # Every supported method must be reachable from some versioned suite.
+    # `hard_freeze_replay` belongs to the dedicated hard-versus-soft suite and
+    # is deliberately kept out of the historical visual registries, so that
+    # adding it does not change what the existing all-method sweeps run.
+    from experiments.hard_vs_soft import PAIRED_METHODS as HARD_VS_SOFT_METHODS
+
     assert SUPPORTED_METHODS <= set(ALL_VISUAL_METHODS) | set(
         visual.CNN_VISUAL_METHODS
-    )
+    ) | set(HARD_VS_SOFT_METHODS)
     for config in configs.values():
         config.validate()
 

@@ -89,6 +89,10 @@ _METHOD_SPECS = {
     ),
     "slowheat_none": MethodSpec(slowheat=True),
     "hard_freeze": MethodSpec(slowheat=True),
+    # Hard protection combined with replay: the MLP/CNN analogue of the BERT
+    # `slowheat_hard_replay` arm, so the cross-architecture contrast uses the
+    # same treatment definition on every host.
+    "hard_freeze_replay": MethodSpec(slowheat=True, replay=True),
     "replay": MethodSpec(replay=True),
     "replay_calibrated": MethodSpec(replay=True, calibrated=True),
     "distillation": MethodSpec(distillation=True),
@@ -1074,7 +1078,9 @@ def _build_optimizer(
         for layer in _slow_layers(model):
             optimizer.register_slow_heat_module(layer)
     else:
-        optimizer.register_slow_heat_model(model, hard=method == "hard_freeze")
+        optimizer.register_slow_heat_model(
+            model, hard=method in {"hard_freeze", "hard_freeze_replay"}
+        )
     return optimizer
 
 
