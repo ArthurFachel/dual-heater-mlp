@@ -76,14 +76,14 @@ Todos os benchmarks e caches encontrados:
 
 ```bash
 python show_results.py \
-  results/cache_all_datasets_10seeds/replay_selection_sweep
+  results/cache_derpp_10seeds/replay_selection_sweep
 ```
 
 Um cache em todos os benchmarks:
 
 ```bash
 python show_results.py \
-  results/cache_all_datasets_10seeds/replay_selection_sweep \
+  results/cache_derpp_10seeds/replay_selection_sweep \
   --cache hybrid
 ```
 
@@ -91,7 +91,7 @@ Um benchmark e cache específicos:
 
 ```bash
 python show_results.py \
-  results/cache_all_datasets_10seeds/replay_selection_sweep \
+  results/cache_derpp_10seeds/replay_selection_sweep \
   --benchmark split_cifar10_cnn \
   --cache loss
 ```
@@ -101,7 +101,7 @@ benchmark:
 
 ```bash
 python show_results.py \
-  results/cache_all_datasets_10seeds/replay_selection_sweep \
+  results/cache_derpp_10seeds/replay_selection_sweep \
   --accuracy --high
 ```
 

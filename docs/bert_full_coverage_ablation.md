@@ -1,9 +1,14 @@
 # Ablação de cobertura completa do SlowHeat em BERT
 
-Status: **implementada e testada, ainda sem resultados experimentais**. Este
-documento fixa a semântica do preset `--full-coverage-variants` antes de qualquer
-execução cara. A implementação está em `src/dual_heater/bert.py`; o registro e o
-runner estão em `experiments/split_clinc150.py`.
+Status: **implementada, testada e executada em caráter exploratório**. Este
+documento fixa a semântica do preset `--full-coverage-variants`. A implementação
+está em `src/dual_heater/bert.py`; o registro e o runner estão em
+`experiments/split_clinc150.py`. Existem 30 runs concluídas em
+`results/bert_full_coverage/` (10 métodos × seeds 11/22/33), com
+`aggregate.json`, `resultados_resumo.md` e `resultados_por_seed.csv`. Essas runs
+usam `evaluate_test=false` e não seguem o fluxo confirmatório descrito adiante:
+não há manifesto congelado nem seeds disjuntas, portanto elas não podem ser
+promovidas a evidência confirmatória.
 
 ## Escopo
 

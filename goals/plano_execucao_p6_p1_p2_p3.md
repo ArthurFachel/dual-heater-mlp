@@ -1,13 +1,31 @@
 # Plano de execução: P6, congelamento do protocolo, P2, P3, P4
 
-> **NÃO APLICADO.** Nada deste documento foi implementado, executado ou
-> commitado. É o detalhamento dos próximos passos para revisão antes de
-> execução. Nenhuma linha de código foi escrita, nenhuma run foi disparada.
+> **PARCIALMENTE APLICADO.** Este aviso substitui o "NÃO APLICADO" original,
+> que ficou obsoleto. Estado verificado em 22 de setembro de 2026, HEAD
+> `4265b1c`:
+>
+> | Item | Estado |
+> |---|---|
+> | P6.1 flag `--domains` | implementado (`qwen_capacity_diagnostic.py:88`) |
+> | P6.2 6 runs de medição | executado (`results/qwen_layer_anomaly/`) |
+> | P6.3 `dominant_unit_overlap` + perfil de importância | implementado (`capacity_calibration.py:185,137`) |
+> | P6.3 run com `--capacity-scope hierarchical` | **não executado** (todos os manifestos gravam `local`) |
+> | P6.4 `docs/qwen_layer_anomaly.md` + Gate 2 | **não entregue** |
+> | P1 congelar protocolo | executado (commit `6461827`) |
+> | P2 runner `qwen_iso_plasticity.py` | implementado e executado |
+> | P3 testes + mutações | 42 testes existem; relatório de mutação não escrito |
+> | P4 run de calibração | executado com **30 passos**, valor depois revogado |
+> | P4.3 copiar manifestos para `artifacts/` | **não executado**; nada versionado |
+> | P4.5 Gate 1 | **não registrado** |
+>
+> Desvio a corrigir: os manifestos `hard_seed*` contêm um braço `hard` que não
+> consta da seção E do protocolo congelado e cuja adição (commit `095b1c8`) não
+> tem linha na tabela K.
 
 Última atualização: 22 de setembro de 2026.
 Base: `goals/qwen_heat_roadmap.md` (Gate 0 fechado), `goals/protocol_iso_plasticity.md`
-(rascunho), `goals/opcoes_novidade_e_proximos_passos.md`.
-HEAD na hora de escrever: `d4eacf5`.
+(congelado), `goals/opcoes_novidade_e_proximos_passos.md`.
+HEAD na hora de escrever: `d4eacf5`. HEAD atual: `4265b1c`.
 
 ---
 

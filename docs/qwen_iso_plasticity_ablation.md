@@ -1,7 +1,22 @@
 # Ablação iso-plasticidade: como a proteção é distribuída importa?
 
 Estado: aritmética implementada e verificada (55 testes). O diagnóstico no
-checkpoint real ainda não foi executado.
+checkpoint real **foi executado**: `results/qwen_capacity_diagnostic/manifest.json`
+(22/09, escopo local, 2 tarefas, seed 0), 6 runs de calibração em
+`results/qwen_iso_plasticity/` e 6 runs de ordem/seed em
+`results/qwen_layer_anomaly/`.
+
+Ressalvas que impedem tratar esses números como resultado:
+
+- todas as runs existentes usam **30 passos por tarefa**, valor revogado pela
+  tabela K de `goals/protocol_iso_plasticity.md` em favor de 120; os endpoints
+  de acurácia dessas runs estão obsoletos;
+- não há agregação entre seeds, nem `aggregate.json`, nem diferenças pareadas;
+- o critério declarado de `qwen_capacity_calibration.md` não foi aplicado: o
+  manifesto grava `minimum_effective_plasticity: null`,
+  `declared_before_run: false` e `selection: null`;
+- a confirmação de 10 seeds × 10 domínios × 120 passos ainda não produziu
+  nenhum manifesto.
 
 ## 1. Por que isto é uma ablação e não uma seleção
 
@@ -214,8 +229,8 @@ Duas tarefas do CLINC150 (`banking -> credit_cards`), 30 passos cada,
 | protegidas por camada, `b = 0,25` | 3.648 (saturado) |
 | loss estágio 0 | 16,19 -> 2,06 |
 | loss estágio 1 | 11,67 -> 0,55 |
-| Jaccard do conjunto protegido | 0,890 |
-| turnover do pool livre | 0,296 |
+| Jaccard do conjunto protegido | 0,870 |
+| turnover do pool livre | 0,345 |
 
 Leituras:
 
@@ -227,7 +242,7 @@ Leituras:
 - **duas camadas anômalas**: camada 3 (PR = 95) e camada 21 (PR = 40) de 4864
   concentram importância em 1-2% das unidades, enquanto as outras 22 usam 63-84%.
   Achado estrutural independente do bug, e ainda sem explicação;
-- **Jaccard 0,890 após uma única fronteira** indica que o conjunto protegido
+- **Jaccard 0,870 após uma única fronteira** indica que o conjunto protegido
   fossiliza rápido. Com 10 tarefas, o pool livre tende a convergir para unidades
   nunca úteis. É o risco previsto na seção 3 do documento de calibração, agora
   medido.

@@ -5,8 +5,10 @@ atenção e feed-forward de Transformers. A implementação para
 `BertForSequenceClassification` possui trackers de FFN, atenção, dimensões de
 embedding/residual, pooler e classificador, além de LoRA produtor-only e benchmark
 CLINC150. O protocolo e as ablações de cobertura completa estão em
-[bert_full_coverage_ablation.md](bert_full_coverage_ablation.md). SwiGLU, QKV
-fundido, GQA, treino distribuído e LLMs continuam como extensões futuras.
+[bert_full_coverage_ablation.md](bert_full_coverage_ablation.md). SwiGLU foi
+implementado no host Qwen2 (Etapa E concluída; ver
+[functional_slowheat_qwen.md](functional_slowheat_qwen.md)). QKV fundido, GQA,
+treino distribuído e LLMs de maior escala continuam como extensões futuras.
 
 ## Estado da implementação BERT
 
@@ -64,8 +66,8 @@ exploratória de uma seed por método, não resultados confirmatórios.
 Um Transformer não possui uma única definição natural de neurônio. A
 implementação BERT usa unidades complementares:
 
-1. **unidade intermediária da FFN**; a unidade composta de SwiGLU permanece
-   planejada;
+1. **unidade intermediária da FFN**; a unidade composta de SwiGLU está
+   implementada no host Qwen2, não em BERT;
 2. **cabeça de atenção**, com opção futura de granularidade por dimensão da
    cabeça;
 3. **coordenada oculta** nas saídas de embeddings e nas duas junções residuais de
@@ -622,11 +624,16 @@ duas projeções produtoras e uma consumidora.
 Consulte [bert_full_coverage_ablation.md](bert_full_coverage_ablation.md) para a
 tabela completa de ownership, nomes dos métodos e protocolo de execução.
 
-### Etapa E — SwiGLU (futura)
+### Etapa E — SwiGLU (concluída no host Qwen2)
 
-- observar o produto gated;
-- agrupar `gate_proj`, `up_proj` e `down_proj`;
-- testar que nenhuma das duas linhas produtoras escapa da proteção.
+- observar o produto gated: `forward_pre_hook` em `down_proj`
+  (`src/dual_heater/qwen.py:289-304`);
+- agrupar `gate_proj`, `up_proj` e `down_proj`: linhas das duas produtoras e
+  colunas da consumidora (`qwen.py:430,435,441`);
+- testar que nenhuma das duas linhas produtoras escapa da proteção:
+  `test_producer_masks_are_rows_and_consumer_mask_is_columns`.
+
+A etapa não foi portada para hosts BERT, que não usam SwiGLU.
 
 ### Etapa F — QKV fundido e GQA (futura)
 
@@ -667,8 +674,9 @@ tabela completa de ownership, nomes dos métodos e protocolo de execução.
 13. Padding não altera utilidade de embedding ou junções residuais.
 14. Telemetria inclui atenção, FFN, residual, pooler e classificador.
 
-Os itens aplicáveis à arquitetura BERT não fundida possuem testes. SwiGLU, QKV
-fundido e GQA permanecem critérios para suas respectivas etapas futuras.
+Os itens aplicáveis à arquitetura BERT não fundida possuem testes. SwiGLU tem
+testes no host Qwen2 (`tests/test_slow_heat_qwen.py`). QKV fundido e GQA
+permanecem critérios para suas respectivas etapas futuras.
 
 ## 17. Limitações que devem acompanhar os resultados
 

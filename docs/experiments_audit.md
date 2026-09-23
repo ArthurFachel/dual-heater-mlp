@@ -450,12 +450,28 @@ material independente; seus contratos foram avaliados por meio dos consumidores:
 
 Os achados acima são preservados como registro histórico. Esta seção marca
 apenas o que foi corrigido e verificado por teste de regressão. Suíte no fim do
-milestone: 301 passed, 0 failed (CPU, GPU invisível, uma thread).
+milestone P0: 301 passed, 0 failed (CPU, GPU invisível, uma thread).
+
+**Estado atual verificado em 22 de setembro de 2026:** 567 testes coletados e
+23 erros de Ruff (RUF100 x7, ISC004 x4, PYI036 x3, I001 x3, UP037 x2, UP035,
+SIM117, PYI034, F401), dos quais 15 são auto-corrigíveis. A contagem de 11
+erros abaixo refere-se ao baseline do milestone P0 e não descreve o repositório
+de hoje.
 
 Baseline antes das correções: 273 passed, **1 failed**
 (`test_huggingface_from_pretrained_loads_native_bert_checkpoint`) e 11 erros de
-Ruff. A falha era real e foi corrigida neste milestone; os 11 erros de Ruff
+Ruff. A falha era real e foi corrigida neste milestone; os erros de Ruff
 permanecem e pertencem à Fase H.
+
+Os rótulos "Fase E1/E2/D3/D4/H" referem-se a
+`.hermes/plans/2026-09-14_171737-auditoria-e-refatoracao-dual-heater.md`.
+Atenção: esse plano usa E1/E2 em dois contextos distintos (linhas 253/259 e
+931/941); aqui valem as ocorrências relativas a pré-registro e manifesto
+FastHeat.
+
+**A tabela abaixo cobre 12 dos 36 achados.** Os 24 restantes não foram
+corrigidos nem triados — ver [Achados ainda
+abertos](#achados-ainda-abertos).
 
 | Achado | Estado | Teste de regressão |
 |---|---|---|
@@ -468,10 +484,11 @@ permanecem e pertencem à Fase H.
 | Scheduler único em CLINC | corrigido | `test_task_scoped_scheduler_repeats_the_same_relative_schedule`, `test_stream_scoped_scheduler_spreads_decay_over_the_whole_stream`, `test_protocol_records_scheduler_scope` |
 | `global_topk` silenciosamente errado | corrigido | `test_global_topk_requires_external_global_scale`, `test_global_topk_runs_once_the_coordinator_supplies_the_scale` |
 | Estado científico em dtype reduzido | corrigido | `test_fast_heat_buffer_stays_fp32_under_reduced_precision`, `test_slow_heat_scientific_buffers_resist_dtype_casts`, `test_dual_heat_state_keeps_precision_and_counter_dtype`, `test_legacy_counter_increments_exactly_beyond_fp16_resolution`, `test_bert_scientific_state_survives_half_precision_cast` |
+| Custo após resume | corrigido | sem teste nomeado; verificado por inspeção |
 | Pré-registro removível | **pendente** | Fase E1 |
 | Manifesto FastHeat não verificável | **pendente** | Fase E2 |
-| Máscara fail-closed ao limpar | **pendente** | Fase D3 |
-| Validadores e `ReplayBuffer` | **pendente** | Fase D4 |
+| Máscara fail-closed ao limpar | **pendente** | Fase D3 — `clear_plasticity_masks()` (`src/dual_heater/optim.py:398`) limpa `_plasticity_masks` mas não `_expected_mask_signatures`, e o fallback em `_state_dict_with_mask_metadata` grava as assinaturas antigas. **Sem nenhum teste**: `grep clear_plasticity_masks tests/` não retorna nada |
+| Validadores e `ReplayBuffer` | **pendente** | Fase D4 — validadores ainda aceitam `1.5`, `True` e NaN; `ReplayBuffer` ainda aceita `inputs=None` com targets não vazios |
 
 ### Achados adicionais durante a implementação
 
@@ -539,3 +556,37 @@ Nenhum resultado científico novo foi produzido neste milestone. As correções 
 EWC, destilação, pareamento de replay e protocolo CLINC alteram números, logo
 **nenhuma execução anterior a estes commits pode ser promovida como evidência
 confirmatória**.
+
+## Achados ainda abertos
+
+Verificação de 22 de setembro de 2026, achado a achado contra o código atual.
+Os números de linha citados na auditoria original estão obsoletos; a
+verificação usou busca por símbolo. Nenhum dos 24 achados abaixo aparece na
+tabela de status acima, e nenhum foi corrigido.
+
+| Severidade | Achados | Observação |
+|---|---|---|
+| Média | 10, 11, 12, 14, 15, 16, 18, 19, 20, 21, 23, 24 | ver destaques |
+| Média/alta (telemetria) | 25, 26, 27, 28, 29, 30, 31 | escrita fora do run root |
+| Baixa | 32, 33, 34, 35, 36 | cosméticos ou de ergonomia |
+
+Destaques que afetam interpretação de resultado:
+
+- **#10 — contraste ausente.** O par
+  `dualheat_global_topk − slowheat_global` continua fora da lista `pairs`
+  (`experiments/split_clinc150.py:1827`). É exatamente o contraste que
+  `docs/bert_clinc150_results.md` §9 pede há duas revisões: sem ele, não se
+  separa o efeito do FastHeat do efeito do `global_topk`.
+- **#11 — seeds compartilhadas.** `--seeds` (default `[11, 22, 33]`) é usada
+  tanto por `--calibrate` quanto pela execução final, sem validação de
+  disjunção. Calibrar e medir nas mesmas seeds contamina o resultado.
+- **#16 — identidade de dados apenas sintática.** A validação de
+  `data_identity.json` confere a forma do arquivo, mas o fingerprint nunca é
+  recalculado no caminho de reuso: um dataset trocado passa despercebido.
+- **#29 — escrita fora do run root.** `heat-latest.json`, o catálogo e o
+  diretório `telemetry` do writer não passam por `_is_within`, então um symlink
+  no caminho de saída permite escrita fora do diretório da run.
+
+A entrada "Máscara fail-closed ao limpar" da tabela de status **não** pertence
+aos 36 achados originais; ela foi identificada durante a implementação e
+permanece sem teste.

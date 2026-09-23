@@ -358,6 +358,30 @@ Um gap alto com task-aware alta indica que a representação ainda separa cada p
 
 ## 7. Resultados consolidados
 
+> **AVISO DE RASTREABILIDADE (22/09/2026).** Os números das seções 7 a 10 **não
+> são reproduzíveis a partir de nenhum artefato versionado**. Uma busca
+> exaustiva nos 94 `aggregate.json` e 2147 CSVs de `results/` não encontrou
+> nenhum arquivo que os contenha. O candidato mais próximo,
+> `results/split_mniist_results.csv`, não registra seeds, commit nem
+> configuração, e **seus valores divergem dos publicados aqui**:
+>
+> | Método | Esta seção | CSV candidato | 20 seeds (`protocol_post_eval_fix_d5b22ad`) |
+> |---|---:|---:|---:|
+> | Vanilla | 19,588 | 19,596 | 19,629 |
+> | Replay | 76,524 | 76,268 | 76,536 |
+> | SlowHeat + Replay | 76,824 | 76,758 | 77,671 |
+> | DER++ | 81,984 | 82,504 | 82,691 |
+> | SlowHeat + DER++ | 84,708 | 85,062 | 85,835 |
+>
+> O delta central do documento (+2,724 p.p. para SlowHeat + DER++) não se
+> reproduz: o CSV dá +2,558 p.p. e o agregado de 20 seeds dá +3,144 p.p.
+>
+> **Estas tabelas não devem ser citadas como resultado.** Para números
+> rastreáveis use `results/protocol_post_eval_fix_d5b22ad/` (20 seeds, com
+> `environment.json` e commit) ou `results/100seeds/` (100 seeds). O resultado
+> confirmatório pré-registrado está em
+> [`confirmatory_protocol.md`](confirmatory_protocol.md).
+
 Os valores abaixo são médias sobre cinco seeds, inferidas da relação entre desvio-padrão e largura do IC no CSV. `±` representa a **meia largura do IC95% normal reportado pelo runner**, em pontos percentuais.
 
 | Método | ACC final ↑ | Forgetting ↓ | BWT ↑ | Task-aware ↑ | Gap ↓ | Tempo (s) ↓ |
@@ -698,6 +722,12 @@ src/dual_heater/
   dual_heat.py       DualHeat legado
   fast_heat.py       FastHeat normalizado de ativação
   slow_heat.py       Functional SlowHeat linear, convolucional e MLP
+  transformer.py     helpers de capacidade e máscara compartilhados
+  bert.py            host BERT SlowHeat (maior módulo do pacote)
+  qwen.py            host Qwen2 SlowHeat, MLP SwiGLU
+  resnet.py          backbone ResNet18 instrumentado
+  _layers.py         primitivas de camada compartilhadas
+  state.py           FP32ScientificStateMixin, register_counter
   optim.py           SlowHeatAdamW e SlowHeatSGD
   lora.py            adaptação DualHeat-LoRA experimental
   metrics.py         métricas de aprendizagem contínua
@@ -706,14 +736,21 @@ experiments/
   functional_dualheat.py        piloto e benchmarks Functional DualHeat
   split_mnist.py                 runner principal e baselines
   split_mnist_suite.py           fairness, ablações e generalização
+  split_clinc150.py              runner BERT/CLINC150
   confirmatory_split_mnist.py    confirmação pré-registrada
   confirmatory_statistics.py     estatística pareada
+  evaluation.py                  contexto de avaliação sem efeito colateral
   synthetic_cl.py                benchmark sintético determinístico
   visual_generalization.py       Permuted-MNIST e Split-CIFAR-10/100
+  capacity_calibration.py        aritmética de capacidade
+  qwen_slowheat_smoke.py         smoke Qwen em GPU
+  qwen_capacity_diagnostic.py    diagnóstico de capacidade Qwen
+  qwen_iso_plasticity.py         ablação iso-plasticidade Qwen
 
 docs/               contratos, protocolo e registro experimental
+goals/              roadmaps e protocolos congelados
 notebooks/           execução interativa dos protocolos
-tests/               mais de 100 testes automatizados
+tests/               567 testes automatizados
 article/             manuscrito técnico em desenvolvimento
 ```
 

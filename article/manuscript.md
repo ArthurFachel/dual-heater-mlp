@@ -5,11 +5,13 @@
 Technical manuscript draft. The current implementation is validated by unit
 and integration tests. Exploratory Split-MNIST comparisons against Replay,
 DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented and their raw
-per-seed artifacts are versioned, but the frozen independent confirmation has
-no valid versioned execution artifacts. Ten-seed exploratory Split-CIFAR-10
-benchmarks with VGG11 and ResNet18 are versioned; they do not establish a
-multiplicity-adjusted final-accuracy advantage for Functional DualHeat.
-Split-CIFAR-100 support is implemented but has no completed aggregate result.
+per-seed artifacts are versioned. The frozen 20-seed confirmation of
+SlowHeat+Replay against Replay has been executed twice independently; both
+runs are versioned and agree on every scientific metric, though both record a
+dirty Git tree. Ten-seed exploratory Split-CIFAR-10 benchmarks with VGG11 and
+ResNet18 are versioned; they do not establish a multiplicity-adjusted
+final-accuracy advantage for Functional DualHeat. Split-CIFAR-100 aggregates
+exist for ten paired seeds but are not yet analysed in this manuscript.
 The three-seed pilot in Section 5 predates the functional-importance,
 factorized-protection, capacity-budget and optimizer-state changes; it is
 retained only as historical motivation and must not be reported as evidence for
@@ -26,10 +28,12 @@ derives protection under an explicit plastic-capacity budget and applies a
 factorized mask to both incoming rows and downstream columns. Optimizer-aware
 AdamW and SGD wrappers apply the mask to the final parameter delta and, under
 the default policy, to tensor-valued optimizer-state deltas. The method is
-implemented and covered by falsification tests. Exploratory Split-MNIST and
-ten-seed Split-CIFAR-10 comparisons exist, but the frozen independent
-confirmation and a completed Split-CIFAR-100 evaluation remain outstanding.
-The Split-CIFAR-10 comparisons do not show a multiplicity-adjusted
+implemented and covered by falsification tests. A frozen 20-seed Split-MNIST
+confirmation of SlowHeat+Replay against Replay gives a paired final-accuracy
+difference of +0.87 percentage points (95% CI [+0.29, +1.45], t = 3.16,
+p = 0.0052, 17/20 seeds favourable) at roughly 1.9x the wall-clock time; the
+result was reproduced by a second independent execution. Exploratory
+ten-seed Split-CIFAR-10 comparisons do not show a multiplicity-adjusted
 final-accuracy advantage for Functional DualHeat. No general efficacy or
 state-of-the-art claim is made.
 
@@ -203,6 +207,41 @@ SlowHeat+Replay, so any run made before this correction is invalid. Its frozen
 seeds, hyperparameters, endpoint and analysis remain unchanged; a valid run
 must use the corrected source and a new output directory.
 
+The two versioned confirmation runs satisfy this requirement. The
+side-effect-free evaluation context `experiments/evaluation.py` was introduced
+in commit `d5b22ad` (2026-09-03), which is the commit recorded in the
+environment manifest of the first run; the second uses `f2f7616`
+(2026-09-04). Both wrote to fresh output directories.
+
+### 4.5 Frozen Split-MNIST confirmation
+
+The preregistered contrast is `slowheat_replay_hidden_beta_30_budget_0.25`
+minus `replay` over 20 frozen seeds, with final average class-incremental
+accuracy after the fifth task as the primary endpoint. The preregistration lock
+carries `status = frozen_before_execution`, `preregistered_at = 2026-08-15` and
+an identical `sha256` in both runs, so the preregistration was not edited
+between them.
+
+| Metric | Mean paired difference | 95% t CI (df=19) | t | two-sided p | Signs |
+|---|---:|---:|---:|---:|---|
+| **Final average accuracy** | **+0.00869** | [+0.00293, +0.01445] | 3.157 | **0.0052** | 17+ / 3- |
+| Average forgetting | -0.01463 | [-0.02207, -0.00718] | -4.112 | 0.00059 | 2+ / 18- |
+| Classifier gap | -0.00735 | [-0.01304, -0.00166] | -2.704 | 0.0141 | 4+ / 16- |
+| Elapsed seconds | +2.792 | [+2.749, +2.836] | 135.1 | <1e-6 | 20+ / 0- |
+
+Marginal means: Replay reaches 0.77040 final accuracy with 0.27244 forgetting;
+SlowHeat+Replay reaches 0.77909 with 0.25781. Only the primary endpoint was
+preregistered; the remaining rows are secondary and descriptive.
+
+A second independent execution reproduced the first: across the 20 per-seed
+result files, 21 of 100 scalar fields differ and all of them are cost fields
+(elapsed time, optimizer step time, peak memory, selection time). No
+scientific metric differs.
+
+The limitation is provenance: both runs record a dirty Git tree, and the
+executed diff was not fingerprinted, so bit-for-bit reproduction cannot be
+established from the manifests alone.
+
 ## 5. Historical Diagnostic Pilot (Superseded Method)
 
 The CPU-only pilot used three seeds, three tasks, two classes per task and 20 optimizer steps per task. It was designed to verify the protocol and expose confounds, not to estimate benchmark performance.
@@ -322,10 +361,19 @@ Currently supported:
   rankings improved old-task retention over matched random masks, while replay
   comparisons exposed an acquisition-retention trade-off and failed the
   predeclared scaling gate.
+- In the frozen 20-seed Split-MNIST confirmation, SlowHeat+Replay improved
+  final average accuracy over Replay by +0.87 percentage points
+  (p = 0.0052, 17/20 seeds) and reduced average forgetting by 1.46 points
+  (p = 0.00059, 18/20 seeds), at roughly 1.9x the wall-clock time. The result
+  was reproduced by a second independent execution.
 
 Not currently supported:
 
-- SlowHeat outperforms established continual-learning baselines.
+- SlowHeat outperforms established continual-learning baselines. The confirmed
+  contrast is against plain Replay on Split-MNIST only; DER++ and ER-ACE were
+  not part of the frozen confirmation.
+- The SlowHeat+DER++ combination, which is the strongest exploratory result,
+  has any preregistered confirmation of its own.
 - MAX consolidation is novel by itself.
 - The method reduces forgetting by 34 percent in general.
 - The method is equivalent to EWC.

@@ -203,7 +203,13 @@ grava `declared_before_run=False`, `minimum_effective_plasticity=None` e
 foi distribuída?
 
 **Estado:** desenho e aritmética prontos
-(`docs/qwen_iso_plasticity_ablation.md`). **Runner não existe.**
+(`docs/qwen_iso_plasticity_ablation.md`). Runner **implementado e executado**:
+`experiments/qwen_iso_plasticity.py` (33.958 bytes, 42 testes em
+`tests/test_qwen_iso_plasticity.py`), com 6 runs de calibração em
+`results/qwen_iso_plasticity/`. O protocolo foi congelado em
+`goals/protocol_iso_plasticity.md` (etapa 1.1 concluída, commit `6461827`).
+Pendente: as runs existentes usam 30 passos, revogados em favor de 120 pela
+tabela K; Gate 1 não foi registrado; nada foi copiado para `artifacts/`.
 
 ### Etapa 1.1 — Congelar o protocolo
 

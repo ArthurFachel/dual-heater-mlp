@@ -23,8 +23,11 @@ APIs principais:
 
 - `SlowHeatLinear`, `SlowHeatConv2d`, `SlowHeatChannelTracker`;
 - `SlowHeatMLP`, `SlowHeatCNN`, `SlowHeatVGG11`, `SlowHeatResNet18`;
-- `consolidate()`, `get_lr_scales()`, `capacity_metrics()` e
-  `adapt_capacity()`.
+- `consolidate()`, `get_lr_scales()` e `adapt_capacity()`.
+
+`capacity_metrics()` existe nas camadas (`SlowHeatLinear`, `SlowHeatConv2d`) e
+nos hosts BERT e Qwen, **não** nos modelos visuais: chamá-lo em `SlowHeatMLP`,
+`SlowHeatCNN`, `SlowHeatVGG11` ou `SlowHeatResNet18` levanta `AttributeError`.
 
 ### FastHeat
 
@@ -116,9 +119,10 @@ inventário completo.
 | `ewc` | penalidade quadrática com importância diagonal online |
 | `si` | Synaptic Intelligence |
 
-Limitação conhecida: o EWC atual usa o quadrado do gradiente médio do minibatch,
-não a média dos quadrados por exemplo. Os resultados EWC devem ser descritos
-como a aproximação implementada, não como Fisher empírico exato.
+O EWC implementado calcula o Fisher empírico diagonal por exemplo: os gradientes
+são elevados ao quadrado antes da redução e normalizados por `fisher_examples`
+(`experiments/split_mnist.py:1297-1322`). A limitação anterior — usar o quadrado
+do gradiente médio do minibatch — foi corrigida e tem teste de regressão.
 
 ### Combinações
 
@@ -145,9 +149,15 @@ ativações de replay. Classifier Expander possui uma fase auxiliar da cabeça c
 replay e distillation. SCROLL congela o extrator após a primeira tarefa e ajusta
 a cabeça por estatísticas suficientes e regressão ridge.
 
-Limitação conhecida: Classifier Expander atualmente destila sobre todas as
-classes vistas, incluindo as novas, embora o professor tenha sido congelado
-antes da tarefa. Esse caminho deve ser tratado como experimental até a correção.
+O Classifier Expander destila apenas sobre as classes antigas:
+`_old_class_distillation_loss` aplica `index_select` restrito a `old_classes`
+(`experiments/split_mnist.py:1277-1294`). A limitação anterior — destilar sobre
+todas as classes vistas, incluindo as novas — foi corrigida e tem teste de
+regressão.
+
+Restrição de backbone: os nove identificadores LPR, Classifier Expander e SCROLL
+só são despacháveis com `--backbone cnn`. O runner levanta `ValueError` para
+qualquer outro backbone (`experiments/split_mnist.py:631-645`).
 
 ## 3. Seleção de replay
 

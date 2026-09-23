@@ -15,12 +15,17 @@ da arte.
 | SlowHeat para CNN, VGG11 e ResNet18 | implementado e testado | [functional_slowheat_cnn.md](functional_slowheat_cnn.md) |
 | Functional DualHeat e FastHeat | implementado; benchmarks visuais exploratórios concluídos | [functional_dualheat.md](functional_dualheat.md) |
 | BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos | [bert_slowheat_diagnostic_results.md](bert_slowheat_diagnostic_results.md) |
-| Trackers para Transformers | BERT implementado; SwiGLU, GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](functional_slowheat_transformers.md) |
+| Trackers para Transformers | BERT implementado; SwiGLU implementado no host Qwen2; GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](functional_slowheat_transformers.md) |
+| Qwen2 / SlowHeat em LLM | host, diagnóstico de capacidade e runner de iso-plasticidade implementados e testados; smoke em GPU executado; sem resultado de continual learning agregado | [functional_slowheat_qwen.md](functional_slowheat_qwen.md) |
+| Calibração de capacidade Qwen | aritmética implementada; critério declarado ainda não aplicado numa run | [qwen_capacity_calibration.md](qwen_capacity_calibration.md) |
+| Ablação iso-plasticidade Qwen | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); confirmação em andamento | [qwen_iso_plasticity_ablation.md](qwen_iso_plasticity_ablation.md) |
 | RNN/LSTM | proposta de design, não implementada | [functional_slowheat_rnn_lstm.md](functional_slowheat_rnn_lstm.md) |
 | Replay seletivo | implementado com quatro estratégias | [replay_selection.md](replay_selection.md) |
 | Dashboard e telemetria ao vivo | implementados | [live_dashboard.md](live_dashboard.md) |
 | Otimizadores mascarados | implementados e testados | [optimizer_semantics.md](optimizer_semantics.md) |
-| Auditoria do engine experimental | auditoria estática; achados ainda precisam de triagem | [experiments_audit.md](experiments_audit.md) |
+| Auditoria do engine experimental | 12 de 36 achados corrigidos; 24 ainda abertos | [experiments_audit.md](experiments_audit.md) |
+| Índice de resultados versionados | mapa de todos os diretórios de `results/` | [results_index.md](results_index.md) |
+| Protocolo confirmatório | executado; 20 seeds, duas execuções concordantes | [confirmatory_protocol.md](confirmatory_protocol.md) |
 
 ## O que foi adicionado ao projeto
 

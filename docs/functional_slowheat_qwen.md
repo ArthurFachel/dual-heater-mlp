@@ -1,7 +1,9 @@
 # Qwen2 SlowHeat: escopo, achados e limites
 
-Estado: implementação e verificação em CPU concluídas. Nenhuma run em GPU e
-nenhum resultado empírico de continual learning foi produzido ainda.
+Estado: implementação e verificação em CPU concluídas; smoke em GPU executado.
+Runs de calibração e de ordem/seed existem, mas usam um número de passos já
+revogado e não foram agregadas, portanto não há resultado empírico de continual
+learning publicável.
 
 ## 1. O que existe
 
@@ -9,8 +11,15 @@ nenhum resultado empírico de continual learning foi produzido ainda.
 |---|---|
 | `src/dual_heater/qwen.py` | Host `SlowHeatQwen2ForSequenceClassification` + `QwenSlowHeatConfig` |
 | `src/dual_heater/transformer.py` | Helpers de capacidade e máscara agora compartilhados por BERT e Qwen |
-| `tests/test_slow_heat_qwen.py` | 40 testes em CPU, modelos Qwen2 minúsculos e aleatórios |
-| `experiments/qwen_slowheat_smoke.py` | Smoke no checkpoint real (ainda não executado) |
+| `tests/test_slow_heat_qwen.py` | 37 testes em CPU, modelos Qwen2 minúsculos e aleatórios |
+| `experiments/qwen_slowheat_smoke.py` | Smoke no checkpoint real (executado; ver seção 6) |
+| `experiments/qwen_capacity_diagnostic.py` | Diagnóstico de capacidade e concentração; 8 testes |
+| `experiments/qwen_iso_plasticity.py` | Runner da ablação iso-plasticidade; 42 testes |
+| `experiments/capacity_calibration.py` | Aritmética de capacidade, `dominant_unit_overlap`, `importance_profile` |
+
+Documentos relacionados: [`qwen_capacity_calibration.md`](qwen_capacity_calibration.md)
+e [`qwen_iso_plasticity_ablation.md`](qwen_iso_plasticity_ablation.md). O
+protocolo congelado da ablação está em `goals/protocol_iso_plasticity.md`.
 
 O refactor moveu `dynamic_matrix_mask`, `merge_task_importance`,
 `apply_global_capacity`, `apply_hierarchical_capacity` e `apply_family_capacity`
@@ -109,7 +118,7 @@ máscara funciona. Essa evidência está em
 `test_validity_mask_actually_excludes_masked_tokens`, que exercita o tracker
 diretamente.
 
-## 6. Custo esperado
+## 6. Custo: estimado e medido
 
 Números derivados da config, **não medidos**:
 
@@ -117,16 +126,32 @@ Números derivados da config, **não medidos**:
 - envelope FFN-only com `freeze_unbound_parameters=True`: 24 camadas x
   (2 x 4864 x 896 + 896 x 4864) = cerca de 318M treináveis, mais a cabeça
   `score`;
-- full fine-tune fp32 com AdamW: aproximadamente 8,3 GB, o que cabe em uma
-  1080 Ti de 11 GB com batch 2 e seq 128, porém com folga pequena.
+- full fine-tune fp32 com AdamW: aproximadamente 8,3 GB.
 
-Confirmar com `experiments/qwen_slowheat_smoke.py` antes de qualquer run.
+**Medição real** (`results/run_logs/results_gpu_memory_smoke.log`, GTX 1080 Ti,
+`--budget 0.50`, batch 2):
+
+| Grandeza | Valor |
+|---|---:|
+| Pico alocado | 5,447 GiB |
+| Pico reservado | 6,033 GiB |
+| Unidades protegidas | 58.368 |
+| 10 passos | 3,17 s |
+
+A estimativa de 8,3 GB era pessimista: o consumo real é cerca de 35% menor e a
+folga na 1080 Ti de 11 GB é confortável, não pequena.
 
 ## 7. O que ainda não foi feito
 
-- o smoke no checkpoint real não foi executado (exige download de cerca de 1 GB);
 - nenhuma integração com `experiments/split_clinc150.py`;
-- nenhum protocolo congelado, nenhuma seed de calibração, nenhum resultado.
+- nenhuma agregação entre seeds das runs de calibração existentes, nem
+  diferenças pareadas;
+- nenhum registro de Gate 1, Gate 2 ou Gate 3;
+- o critério declarado de `qwen_capacity_calibration.md`
+  (`--min-effective-plasticity`) nunca foi aplicado numa run;
+- a confirmação de 10 seeds x 10 domínios x 120 passos não produziu manifestos;
+- `docs/qwen_layer_anomaly.md`, prometido como entregável de P6, não existe,
+  embora as 6 runs de medição estejam em `results/qwen_layer_anomaly/`.
 
 `docs/bert_slowheat_diagnostic_results.md` registra que o SlowHeat em BERT
 superou fine-tuning sequencial mas não superou replay, e conclui que não se deve

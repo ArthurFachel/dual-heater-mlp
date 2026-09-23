@@ -1,6 +1,13 @@
 # Protocolo confirmatório e suíte de baselines
 
-Status: implementado; nenhum artefato confirmatório está versionado.
+Status: implementado e **executado**. Duas execuções independentes de 20 seeds
+estão em disco sob `results/protocol_post_eval_fix/confirmation/` e
+`results/protocol_post_eval_fix_d5b22ad/confirmation/`. O resultado está na
+seção [Resultado confirmatório](#resultado-confirmatório-20-seeds).
+
+Ressalva de proveniência: ambas as execuções registram `git dirty = true`. O
+diff executado não foi fingerprintado, portanto não há reprodução bit a bit a
+partir da proveniência isoladamente.
 
 ## Correção de implementação de 2026-09-02
 
@@ -21,8 +28,73 @@ inalterados. A correção apenas restaura a semântica pretendida do treinamento
 
 Uma execução confirmatória posterior à correção deve usar um diretório novo. O
 `source_fingerprint` impede que checkpoints ou seeds produzidos pelo código
-anterior sejam retomados como se pertencessem à implementação corrigida. O
-repositório continua sem artefatos confirmatórios versionados.
+anterior sejam retomados como se pertencessem à implementação corrigida.
+
+As duas execuções versionadas satisfazem essa exigência. O módulo
+`experiments/evaluation.py`, que implementa o contexto de avaliação sem efeito
+colateral, foi introduzido no commit `d5b22ad` (2026-09-03) — exatamente o
+commit registrado em
+`results/protocol_post_eval_fix/confirmation/environment.json`. A segunda
+execução usa `f2f7616` (2026-09-04). Ambas são posteriores à correção e ambas
+gravaram em diretórios de saída novos.
+
+## Resultado confirmatório, 20 seeds
+
+Contraste congelado: `slowheat_replay_hidden_beta_30_budget_0.25` menos
+`replay`. Endpoint primário: acurácia média final class-incremental após a
+quinta tarefa. Pré-registro em
+`results/protocol_post_eval_fix*/confirmation/preregistration.lock.json`, com
+`status = frozen_before_execution`, `preregistered_at = 2026-08-15` e
+`sha256 = 015b3162…a9b2` idêntico nas duas execuções, o que prova que o
+pré-registro não foi editado entre elas.
+
+Médias marginais das 20 seeds:
+
+| Métrica | Replay | SlowHeat + Replay |
+|---|---:|---:|
+| Acurácia média final | 0,77040 | 0,77909 |
+| Average forgetting | 0,27244 | 0,25781 |
+| Classifier gap | 0,21293 | 0,20558 |
+| Task-aware final | 0,98333 | 0,98467 |
+| Tempo (s) | 3,036 | 5,828 |
+
+Diferenças pareadas por seed, sempre candidato menos referência:
+
+| Métrica | Diferença média | IC95% t (gl=19) | t | p bilateral | Sinais | Bootstrap IC95% |
+|---|---:|---:|---:|---:|---|---:|
+| **Acurácia média final** | **+0,00869** | [+0,00293; +0,01445] | 3,157 | **0,00520** | 17+ / 3− | [+0,00316; +0,01381] |
+| Average forgetting | −0,01463 | [−0,02207; −0,00718] | −4,112 | 0,00059 | 2+ / 18− | [−0,02118; −0,00748] |
+| Classifier gap | −0,00735 | [−0,01304; −0,00166] | −2,704 | 0,01408 | 4+ / 16− | [−0,01242; −0,00195] |
+| Task-aware final | +0,00134 | [+0,00005; +0,00263] | 2,168 | 0,04309 | 14+ / 6− | [+0,00019; +0,00251] |
+| Tempo (s) | +2,7923 | [+2,7491; +2,8356] | 135,06 | <1e−6 | 20+ / 0− | [+2,7543; +2,8339] |
+
+O endpoint primário é positivo e significativo: **+0,869 pontos percentuais**,
+`p = 0,0052`, com 17 das 20 seeds favoráveis. O forgetting cai 1,46 p.p. com
+`p = 0,00059`. O custo é a contrapartida: o tempo quase dobra, com efeito
+presente em todas as 20 seeds.
+
+O ganho de acurácia task-aware (`p = 0,043`, teste de sinais `p = 0,115`) é
+fraco e não sobrevive a nenhuma correção de multiplicidade. Somente o endpoint
+primário foi pré-registrado; as demais linhas são secundárias e descritivas.
+
+### Replicação entre as duas execuções
+
+Comparei os 20 `results.json` par a par entre os dois diretórios. Dos 100
+campos escalares, 21 diferem e **todos são de custo** (`elapsed_seconds`,
+`optimizer_step_seconds`, `peak_memory_*`, `selection_seconds`). Nenhuma
+métrica científica difere. Os arquivos têm hashes SHA-256 distintos, ou seja,
+são duas execuções independentes, em commits diferentes, que reproduziram
+resultados numericamente idênticos.
+
+### O que este resultado não estabelece
+
+- Não é superioridade geral do SlowHeat sobre métodos de continual learning.
+  O contraste é contra `replay` simples, num único benchmark.
+- Não cobre SlowHeat + DER++, que permanece exploratório e sem pré-registro
+  próprio.
+- Não vale como comparação de custo: o overhead de tempo é grande e
+  sistemático.
+- A árvore Git suja impede reprodução bit a bit pela proveniência.
 
 ## Separação entre confirmação e exploração
 

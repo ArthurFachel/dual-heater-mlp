@@ -1,8 +1,12 @@
 # Protocolo Split-CIFAR-10 e Split-CIFAR-100
 
-Status: implementado e coberto por testes. Há quatro seeds parciais de
-Split-CIFAR-10 versionadas como diagnóstico de uma execução interrompida; não
-há agregado CIFAR completo nem resultado Split-CIFAR-100.
+Status: implementado, coberto por testes e **executado**. Existem agregados
+completos de dez seeds pareadas para Split-CIFAR-10 e Split-CIFAR-100 em
+`results/split_mnist_protocol/split_cifar10/aggregate.json` (19 métodos),
+`results/split_mnist_protocol/split_cifar100/aggregate.json` (19 métodos),
+`results/dualheat_pairs/split_cifar10/` e `results/dualheat_pairs/split_cifar100/`
+(8 métodos), além dos sweeps CNN, VGG11 e ResNet18. Nenhum desses resultados foi
+analisado neste documento: eles são exploratórios e não possuem pré-registro.
 
 Os adapters em `experiments/visual_generalization.py` expõem os benchmarks
 visuais com uma única cabeça compartilhada:

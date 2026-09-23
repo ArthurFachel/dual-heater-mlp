@@ -254,9 +254,12 @@ semântica. Se uma branch usa projeção `1x1`, essa projeção deve ser registr
 como consumidora e produtora explícita.
 
 O registrador sequencial atual não é suficiente para essa topologia. A futura
-API deve representar um grafo de conexões, por exemplo:
+API deve representar um grafo de conexões. **Nada disso está implementado** —
+`registry.connect` e `registry.merge` não existem no código. O esboço abaixo é
+uma proposta de assinatura, não uma API chamável:
 
 ```python
+# PROPOSTA — não implementado
 registry.connect(source=conv1, target=conv2)
 registry.connect(source=input_channels, target=skip_projection)
 registry.merge(sources=[conv2, skip_projection], target=residual_channels)
@@ -281,7 +284,14 @@ mesma semântica sob AdamW.
 
 ## 7. Esqueleto de implementação
 
+Esboço conceitual. Os nomes reais no código são `_SlowHeatImportanceMixin`
+(privado, `src/dual_heater/slow_heat.py:91`) e o hook interno
+`_functional_importance_hook`; não existe método público
+`update_task_importance`.
+
 ```python
+# ESBOÇO CONCEITUAL — nomes reais: _SlowHeatImportanceMixin,
+# _functional_importance_hook
 class SlowHeatConv2d(FunctionalSlowHeatMixin, nn.Conv2d):
     def forward(self, x):
         z = super().forward(x)

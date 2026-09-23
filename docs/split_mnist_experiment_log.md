@@ -452,6 +452,17 @@ principal documentado abaixo.
 
 ## 6. Resultado pareado principal em 20 seeds
 
+> **AVISO DE RASTREABILIDADE (22/09/2026).** Os números desta seção não
+> correspondem a nenhum agregado em disco. O único par replay/candidato de 20
+> seeds versionado (`results/protocol_post_eval_fix_d5b22ad/confirmation/`) dá
+> acurácia final 0,77040 contra 0,77909, delta **+0,869 p.p.** com IC95% t
+> [+0,293; +1,445] — e não os 0,76288 / 0,77549 e +1,261 p.p. abaixo. As
+> agregações de 8 e 19 seeds citadas nas seções 5.5 e 5.6 também não têm
+> artefato correspondente.
+>
+> Para o resultado rastreável e pré-registrado, use
+> [`confirmatory_protocol.md`](confirmatory_protocol.md).
+
 O resultado principal atual usa:
 
 ```text
@@ -609,12 +620,18 @@ SplitMNISTConfig(
 Essa configuração é a melhor hipótese experimental atual. Ela não deve ser
 alterada usando os resultados das próximas seeds confirmatórias.
 
-## 11. Protocolo implementado para a próxima etapa (sem artefatos versionados)
+## 11. Protocolo implementado e executado na etapa seguinte
 
 Em 2026-08-15, as recomendações da seção 9 foram transformadas em código e em
-um notebook único. Nenhum resultado novo é reportado nesta seção: as células
-foram entregues sem execução e, até a data desta revisão, os artefatos
-confirmatórios e de generalização visual não existem no repositório.
+um notebook único. O notebook continua versionado sem células executadas, mas
+**a confirmação foi executada duas vezes** e está em
+`results/protocol_post_eval_fix/confirmation/` e
+`results/protocol_post_eval_fix_d5b22ad/confirmation/`, ambas posteriores à
+correção de eval-mode. O resultado completo está em
+[`confirmatory_protocol.md`](confirmatory_protocol.md): +0,869 p.p. no endpoint
+primário, `p = 0,0052`, 17 de 20 seeds favoráveis. Os artefatos de generalização
+visual (Split-CIFAR-10 e CIFAR-100) também existem, em
+`results/split_mnist_protocol/` e `results/dualheat_pairs/`.
 
 ### Confirmação congelada
 

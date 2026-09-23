@@ -261,3 +261,16 @@ benchmark completo.
 
 A partir daqui, qualquer alteração exige commit anterior à run correspondente e
 uma linha nova nesta tabela.
+
+### Desvio registrado a posteriori (22/09, revisão documental)
+
+O commit `095b1c8` acrescentou os braços `hard_b0.75` e `hard_b0.5` ao runner,
+e os manifestos `results/qwen_iso_plasticity/hard_seed*` foram executados com
+**8 braços por família**, enquanto a seção E declara 7 braços em `E* = 0,75` e
+6 em `E* = 0,50`. Essa alteração **não recebeu linha nesta tabela antes da
+run**, violando a regra do parágrafo acima.
+
+Consequência: o braço `hard` não é um braço pré-registrado. Ele pode ser
+reportado como exploratório, nunca como parte do contraste congelado. As runs
+afetadas usam 30 passos e já estão obsoletas por outro motivo, o que limita o
+dano a este desvio.

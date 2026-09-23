@@ -25,10 +25,28 @@ without restoring the learner's previous mode. SlowHeat sweeps without any
 FastHeat method consequently accumulated functional importance only during the
 first epoch of each stage. Any frozen Split-MNIST confirmation executed before
 the correction is invalid and must not be reported. The correction preserves
-the preregistered seeds, hyperparameters, endpoint and analysis; a valid
-confirmation must use the corrected source and a new output directory. See
+the preregistered seeds, hyperparameters, endpoint and analysis. Two valid
+post-correction confirmation runs are versioned; see
 [`docs/confirmatory_protocol.md`](docs/confirmatory_protocol.md) and the
 [experiment log](docs/split_mnist_experiment_log.md).
+
+### Frozen confirmation result
+
+The preregistered 20-seed contrast `slowheat_replay_hidden_beta_30_budget_0.25`
+minus `replay` on Split-MNIST class-incremental:
+
+| Metric | Replay | SlowHeat + Replay | Paired difference | p |
+|---|---:|---:|---:|---:|
+| **Final average accuracy** | 0.77040 | 0.77909 | **+0.00869** [+0.00293, +0.01445] | **0.0052** |
+| Average forgetting | 0.27244 | 0.25781 | -0.01463 [-0.02207, -0.00718] | 0.00059 |
+| Elapsed seconds | 3.036 | 5.828 | +2.792 | <1e-6 |
+
+17 of 20 seeds favour SlowHeat on the primary endpoint; 18 of 20 on forgetting.
+A second independent execution reproduced every scientific metric exactly;
+only cost fields differ. Both runs record a dirty Git tree, so bit-for-bit
+reproduction cannot be established from provenance alone. This confirms an
+advantage over plain Replay on one benchmark — not over DER++, ER-ACE or
+continual-learning baselines in general.
 
 ### Method versus method + DualHeat
 
@@ -123,8 +141,8 @@ in `notebooks/split_mnist_confirmatory_suite.ipynb`. That notebook exposes
 DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF, balanced replay,
 equal-epoch/equal-example comparisons, early stopping and compute accounting
 through one interface. Read `docs/confirmatory_protocol.md` before running it;
-the notebook is committed without executed cells, and no confirmatory result
-artifacts are versioned in this repository.
+the notebook is committed without executed cells. Two executed confirmation
+runs are versioned under `results/protocol_post_eval_fix*/confirmation/`.
 
 The complete chronological record of Split-MNIST tests, statistical
 conclusions and the meaning of structured method names such as
@@ -464,10 +482,11 @@ See `docs/synthetic_ablation_pilot.md`.
 ## Known limitations
 
 - No confirmatory full-sequence result on a harder visual or language
-  continual-learning benchmark is versioned. BERT/CLINC150 has a completed
-  exploratory two-task diagnostic, and partial Split-CIFAR-10 per-seed artifacts
-  are kept as execution diagnostics; there is no completed CIFAR aggregate or
-  Split-CIFAR-100 result.
+  continual-learning benchmark is versioned. The frozen confirmation covers
+  Split-MNIST only. BERT/CLINC150 has a completed exploratory two-task
+  diagnostic. Split-CIFAR-10 and Split-CIFAR-100 ten-seed aggregates exist
+  under `results/split_mnist_protocol/` and `results/dualheat_pairs/`, but they
+  are exploratory and not yet analysed in the documentation.
 - Replay, DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are implemented in
   the shared Split-MNIST/visual runner, but they have not all received
   method-specific tuning or independent replication. MAS, UCB, HAT, NAI,
@@ -510,12 +529,16 @@ Supported:
 - a tiny diagnostic pilot exposed a stability-plasticity trade-off;
 - in a two-task BERT/CLINC150 diagnostic, SlowHeat improved final average
   accuracy over sequential BERT, while replay comparisons exposed an
-  acquisition-retention trade-off.
+  acquisition-retention trade-off;
+- in the frozen 20-seed Split-MNIST confirmation, SlowHeat+Replay beat Replay
+  by +0.87 p.p. final accuracy (p = 0.0052) and reduced forgetting by 1.46 p.p.
+  (p = 0.00059), at roughly 1.9x the wall-clock time.
 
 Not supported:
 
 - a general reduction of forgetting by 34%;
-- superiority to EWC or other continual-learning baselines;
+- superiority to EWC, DER++, ER-ACE or other continual-learning baselines; the
+  confirmed contrast is against plain Replay on Split-MNIST alone;
 - novelty of MAX consolidation by itself;
 - guaranteed convergence, specialization or neuron recruitment;
 - validated effectiveness across other Transformer architectures, datasets,
@@ -715,15 +738,15 @@ configured by the project, including vanilla, the SlowHeat controls and beta
 variants, Replay, distillation, DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF,
 fairness controls and the executable ablations. Use `--dry-run` to inspect the
 exact ordered list before starting this computationally expensive suite.
-Partial Split-CIFAR-10 seed outputs are versioned, but the interrupted run has
-no aggregate and must not be presented as a completed CIFAR result.
+Completed ten-seed Split-CIFAR-10 and Split-CIFAR-100 aggregates are versioned
+under `results/split_mnist_protocol/` and `results/dualheat_pairs/`; they are
+exploratory and carry no preregistration.
 
 Unit/integration tests are optional and only run when explicitly requested
 with `--run-unit-tests`.
 
 Progress is recorded in
-`results/split_mnist_protocol/benchmark_index.json`; the frozen primary result
-is extracted to `results/split_mnist_protocol/primary_result.json`.
+`results/split_mnist_protocol/benchmark_index.json`.
 
 The complete default protocol is computationally expensive: it contains 20
 frozen confirmatory seeds plus repeated ten-seed secondary analyses.
