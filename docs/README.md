@@ -19,6 +19,7 @@ pode afirmar** e **Ameaças à validade**.
 | CNN (Split-CIFAR-10/100) | exploratório, 10 seeds; efeito **inverte** conforme o método base | [arch_cnn.md](arch_cnn.md) |
 | BERT (CLINC150) | diagnóstico com **resultado negativo** contra replay | [arch_bert.md](arch_bert.md) |
 | Qwen2 (CLINC150) | **sem evidência citável**; mecanismo e custo medidos | [arch_qwen.md](arch_qwen.md) |
+| Qwen2 — confirmação 10 seeds | resultados completos, por seed; 2 de 24 sobrevivem a Holm | [qwen_confirmation_results.md](qwen_confirmation_results.md) |
 | Hard vs soft (todas) | **preparado, aguardando execução**; remove o confundimento regime×arquitetura | [hard_vs_soft_protection.md](hard_vs_soft_protection.md) |
 | Proveniência de todos os resultados | 96% dos agregados com árvore Git suja | [results_provenance_status.md](results_provenance_status.md) |
 
