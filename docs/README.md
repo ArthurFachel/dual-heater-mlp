@@ -7,6 +7,20 @@ protótipo de pesquisa em aprendizagem contínua. A presença de uma implementa�
 ou de um resultado em `results/` não implica validação confirmatória nem estado
 da arte.
 
+## Por arquitetura (comece aqui para escrever o artigo)
+
+Cada documento traz, no topo, um bloco pronto para redação: **Claim**,
+**Evidência citável** com artefato e commit, **Proveniência**, **O que NÃO se
+pode afirmar** e **Ameaças à validade**.
+
+| Arquitetura | Estado da evidência | Documento |
+|---|---|---|
+| MLP (Split/Permuted-MNIST) | **confirmatório pré-registrado**, 20 seeds, +0,87 pp (p=0,0052) | [arch_mlp.md](arch_mlp.md) |
+| CNN (Split-CIFAR-10/100) | exploratório, 10 seeds; efeito **inverte** conforme o método base | [arch_cnn.md](arch_cnn.md) |
+| BERT (CLINC150) | diagnóstico com **resultado negativo** contra replay | [arch_bert.md](arch_bert.md) |
+| Qwen2 (CLINC150) | **sem evidência citável**; mecanismo e custo medidos | [arch_qwen.md](arch_qwen.md) |
+| Proveniência de todos os resultados | 96% dos agregados com árvore Git suja | [results_provenance_status.md](results_provenance_status.md) |
+
 ## Estado atual
 
 | Área | Estado | Documento principal |
