@@ -150,7 +150,7 @@ def main() -> None:
         print("=" * 78)
         print(f"E* = {family}   ({len(seeds)} seeds, endpoints medios)")
         print("=" * 78)
-        header = "  %-18s" % "braco" + "".join("%-20s" % n for _, n in ENDPOINTS)
+        header = f"  {'braco':<18}" + "".join(f"{n:<20}" for _, n in ENDPOINTS)
         print(header)
         for name in arm_names(manifests[seeds[0]], family):
             cells = []
@@ -161,11 +161,11 @@ def main() -> None:
                 if not vals:
                     missing = True
                     break
-                cells.append("%.4f+-%.4f" % (st.mean(vals), st.stdev(vals)))
+                cells.append(f"{st.mean(vals):.4f}+-{st.stdev(vals):.4f}")
             if missing:
-                print("  %-18s (descartado em todas as seeds)" % name)
+                print(f"  {name:<18} (descartado em todas as seeds)")
                 continue
-            print("  %-18s" % name + "".join("%-20s" % c for c in cells))
+            print(f"  {name:<18}" + "".join(f"{c:<20}" for c in cells))
 
     # ---- paired comparisons ----------------------------------------------
     comparisons = []
@@ -208,32 +208,23 @@ def main() -> None:
     print(f"Holm sobre as {len(comparisons)} comparacoes. * = p_holm < 0.05")
     print("=" * 78)
     print(
-        "  %-6s %-18s %-12s %-18s %-8s %-9s %-9s"
-        % ("E*", "comparacao", "endpoint", "diferenca", "seeds", "p", "p_holm")
+        f"  {'E*':<6} {'comparacao':<18} {'endpoint':<12} {'diferenca':<18} "
+        f"{'seeds':<8} {'p':<9} {'p_holm':<9}"
     )
     for c in comparisons:
+        star = " *" if c["p_holm"] < 0.05 else ""
         print(
-            "  %-6s %-18s %-12s %+.4f+-%.4f  %2d/%-5d %-9.4f %-9.4f%s"
-            % (
-                c["family"],
-                c["label"],
-                c["endpoint"],
-                c["mean"],
-                c["sd"],
-                c["wins"],
-                c["n"],
-                c["p"],
-                c["p_holm"],
-                " *" if c["p_holm"] < 0.05 else "",
-            )
+            f"  {c['family']:<6} {c['label']:<18} {c['endpoint']:<12} "
+            f"{c['mean']:+.4f}+-{c['sd']:.4f}  "
+            f"{c['wins']:2d}/{c['n']:<5d} {c['p']:<9.4f} {c['p_holm']:<9.4f}{star}"
         )
 
     survivors = [c for c in comparisons if c["p_holm"] < 0.05]
     print(f"\n  sobrevivem a Holm: {len(survivors)}/{len(comparisons)}")
     for c in survivors:
         print(
-            "    E*=%s %s %s (%+.4f, %d/%d)"
-            % (c["family"], c["label"], c["endpoint"], c["mean"], c["wins"], c["n"])
+            f"    E*={c['family']} {c['label']} {c['endpoint']} "
+            f"({c['mean']:+.4f}, {c['wins']}/{c['n']})"
         )
 
 
