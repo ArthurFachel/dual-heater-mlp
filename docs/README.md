@@ -11,14 +11,12 @@ da arte.
 
 | Área | Estado | Documento principal |
 |---|---|---|
-| Functional SlowHeat para MLP | implementado e testado | [functional_slowheat.md](functional_slowheat.md) |
+| Functional SlowHeat e Functional DualHeat | implementados e testados; benchmarks visuais exploratórios concluídos | [functional_slowheat.md](functional_slowheat.md) |
 | SlowHeat para CNN, VGG11 e ResNet18 | implementado e testado | [functional_slowheat_cnn.md](functional_slowheat_cnn.md) |
-| Functional DualHeat e FastHeat | implementado; benchmarks visuais exploratórios concluídos | [functional_dualheat.md](functional_dualheat.md) |
-| BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos | [bert_slowheat_diagnostic_results.md](bert_slowheat_diagnostic_results.md) |
+| BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos; runs históricas na Parte II | [bert_slowheat_diagnostic_results.md](bert_slowheat_diagnostic_results.md) |
 | Trackers para Transformers | BERT implementado; SwiGLU implementado no host Qwen2; GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](functional_slowheat_transformers.md) |
 | Qwen2 / SlowHeat em LLM | host, diagnóstico de capacidade e runner de iso-plasticidade implementados e testados; smoke em GPU executado; sem resultado de continual learning agregado | [functional_slowheat_qwen.md](functional_slowheat_qwen.md) |
-| Calibração de capacidade Qwen | aritmética implementada; critério declarado ainda não aplicado numa run | [qwen_capacity_calibration.md](qwen_capacity_calibration.md) |
-| Ablação iso-plasticidade Qwen | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); confirmação em andamento | [qwen_iso_plasticity_ablation.md](qwen_iso_plasticity_ablation.md) |
+| Ablação iso-plasticidade Qwen + calibração de capacidade | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); critério declarado nunca aplicado (Anexo A); confirmação em andamento | [qwen_iso_plasticity_ablation.md](qwen_iso_plasticity_ablation.md) |
 | RNN/LSTM | proposta de design, não implementada | [functional_slowheat_rnn_lstm.md](functional_slowheat_rnn_lstm.md) |
 | Replay seletivo | implementado com quatro estratégias | [replay_selection.md](replay_selection.md) |
 | Dashboard e telemetria ao vivo | implementados | [live_dashboard.md](live_dashboard.md) |
@@ -53,13 +51,13 @@ O inventário das implementações e identificadores aceitos pelos runners está
 
 ## Resultados
 
-- [Diagnósticos BERT SlowHeat](bert_slowheat_diagnostic_results.md): comparação
-  de dez seeds contra BERT sequencial, controles hard aleatórios, interação com
-  replay, orçamento de memória e decisão de não escalar a configuração atual.
-- [Resultados históricos BERT/CLINC150](bert_clinc150_results.md): protocolo,
-  tabela das 11 runs, artefatos-fonte e limitações.
-- [Functional DualHeat](functional_dualheat.md): piloto de FastHeat e resultados
-  pareados em Split-CIFAR-10.
+- [Diagnósticos e runs BERT/CLINC150](bert_slowheat_diagnostic_results.md):
+  Parte I com a comparação de dez seeds contra BERT sequencial, controles hard
+  aleatórios, interação com replay, orçamento de memória e a decisão de não
+  escalar a configuração atual; Parte II com o protocolo, a tabela das 11 runs
+  históricas, artefatos-fonte e limitações.
+- [Functional SlowHeat e DualHeat](functional_slowheat.md): contrato dos dois
+  mecanismos, piloto de FastHeat e resultados pareados em Split-CIFAR-10.
 - [Catálogo histórico de métodos e resultados](project_methods_and_results.md):
   análise do CSV Split-MNIST de cinco seeds. O documento preserva o recorte
   histórico e não deve ser usado como inventário do estado atual.

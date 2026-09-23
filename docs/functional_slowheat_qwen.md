@@ -17,8 +17,8 @@ learning publicável.
 | `experiments/qwen_iso_plasticity.py` | Runner da ablação iso-plasticidade; 42 testes |
 | `experiments/capacity_calibration.py` | Aritmética de capacidade, `dominant_unit_overlap`, `importance_profile` |
 
-Documentos relacionados: [`qwen_capacity_calibration.md`](qwen_capacity_calibration.md)
-e [`qwen_iso_plasticity_ablation.md`](qwen_iso_plasticity_ablation.md). O
+Documento relacionado: [`qwen_iso_plasticity_ablation.md`](qwen_iso_plasticity_ablation.md),
+que inclui a calibração de capacidade no Anexo A. O
 protocolo congelado da ablação está em `goals/protocol_iso_plasticity.md`.
 
 O refactor moveu `dynamic_matrix_mask`, `merge_task_importance`,
@@ -147,7 +147,7 @@ folga na 1080 Ti de 11 GB é confortável, não pequena.
 - nenhuma agregação entre seeds das runs de calibração existentes, nem
   diferenças pareadas;
 - nenhum registro de Gate 1, Gate 2 ou Gate 3;
-- o critério declarado de `qwen_capacity_calibration.md`
+- o critério declarado do Anexo A de `qwen_iso_plasticity_ablation.md`
   (`--min-effective-plasticity`) nunca foi aplicado numa run;
 - a confirmação de 10 seeds x 10 domínios x 120 passos não produziu manifestos;
 - `docs/qwen_layer_anomaly.md`, prometido como entregável de P6, não existe,

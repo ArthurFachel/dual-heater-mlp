@@ -116,7 +116,7 @@ colisão com resultados históricos sem `run_identity.json`.
 Esses sweeps avaliam apenas Functional SlowHeat e suas combinações. O protocolo
 novo de Functional DualHeat, incluindo FastHeat, piloto de validação e dois
 benchmarks de 13 métodos, está documentado em
-[functional_dualheat.md](functional_dualheat.md). Seus diretórios terminam em
+[functional_slowheat.md](functional_slowheat.md). Seus diretórios terminam em
 `_functional_dualheat` e não sobrescrevem os resultados acima.
 
 ## Métodos

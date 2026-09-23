@@ -58,7 +58,7 @@ receber uma interpretação implícita.
 
 As onze runs BERT-Mini preservadas, seus métodos, métricas e limitações de
 proveniência estão em
-[bert_clinc150_results.md](bert_clinc150_results.md). Elas são evidência
+[bert_slowheat_diagnostic_results.md, Parte II](bert_slowheat_diagnostic_results.md). Elas são evidência
 exploratória de uma seed por método, não resultados confirmatórios.
 
 ## 1. Escolha das unidades funcionais
@@ -700,7 +700,7 @@ permanecem critérios para suas respectivas etapas futuras.
 - [Índice da documentação](README.md)
 - [Catálogo atual de métodos](methods_catalog.md)
 - [Ablação de cobertura completa BERT](bert_full_coverage_ablation.md)
-- [Resultados históricos BERT/CLINC150](bert_clinc150_results.md)
+- [Resultados BERT/CLINC150, diagnóstico e runs históricas](bert_slowheat_diagnostic_results.md)
 - [Contrato do Functional SlowHeat](functional_slowheat.md)
 - [Semântica do otimizador](optimizer_semantics.md)
 - [Attention Is All You Need](https://arxiv.org/abs/1706.03762)

@@ -23,7 +23,7 @@ funcional (`goals/qwen_heat_roadmap.md`, Meta 0).
 | A3 | Seeds de calibração / confirmação | calibração {0, 1, 2}; confirmação {10, 11, 12, 13, 14, 15, 16, 17, 18, 19} | as 10 de confirmação são declaradas **agora**, antes de qualquer acurácia; escolhê-las depois invalidaria o pré-registro |
 | A4 | `minimum_effective_plasticity` do critério declarado | 0,60, avaliado em `b=0,25` | o regime medido é informativo (`heavy_tailed_warning=False`, `PR/N` agregado 11,5% contra guard-rail de 5%); o piso seleciona `beta=10` (`E=0,760`) na grade |
 
-Regra de A4: o critério de `docs/qwen_capacity_calibration.md` lê **somente
+Regra de A4: o critério do Anexo A de `docs/qwen_iso_plasticity_ablation.md` lê **somente
 mecanismo** e falha em vez de relaxar o piso. Se o piso 0,60 não for atingível
 numa run futura, o resultado é "critério falhou" e isso é registrado, não
 contornado.

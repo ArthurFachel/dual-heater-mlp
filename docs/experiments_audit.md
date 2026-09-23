@@ -575,7 +575,7 @@ Destaques que afetam interpretação de resultado:
 - **#10 — contraste ausente.** O par
   `dualheat_global_topk − slowheat_global` continua fora da lista `pairs`
   (`experiments/split_clinc150.py:1827`). É exatamente o contraste que
-  `docs/bert_clinc150_results.md` §9 pede há duas revisões: sem ele, não se
+  `docs/bert_slowheat_diagnostic_results.md` §II.9 pede há duas revisões: sem ele, não se
   separa o efeito do FastHeat do efeito do `global_topk`.
 - **#11 — seeds compartilhadas.** `--seeds` (default `[11, 22, 33]`) é usada
   tanto por `--calibrate` quanto pela execução final, sem validação de

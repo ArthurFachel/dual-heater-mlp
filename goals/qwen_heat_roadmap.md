@@ -10,7 +10,7 @@
 
 1. **Nenhum hiperparâmetro é escolhido olhando acurácia.** Proteção (`beta`) e
    budget saem de critério de mecanismo declarado antes da run, ou de dataset
-   disjunto. Ver `docs/qwen_capacity_calibration.md`.
+   disjunto. Ver `docs/qwen_iso_plasticity_ablation.md`, Anexo A.
 2. **Escopo de capacidade faz parte do mecanismo.** Qualquer aritmética de heat
    usa as variantes `*_scoped` com o escopo explícito. Concatenar camadas e
    normalizar por máximo global dá resposta errada por ~2 ordens de magnitude.
@@ -191,7 +191,7 @@ pré-requisito. Se for implementada, troca `h = m / max(selecionado)` por
 **`concentration_ratio` registrado: 0,519 em `b=0,25` (faixa 0,512-0,551).**
 
 Pendência antes de fechar a Meta 1: o critério declarado de
-`docs/qwen_capacity_calibration.md` **não foi aplicado** nesta run — o manifesto
+O critério declarado (`docs/qwen_iso_plasticity_ablation.md`, Anexo A) **não foi aplicado** nesta run — o manifesto
 grava `declared_before_run=False`, `minimum_effective_plasticity=None` e
 `selection=None`. Isso precisa entrar no protocolo da Etapa 1.1.
 
@@ -407,4 +407,134 @@ ameaça à validade.
 
 - Gate 0: `concentration_ratio` de 0,512 a 0,551 (todos os budgets) -> conjunto
   protegido é funcional, seguir para a Meta 1 sem mudanças.
+
+---
+
+# Anexo B — Plano de execução P6/P1/P2/P3/P4
+
+Este anexo era `goals/plano_execucao_p6_p1_p2_p3.md`. O plano foi em boa parte
+aplicado, então as instruções passo a passo viraram histórico; o texto verbatim
+está no histórico Git (commit `99e0190` e anteriores). O que permanece vivo está
+consolidado abaixo: **estado**, **pendentes**, **pitfalls** e **riscos**.
+
+## B.1. Estado verificado em 22 de setembro de 2026 (HEAD `4265b1c`)
+
+| Item | Estado |
+|---|---|
+| P6.1 flag `--domains` | implementado (`qwen_capacity_diagnostic.py:88`) |
+| P6.2 6 runs de medição | executado (`results/qwen_layer_anomaly/`) |
+| P6.3 `dominant_unit_overlap` + perfil de importância | implementado (`capacity_calibration.py:185,137`) |
+| P6.3 run com `--capacity-scope hierarchical` | **não executado** (todos os manifestos gravam `local`) |
+| P6.4 `docs/qwen_layer_anomaly.md` + Gate 2 | **não entregue** |
+| P1 congelar protocolo | executado (commit `6461827`) |
+| P2 runner `qwen_iso_plasticity.py` | implementado e executado |
+| P3 testes + mutações | 42 testes existem; relatório de mutação não escrito |
+| P4 run de calibração | executado com **30 passos**, valor depois revogado para 120 |
+| P4.3 copiar manifestos para `artifacts/` | **não executado**; nada versionado |
+| P4.5 Gate 1 | **não registrado** |
+
+Desvio registrado: os manifestos `hard_seed*` contêm um braço `hard` que não
+consta da seção E do protocolo congelado e cuja adição (commit `095b1c8`) não
+teve linha na tabela K antes da run. Ver a seção "Desvio registrado a
+posteriori" em `goals/protocol_iso_plasticity.md`.
+
+## B.2. Pendentes, com o detalhe necessário para executá-los
+
+**P6.3 — escopo hierárquico.** Rodar uma seed com
+`--capacity-scope hierarchical` e comparar `concentration_ratio` por camada com
+o escopo local, para decidir se a redistribuição de cota corrige a subproteção
+das camadas anômalas.
+
+**P6.4 — `docs/qwen_layer_anomaly.md`.** Formato de
+[`bert_slowheat_diagnostic_results.md`](../docs/bert_slowheat_diagnostic_results.md):
+pergunta, protocolo, tabela por seed e por ordem, leitura e **o que continua sem
+explicação**. Os dados já estão em `results/qwen_layer_anomaly/` (7 manifestos,
+2 ordens x 3 seeds). Fecha o Gate 2.
+
+Hipótese a confirmar ou descartar: a queda de PR no fim da rede é efeito de
+profundidade (a magnitude de `|z dL/dz|` cai perto da cabeça porque a loss é
+dominada pelos logits), e L3/L21 são outra coisa, sem relação com profundidade.
+Se for isso, o tratamento separado vale só para L3/L21.
+
+**P3 — relatório de mutação.** As sete mutações previstas e o teste que cada uma
+deve quebrar:
+
+| Mutação | Teste que deve quebrar |
+|---|---|
+| inverter o eixo da máscara | drift protegido exatamente zero |
+| trocar permutação por proteção hard | distribuição de heat idêntica |
+| ignorar `capacity_scope` | braço atinge `E*` dentro de 1e-6 |
+| aplicar `E*` errado num braço | braço atinge `E*` dentro de 1e-6 |
+| saturar `beta` em vez de descartar budget inalcançável | conteúdo do manifesto |
+| esquecer `seen_classes` na avaliação | avaliação |
+| registrar máscara no braço de LR reduzido | `mask_bindings()` vazio |
+
+Mutação sobrevivente é lacuna de teste ou equivalência provada. Investigar e
+documentar qual, como já foi feito para as duas equivalências de
+`test_capacity_calibration.py`.
+
+Cuidado conhecido: atenção causal mais pooling do último token não-pad já zeram
+o gradiente de padding, então um teste de invariância a padding passa mesmo com
+a máscara de validade removida. Testar a máscara no tracker diretamente.
+
+**P4.3 e Gate 1.** Copiar os manifestos para `artifacts/` (o repo ignora
+`results/`) e registrar o Gate 1 conforme a seção I do protocolo. Reprovado é
+resultado registrado, não obstáculo.
+
+## B.3. Pitfalls que o runner tem de respeitar
+
+Referência viva, vale para qualquer run futura:
+
+- carregar em fp32 e passar `fp16=True`, **ou** carregar fp16 com `fp16=False`.
+  Nunca os dois: o scaler espera pesos mestres fp32. (O protocolo depois migrou
+  o treino para fp32 por outro motivo — ver tabela K.)
+- `gradient_checkpointing` conflita com forward hooks. Desligado;
+- nenhum `device_map="auto"`: uma GPU só, DDP desabilitado (GPUs heterogêneas);
+- `freeze_unbound_parameters=True` congela o envelope sem binding. A cabeça
+  `score` é aleatória e **precisa** ficar plástica; ela é exposta por
+  `exempt_parameter_names()` e contada separada de mascarados;
+- um binding por parâmetro. Quando produtor e consumidor protegem o mesmo peso,
+  combinar por mínimo, não registrar duas vezes;
+- alocação de estado ativo: só para máscaras habilitadas;
+- `evaluate_all`/`_evaluate`: `seen_tasks` é o terceiro posicional, `output_dir`
+  o quarto. Não usar keyword `tasks=`;
+- `softmax` de Class-IL: `_mask_unseen_logits` com `seen_classes` por tarefa;
+- **não** reaproveitar `_find_slowheat_model` de `split_clinc150.py`: é tipada
+  para `SlowHeatBertForSequenceClassification`.
+
+O controle iso-E correto é permutar o vetor de heat inteiro, zeros incluídos —
+isso preserva a contagem de protegidas e o multiconjunto de valores, logo `E`
+fica idêntico por construção. Proteger identidades sorteadas com `hard`
+(`split_clinc150.py:820`) **não** é iso-E e não serve como controle.
+
+Ordem de treino por braço:
+
+```text
+para cada tarefa t:
+  model.train()
+  para cada step: forward, backward, optimizer.step()
+  model.eval(); _evaluate em todas as tarefas vistas
+  se t < T-1:
+     model.consolidate(strategy="max")
+     se policy == "per_boundary": re-resolver beta do braço em E(beta) = E*
+     model.register_plasticity_masks(optimizer, hard=False)
+     capturar drift de referência para a próxima tarefa
+```
+
+Detalhe que decide a leitura: a resolução de `beta` depende da importância da
+primeira tarefa, então `beta` só existe a partir da fronteira 1->2. Com
+`policy="first"` resolve uma vez e congela. Reportar os dois ou declarar um;
+não misturar.
+
+## B.4. Riscos de execução
+
+| Risco | Onde aparece | Mitigação |
+|---|---|---|
+| `_evaluate` mudar de assinatura e quebrar o runner | P2 | confirmar antes; o teste de P3 cobre |
+| Anomalia de L3/L21 ser artefato de seed | P6 | é o que P6 mede; os dados existem e a leitura falta |
+| Ordem das tarefas mudar a leitura da Meta 1 | P6, P4 | ordem declarada no protocolo; P6 mede o efeito |
+| Estimativa de memória otimista | P4 | **resolvido**: smoke em GPU mediu 5,447 GiB de pico contra ~8,3 GB estimados |
+| Braços indistinguíveis do LR reduzido | P4, Gate 1 | resultado negativo publicável; o controle é obrigatório |
+| Nome `SlowHeat` herdar o endpoint negativo do BERT | P9 | decidir o nome antes de escrever a Meta 3 |
+| Manipulação de `slow_heat` pós-consolidação divergir do caminho de produção | P2, P3 | comparar `mask_bindings()` com e sem o hook de produção |
 

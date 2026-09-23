@@ -217,5 +217,5 @@ alegação de eficácia.
 
 - [Functional SlowHeat em Transformers](functional_slowheat_transformers.md)
 - [Catálogo atual de métodos](methods_catalog.md)
-- [Resultados históricos BERT/CLINC150](bert_clinc150_results.md)
+- [Resultados BERT/CLINC150, diagnóstico e runs históricas](bert_slowheat_diagnostic_results.md)
 - [Dashboard e telemetria](live_dashboard.md)

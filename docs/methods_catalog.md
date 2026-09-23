@@ -213,7 +213,7 @@ O runner sintético aceita:
 
 O preset `--heat-variants` executa quatro protocolos comparáveis de
 alocação: `slowheat_bound`, `slowheat_global`, `slowheat_hierarchical` e
-`dualheat_global_topk`. Resultados históricos: [bert_clinc150_results.md](bert_clinc150_results.md).
+`dualheat_global_topk`. Resultados históricos: [bert_slowheat_diagnostic_results.md, Parte II](bert_slowheat_diagnostic_results.md).
 
 O preset `--full-coverage-variants` executa exatamente dez métodos: `vanilla`,
 `slowheat_full_coverage`, as sete variantes `slowheat_all_minus_*` da tabela e

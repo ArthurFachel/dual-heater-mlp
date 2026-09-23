@@ -6,7 +6,7 @@
 **Escopo:** análise histórica do CSV Split-MNIST de cinco seeds. Para o estado
 atual da implementação, novos métodos e resultados BERT, consulte
 [`docs/README.md`](README.md), [`methods_catalog.md`](methods_catalog.md) e
-[`bert_clinc150_results.md`](bert_clinc150_results.md).
+[`bert_slowheat_diagnostic_results.md`](bert_slowheat_diagnostic_results.md).
 **Projeto:** `dual-heater` v0.2.0  
 **Benchmark dos resultados fornecidos:** Split-MNIST class-incremental  
 **Estado científico:** protótipo de pesquisa; os resultados sustentam conclusões exploratórias, não uma alegação de estado da arte.

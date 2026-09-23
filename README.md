@@ -716,7 +716,7 @@ python run_all_tests.py \
   --device cuda --run-unit-tests
 ```
 
-See [the Functional DualHeat protocol](docs/functional_dualheat.md) for the
+See [the Functional SlowHeat and DualHeat contract](docs/functional_slowheat.md) for the
 gate equation, placement, fixed seeds, calibration rule and paired contrasts.
 
 After the pilot, run the preselected CNN stability/plasticity sweep with ten
