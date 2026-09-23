@@ -8,14 +8,21 @@ DER++, ER-ACE, A-GEM, EWC, SI and calibrated LwF are documented and their raw
 per-seed artifacts are versioned. The frozen 20-seed confirmation of
 SlowHeat+Replay against Replay has been executed twice independently; both
 runs are versioned and agree on every scientific metric, though both record a
-dirty Git tree. Ten-seed exploratory Split-CIFAR-10 benchmarks with VGG11 and
-ResNet18 are versioned; they do not establish a multiplicity-adjusted
-final-accuracy advantage for Functional DualHeat. Split-CIFAR-100 aggregates
-exist for ten paired seeds but are not yet analysed in this manuscript.
+dirty Git tree. Ten-seed paired suites for Split-CIFAR-10 and Split-CIFAR-100
+are versioned and analysed in Section 6: they show that the sign of the
+SlowHeat effect depends on the base method it is attached to. Ten-seed
+exploratory Split-CIFAR-10 benchmarks with VGG11 and ResNet18 do not establish
+a multiplicity-adjusted final-accuracy advantage for Functional DualHeat.
 The three-seed pilot in Section 5 predates the functional-importance,
 factorized-protection, capacity-budget and optimizer-state changes; it is
 retained only as historical motivation and must not be reported as evidence for
 the current method.
+
+Per-architecture evidence summaries, each stating its claim, citable numbers,
+provenance and explicit non-claims, are in `docs/arch_mlp.md`,
+`docs/arch_cnn.md`, `docs/arch_bert.md` and `docs/arch_qwen.md`. The
+provenance status of every versioned aggregate, including what must be
+re-executed before submission, is in `docs/results_provenance_status.md`.
 
 ## Abstract
 
@@ -31,11 +38,15 @@ the default policy, to tensor-valued optimizer-state deltas. The method is
 implemented and covered by falsification tests. A frozen 20-seed Split-MNIST
 confirmation of SlowHeat+Replay against Replay gives a paired final-accuracy
 difference of +0.87 percentage points (95% CI [+0.29, +1.45], t = 3.16,
-p = 0.0052, 17/20 seeds favourable) at roughly 1.9x the wall-clock time; the
-result was reproduced by a second independent execution. Exploratory
-ten-seed Split-CIFAR-10 comparisons do not show a multiplicity-adjusted
-final-accuracy advantage for Functional DualHeat. No general efficacy or
-state-of-the-art claim is made.
+p = 0.0052, 17/20 seeds favourable) at 1.8x to 1.9x the wall-clock time; the
+result was reproduced by a second independent execution. Exploratory ten-seed
+convolutional suites show that the sign of the effect depends on the base
+method: attached to ER-ACE, SlowHeat improves final accuracy by +4.15 points on
+Split-CIFAR-10 and +1.27 on Split-CIFAR-100, whereas attached to DER++ it
+*reduces* accuracy by 1.13 and 0.53 points respectively, all four surviving
+Holm correction within their dataset. Ten-seed Split-CIFAR-10 comparisons do
+not show a multiplicity-adjusted final-accuracy advantage for Functional
+DualHeat. No general efficacy or state-of-the-art claim is made.
 
 ## 1. Motivation
 
@@ -225,13 +236,21 @@ between them.
 | Metric | Mean paired difference | 95% t CI (df=19) | t | two-sided p | Signs |
 |---|---:|---:|---:|---:|---|
 | **Final average accuracy** | **+0.00869** | [+0.00293, +0.01445] | 3.157 | **0.0052** | 17+ / 3- |
-| Average forgetting | -0.01463 | [-0.02207, -0.00718] | -4.112 | 0.00059 | 2+ / 18- |
+| Average forgetting | -0.01462 | [-0.02207, -0.00718] | -4.112 | 0.00059 | 2+ / 18- |
 | Classifier gap | -0.00735 | [-0.01304, -0.00166] | -2.704 | 0.0141 | 4+ / 16- |
-| Elapsed seconds | +2.792 | [+2.749, +2.836] | 135.1 | <1e-6 | 20+ / 0- |
+| Task-aware final accuracy | +0.00134 | [+0.00005, +0.00263] | 2.168 | 0.0431 | 14+ / 6- |
 
 Marginal means: Replay reaches 0.77040 final accuracy with 0.27244 forgetting;
 SlowHeat+Replay reaches 0.77909 with 0.25781. Only the primary endpoint was
-preregistered; the remaining rows are secondary and descriptive.
+preregistered; the remaining rows are secondary and descriptive. The
+task-aware row should not be read as a positive result: the paired t test
+gives p = 0.043, but the exact sign test on the same 20 pairs gives p = 0.115.
+
+Wall-clock cost is the one dimension on which the two executions differ, since
+it is machine-dependent. The first run records 3.003 s for Replay against
+5.496 s for SlowHeat+Replay (+2.493 s, t = 35.95, 1.83x); the second records
+3.036 s against 5.828 s (+2.792 s, t = 135.06, 1.92x). The overhead is
+positive in 20 of 20 seeds in both runs.
 
 A second independent execution reproduced the first: across the 20 per-seed
 result files, 21 of 100 scalar fields differ and all of them are cost fields
@@ -265,7 +284,67 @@ The legacy AdamW variant retained more final accuracy. A plausible explanation i
 
 MAX and mean were close in this short run. Sum was more restrictive. Three seeds cannot resolve these differences. The reduced-learning-rate and SGD controls were poorly matched to the short training horizon and require their own tuning before scientific comparison.
 
-## 6. BERT/CLINC150 Mechanism Diagnostics
+## 6. Convolutional Benchmarks: the Effect Depends on the Base Method
+
+The paired suite `dualheat_pairs` runs ten seeds per dataset with paired
+initialization, partitions, minibatch schedules and replay indices. For each
+dataset we evaluate four contrasts, always
+`slowheat_<base>_hidden_beta_30_budget_0.25` minus `<base>`, on the same
+primary endpoint used throughout: final average class-incremental accuracy.
+Holm correction is applied within each dataset over its four contrasts.
+
+| Dataset | vs ER-ACE | vs Replay | vs DER++ | vs Vanilla |
+|---|---:|---:|---:|---:|
+| Split-MNIST | -0.08 (ns) | +0.14 (ns) | **+3.18** | **-0.12** |
+| Permuted-MNIST | **+0.53** | **+0.42** | **+0.10** | **+7.67** |
+| Split-CIFAR-10 | **+4.15** | +0.35 (ns) | **-1.13** | -0.00 (ns) |
+| Split-CIFAR-100 | **+1.27** | **+0.62** | **-0.53** | +0.05 (ns) |
+
+Differences are percentage points. Bold entries survive Holm at 5% within
+their dataset; `ns` marks contrasts that do not. The Split-CIFAR-10 Replay
+contrast lands at Holm-adjusted p = 0.0509 and is therefore reported as
+non-significant.
+
+Two Holm-surviving entries must not be read as efficacy results. The
+Split-MNIST vanilla contrast (-0.12 points) compares 19.64% against 19.52%,
+both at the 20% chance floor of a five-task two-class Class-IL stream: the
+difference is statistically detectable and practically meaningless. The
+Permuted-MNIST vanilla contrast (+7.67 points) is large, but the reference is
+unregularized sequential fine-tuning, which is the weakest possible baseline.
+
+The convolutional results are not a uniform confirmation or a uniform failure.
+On both CIFAR benchmarks the ER-ACE contrast is strongly positive and unanimous
+across seeds (10+/0- on CIFAR-10, 10+/0- on CIFAR-100), while the DER++
+contrast is negative and nearly unanimous (0+/10- and 1+/9-). Both directions
+survive multiplicity correction. The same inversion does not appear on the MLP
+benchmarks, where the DER++ contrast is the strongest positive result.
+
+We report the inversion as an observation and not as a mechanism. A natural
+reading is that SlowHeat and DER++ compete for the same stability budget while
+ER-ACE and SlowHeat are complementary, but no ablation in this work tests that
+hypothesis. A competing explanation cannot be excluded from the present data:
+every aggregate uses a fixed `lr = 1e-3` for all methods, so DER++ and ER-ACE
+may be unequally tuned, and an interaction with learning rate would produce a
+similar pattern. Resolving this requires the per-method tuning listed in
+Section 9, item 1.
+
+Two further limitations bound these numbers. Absolute accuracy on
+Split-CIFAR-100 is low in every arm, between 5.4% and 14.7%, so the
+differences describe a weak-performance regime. And while the four contrasts
+within each dataset are Holm-corrected, the four datasets are not corrected
+against each other; a global correction over all sixteen contrasts would
+weaken the marginal entries.
+
+A separate ten-seed study compares Functional DualHeat against SlowHeat on
+Split-CIFAR-10 with VGG11 and ResNet18 backbones. No contrast survives Holm at
+5% in either architecture. The largest mean gain, VGG11 with LPR at +1.43
+points, has an adjusted p of 0.0803; all four ResNet18 contrasts fall between
+-0.50 and -0.01 points with adjusted p of 1.000. Adding FastHeat to SlowHeat
+therefore has no robust effect in this protocol.
+
+Full tables, artifacts and provenance are in `docs/arch_cnn.md`.
+
+## 7. BERT/CLINC150 Mechanism Diagnostics
 
 We implemented Functional SlowHeat in Hugging Face BERT without replacing its
 native attention computation. Training-time trackers estimate normalized
@@ -309,7 +388,7 @@ Transformer implementation and a stability mechanism, not superiority over
 replay. Complete artifacts and provenance limitations are recorded in
 `docs/bert_slowheat_diagnostic_results.md`.
 
-## 7. Related Work and Positioning
+## 8. Related Work and Positioning
 
 The closest conceptual precedents include:
 
@@ -322,12 +401,14 @@ The closest conceptual precedents include:
 
 No claim of being the first method to use neuron importance, MAX masks, lateral inhibition or importance-dependent plasticity is justified. Novelty, if established, must be argued at the level of the exact combination and its optimizer-aware formulation.
 
-## 8. Required Experiments Before Submission
+## 9. Required Experiments Before Submission
 
 1. Tune learning rate and protection strength separately for every optimizer family using a declared validation protocol.
 2. Use at least five seeds for screening and preferably ten for final tables.
-3. Use Split MNIST as a debugging benchmark, then execute the implemented
-   Split-CIFAR-10 and Split-CIFAR-100 continual-learning streams.
+3. Use Split MNIST as a debugging benchmark. The implemented Split-CIFAR-10 and
+   Split-CIFAR-100 streams have been executed for ten paired seeds and are
+   analysed in Section 6; what remains is a preregistered confirmation of the
+   ER-ACE interaction rather than a first execution.
 4. Independently repeat the implemented Replay, DER++, ER-ACE, A-GEM, EWC, SI
    and LwF comparisons with declared tuning, and add MAS, activation-based
    importance, UCB, HAT, SLNID and joint training.
@@ -342,7 +423,7 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 10. Repeat efficiency measurements after warm-up on the same hardware and
     software stack.
 
-## 9. Safe Claims
+## 10. Safe Claims
 
 Currently supported:
 
@@ -364,23 +445,48 @@ Currently supported:
 - In the frozen 20-seed Split-MNIST confirmation, SlowHeat+Replay improved
   final average accuracy over Replay by +0.87 percentage points
   (p = 0.0052, 17/20 seeds) and reduced average forgetting by 1.46 points
-  (p = 0.00059, 18/20 seeds), at roughly 1.9x the wall-clock time. The result
+  (p = 0.00059, 18/20 seeds), at 1.8x to 1.9x the wall-clock time. The result
   was reproduced by a second independent execution.
+- In ten-seed convolutional suites, the sign of the SlowHeat effect depends on
+  the base method. Attached to ER-ACE it improved final average accuracy by
+  +4.15 points on Split-CIFAR-10 (10/10 seeds) and +1.27 on Split-CIFAR-100
+  (10/10 seeds); attached to DER++ it reduced accuracy by 1.13 and 0.53 points
+  respectively (0/10 and 1/10 seeds favourable). All four survive Holm
+  correction within their dataset.
+- Adding FastHeat to SlowHeat produced no Holm-surviving final-accuracy change
+  on Split-CIFAR-10 with either VGG11 or ResNet18.
 
 Not currently supported:
 
 - SlowHeat outperforms established continual-learning baselines. The confirmed
   contrast is against plain Replay on Split-MNIST only; DER++ and ER-ACE were
   not part of the frozen confirmation.
-- The SlowHeat+DER++ combination, which is the strongest exploratory result,
-  has any preregistered confirmation of its own.
+- Any causal account of why the convolutional effect inverts between ER-ACE and
+  DER++. The pattern is measured; the competing-stability-budget reading is an
+  untested hypothesis, and unequal per-method tuning is not excluded.
+- Any task-aware accuracy gain in the frozen confirmation. The paired t test
+  gives p = 0.043, but the exact sign test on the same pairs gives p = 0.115.
+- The SlowHeat+DER++ combination, which is the strongest exploratory result on
+  the MLP benchmarks, has any preregistered confirmation of its own.
 - MAX consolidation is novel by itself.
 - The method reduces forgetting by 34 percent in general.
 - The method is equivalent to EWC.
 - Results generalize to other Transformer architectures, datasets, real-world
   tasks or a full CLINC150 task sequence.
 
-## 10. Reproducibility Artifacts
+## 11. Reproducibility Artifacts
+
+Per-architecture evidence summaries, each with citable numbers, artifact
+paths, provenance and explicit non-claims:
+
+- MLP evidence and limits: `docs/arch_mlp.md`
+- Convolutional evidence and limits: `docs/arch_cnn.md`
+- BERT evidence and limits: `docs/arch_bert.md`
+- Qwen2 status (no citable evidence yet): `docs/arch_qwen.md`
+- Provenance status and what must be re-executed: `docs/results_provenance_status.md`
+- Index of every versioned result directory: `docs/results_index.md`
+
+Implementation and protocol:
 
 - Core implementation: `src/dual_heater/`
 - Optimizer contract: `docs/optimizer_semantics.md`
@@ -396,3 +502,14 @@ Not currently supported:
 - Experiment runner: `experiments/synthetic_cl.py`
 - Multi-seed aggregation: `experiments/multi_seed.py`
 - Complete protocol runner: `run_all_tests.py`
+
+### Provenance caveat
+
+Of the 93 versioned aggregates, 89 were produced with a dirty Git tree, and
+only the two confirmation runs carry a frozen preregistration lock. The
+recorded commit therefore does not fully describe the executed code for most
+results, and the executed diff was not fingerprinted. The frozen Split-MNIST
+confirmation is the result for which this matters most; its mitigation is the
+independent second execution, which reproduced every scientific metric from a
+different commit. `docs/results_provenance_status.md` lists, in priority
+order, what should be re-executed with a clean tree before submission.

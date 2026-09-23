@@ -83,6 +83,11 @@ referência, com Holm aplicado dentro de cada dataset (4 contrastes):
 | vs Replay | 76,24% | 76,38% | +0,136 pp | 1,000 | 5+/5− |
 | vs ER-ACE | 71,21% | 71,13% | −0,080 pp | 1,000 | 3+/7− |
 
+O contraste contra Convencional (−0,122 p.p.) sobrevive a Holm, mas **não é
+resultado de eficácia**: compara 19,64% contra 19,52%, ambos no piso do acaso
+de 20% para um fluxo Class-IL de cinco tarefas com duas classes. É detectável
+e praticamente irrelevante.
+
 **Permuted-MNIST** — os quatro contrastes sobrevivem a Holm:
 
 | Contraste | Referência | Candidato | Diferença | p Holm | Sinais |
@@ -91,6 +96,10 @@ referência, com Holm aplicado dentro de cada dataset (4 contrastes):
 | vs ER-ACE | 93,54% | 94,08% | +0,534 pp | 0,0004 | 9+/1− |
 | vs Replay | 93,55% | 93,97% | +0,421 pp | 0,0011 | 10+/0− |
 | vs DER++ | 95,63% | 95,73% | +0,101 pp | 0,0282 | 8+/2− |
+
+O ganho de +7,673 p.p. sobre Convencional é grande, mas a referência é
+fine-tuning sequencial sem nenhuma regularização — a baseline mais fraca
+possível. Não sustenta alegação competitiva.
 
 **Artefatos:** `results/dualheat_pairs/{split_mnist,permuted_mnist}/pair_report.json`,
 commit `be05068`, `status = exploratory_paired_suite`.
