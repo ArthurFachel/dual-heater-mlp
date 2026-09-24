@@ -38,7 +38,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from experiments.artifacts import write_json_atomic
+from experiments.artifacts import source_fingerprint, write_json_atomic
 from experiments.confirmatory_split_mnist import CONFIRMATORY_SEEDS
 from experiments.confirmatory_statistics import PRIMARY_ENDPOINT
 from experiments.dualheat_pairs import MethodPair, _holm_adjust, summarize_pair_results
@@ -219,7 +219,18 @@ def run_target(
     download: bool = True,
     verbose: bool = True,
     resume: bool = True,
+    report_only: bool = False,
 ) -> dict[str, Any]:
+    """Run the suite for one target, or (report_only) rebuild the report alone.
+
+    ``report_only`` exists because the report step can fail after every seed has
+    already been trained. Re-deriving the report must not require re-training,
+    and must not touch the trained artifacts: it only reads ``seed_*/results.json``
+    and the frozen protocol. It deliberately skips ``ensure_run_identity``, which
+    would refuse the rebuild whenever the analysis code changed after training —
+    the identity of the *training* code stays recorded in ``run_identity.json``,
+    and the rebuilt report records the analysis fingerprint separately.
+    """
     config = suite_config(dataset, backbone, device)
     if not replay_selection_is_method_independent(config.replay_selection):
         raise ValueError(
@@ -240,22 +251,44 @@ def run_target(
             raise ValueError(
                 "protocolo diferente ou resume desativado; use outro output_dir"
             )
+    elif report_only:
+        raise ValueError(
+            "report_only exige um protocolo congelado em hard_vs_soft_protocol.json"
+        )
     elif output.exists() and any(output.iterdir()):
         raise ValueError("output_dir deve estar vazio para iniciar a suíte")
     else:
         write_json_atomic(lock, protocol)
-    run_split_mnist_multi_seed(
-        config,
-        seeds=seeds,
-        data_dir=data_dir,
+    if report_only:
+        missing = [seed for seed in seeds if not (output / f"seed_{seed}" / "results.json").is_file()]
+        if missing:
+            raise ValueError(
+                f"report_only requer todas as seeds treinadas; faltam: {missing}"
+            )
+    else:
+        run_split_mnist_multi_seed(
+            config,
+            seeds=seeds,
+            data_dir=data_dir,
+            output_dir=output,
+            download=download,
+            verbose=verbose,
+            paired_references=(),
+            task_loader=loaders[dataset],
+            resume=resume,
+        )
+    report = summarize_pair_results(
+        output,
         output_dir=output,
-        download=download,
-        verbose=verbose,
-        paired_references=(),
-        task_loader=loaders[dataset],
-        resume=resume,
+        pairs=METHOD_PAIRS,
+        allowed_backbones=(backbone,),
     )
-    report = summarize_pair_results(output, output_dir=output, pairs=METHOD_PAIRS)
+    if report_only:
+        report["analysis_provenance"] = {
+            "rebuilt_from_existing_seeds": True,
+            "training_identity": "run_identity.json",
+            "analysis_source_sha256": source_fingerprint(Path(__file__).resolve().parent.parent),
+        }
     # summarize_pair_results only applies Holm for its own four-pair family.
     if len(seeds) >= 2:
         adjusted = _holm_adjust(
@@ -284,6 +317,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--no-download", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help=(
+            "rebuild pair_report.{json,md} from seeds already trained on disk; "
+            "no training, no change to seed artifacts"
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not 1 <= args.num_seeds <= 2**31:
@@ -324,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
             output_dir=output,
             device=args.device,
             download=not args.no_download,
+            report_only=args.report_only,
         )
         print(f"Relatório: {relative_path(output / 'pair_report.md', base=Path.cwd())}")
     return 0

@@ -104,17 +104,51 @@ possível. Não sustenta alegação competitiva.
 **Artefatos:** `results/dualheat_pairs/{split_mnist,permuted_mnist}/pair_report.json`,
 commit `be05068`, `status = exploratory_paired_suite`.
 
+### E4 — Regime hard versus soft em MLP (10 seeds, protocolo congelado)
+
+Suíte `hard_vs_soft`, quatro alvos MLP, 10 seeds pareadas, protocolo congelado
+antes da execução, árvore Git **limpa** no commit `6f4d12d`. Contraste
+primário `hard_freeze − slowheat_beta_30_budget_0.25`: mesmo budget 0,25,
+mesmas unidades protegidas, muda só a dureza da máscara. Holm por alvo.
+
+| Alvo | Soft | Hard | Diferença | p Holm | Sinais |
+|---|---:|---:|---:|---:|---|
+| Split-MNIST | 19,15% | 19,64% | +0,498 pp | 1,000 | 5+/5− |
+| Permuted-MNIST | 88,77% | 89,65% | +0,875 pp | 0,167 | 7+/3− |
+| Split-CIFAR-10 | 16,85% | 17,96% | +1,114 pp | 0,167 | 7+/3− |
+| **Split-CIFAR-100** | 5,14% | 3,73% | **−1,407 pp** | **<0,0001** | 0+/10− |
+
+**Leitura.** Hard não vence soft em nenhum alvo MLP. O único contraste
+primário que sobrevive a Holm é o CIFAR-100, onde hard **perde**, com as 10
+seeds concordando. CIFAR-100 roda no **mesmo backbone** [1024, 512] que
+CIFAR-10 e inverte o sinal — dobra as fronteiras, quintuplica as classes por
+tarefa e tem 1/10 dos exemplos. O sinal acompanha a pressão de capacidade.
+
+Contraste secundário mais forte, em CIFAR-100: hard+replay perde 4,01 p.p.
+para soft+replay e 3,19 p.p. para replay puro, ambos 10/10 seeds sob Holm.
+Também em CIFAR-100, o hard reduz forgetting em 11,35 p.p. e mesmo assim perde
+1,83 p.p. de acurácia — citar só forgetting inverteria a conclusão.
+
+**Artefatos:** `results/hard_vs_soft/{split_mnist_mlp, permuted_mnist_mlp,
+split_cifar10_mlp, split_cifar100_mlp}/pair_report.json`, commit `6f4d12d`.
+Contexto dos 5 alvos, incluindo a CNN, em
+[hard_vs_soft_results.md](hard_vs_soft_results.md).
+
 ---
 
 ## Proveniência
 
-| Item | E1 (confirmação) | E3 (pareados) |
-|---|---|---|
-| Pré-registro congelado | **sim** | não |
-| Seeds declaradas antes | sim, 20 | não |
-| Árvore Git limpa | **não** | **não** |
-| Replicado independentemente | **sim** | não |
-| Endpoint único declarado | sim | não (4 contrastes, Holm aplicado) |
+| Item | E1 (confirmação) | E3 (pareados) | E4 (hard vs soft) |
+|---|---|---|---|
+| Pré-registro congelado | **sim** | não | **sim, antes da execução** |
+| Seeds declaradas antes | sim, 20 | não | **sim, 10** |
+| Árvore Git limpa | **não** | **não** | **sim** (`6f4d12d`) |
+| Replicado independentemente | **sim** | não | não |
+| Endpoint único declarado | sim | não (4 contrastes, Holm aplicado) | sim, com Holm sobre 4 contrastes |
+
+E4 é exploratório por declaração própria — protocolo congelado não é o mesmo
+que confirmação independente — mas é o único agregado MLP do projeto com
+árvore limpa.
 
 **Risco para submissão:** ambas as execuções da confirmação registram
 `git dirty = true` e o diff executado não foi fingerprintado, portanto não há
@@ -142,7 +176,8 @@ reprodução bit a bit a partir da proveniência. Ver
 
 ## Ameaças à validade
 
-1. **Árvore Git suja em 100% dos agregados MLP.** Impede reprodução exata.
+1. **Árvore Git suja em 100% dos agregados MLP**, exceto a suíte hard vs soft
+   (E4). Impede reprodução exata dos demais.
 2. **Benchmark único e fácil.** Split-MNIST com 5 tarefas de 2 classes tem teto
    alto; ganhos de ~1 p.p. podem não transferir. Permuted-MNIST reforça, mas é
    da mesma família.

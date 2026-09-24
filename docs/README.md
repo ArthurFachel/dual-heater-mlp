@@ -20,7 +20,7 @@ pode afirmar** e **Ameaças à validade**.
 | BERT (CLINC150) | diagnóstico com **resultado negativo** contra replay | [arch_bert.md](arch_bert.md) |
 | Qwen2 (CLINC150) | **sem evidência citável**; mecanismo e custo medidos | [arch_qwen.md](arch_qwen.md) |
 | Qwen2 — confirmação 10 seeds | resultados completos, por seed; 2 de 24 sobrevivem a Holm | [qwen_confirmation_results.md](qwen_confirmation_results.md) |
-| Hard vs soft (todas) | **preparado, aguardando execução**; remove o confundimento regime×arquitetura | [hard_vs_soft_protection.md](hard_vs_soft_protection.md) |
+| Hard vs soft (MLP e CNN) | **executado**, 10 seeds x 5 alvos; hard **não** vence soft em nenhum; perde em CIFAR-100/MLP | [hard_vs_soft_results.md](hard_vs_soft_results.md) · desenho: [hard_vs_soft_protection.md](hard_vs_soft_protection.md) |
 | Proveniência de todos os resultados | 96% dos agregados com árvore Git suja | [results_provenance_status.md](results_provenance_status.md) |
 
 ## Estado atual
@@ -32,7 +32,7 @@ pode afirmar** e **Ameaças à validade**.
 | BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos; runs históricas na Parte II | [bert_slowheat_diagnostic_results.md](bert_slowheat_diagnostic_results.md) |
 | Trackers para Transformers | BERT implementado; SwiGLU implementado no host Qwen2; GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](functional_slowheat_transformers.md) |
 | Qwen2 / SlowHeat em LLM | host, diagnóstico de capacidade e runner de iso-plasticidade implementados e testados; smoke em GPU executado; sem resultado de continual learning agregado | [functional_slowheat_qwen.md](functional_slowheat_qwen.md) |
-| Ablação iso-plasticidade Qwen + calibração de capacidade | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); critério declarado nunca aplicado (Anexo A); confirmação em andamento | [qwen_iso_plasticity_ablation.md](qwen_iso_plasticity_ablation.md) |
+| Ablação iso-plasticidade Qwen + calibração de capacidade | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); critério declarado nunca aplicado (Anexo A); **confirmação de 10 seeds concluída** em 23/09 | [qwen_iso_plasticity_ablation.md](qwen_iso_plasticity_ablation.md) · [goals/resultados_confirmacao.md](../goals/resultados_confirmacao.md) |
 | RNN/LSTM | proposta de design, não implementada | [functional_slowheat_rnn_lstm.md](functional_slowheat_rnn_lstm.md) |
 | Replay seletivo | implementado com quatro estratégias | [replay_selection.md](replay_selection.md) |
 | Dashboard e telemetria ao vivo | implementados | [live_dashboard.md](live_dashboard.md) |

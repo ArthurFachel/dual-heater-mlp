@@ -73,12 +73,27 @@ execuções independentes, não cópias.
 | Diretório | Conteúdo | Estado |
 |---|---|---|
 | `qwen_capacity_diagnostic/` | manifesto de capacidade, escopo local, 2 tarefas, seed 0 | o critério `--min-effective-plasticity` **não foi aplicado** (`declared_before_run: false`) |
-| `qwen_iso_plasticity/` | 6 runs de calibração (`seed0-2`, `hard_seed0-2`) | **30 passos por tarefa**, valor revogado pela tabela K em favor de 120. Obsoletas |
+| `qwen_iso_plasticity/` | calibração (`seed0-2`, `hard_seed0-2`) **mais** a confirmação `confirm120_seed10-19` | as runs de calibração usam 30 passos por tarefa, valor revogado pela tabela K, e estão obsoletas. As 10 seeds `confirm120_*` usam 120 passos, `protocol_hash` idêntico, e são a fonte de [`goals/resultados_confirmacao.md`](../goals/resultados_confirmacao.md) |
 | `qwen_layer_anomaly/` | 7 manifestos, 2 ordens x 3 seeds | executado para decidir se a anomalia de L3/L21 é artefato de seed/ordem. **A resposta nunca foi escrita**; `docs/qwen_layer_anomaly.md` não existe. O PR agregado varia 11.567–27.955 entre seeds |
 | `run_logs/` | logs de smoke em GPU, sweep de passos, runs de calibração | `results_gpu_memory_smoke.log` mede 5,447 GiB de pico |
 
 Protocolo congelado em `goals/protocol_iso_plasticity.md`. Gate 1, Gate 2 e
 Gate 3 **não foram registrados**.
+
+## Hard versus soft (MLP e CNN)
+
+| Diretório | Conteúdo | Estado |
+|---|---|---|
+| `hard_vs_soft/split_mnist_mlp/` | 10 seeds x 6 métodos | completo |
+| `hard_vs_soft/permuted_mnist_mlp/` | 10 seeds x 6 métodos | completo |
+| `hard_vs_soft/split_cifar10_mlp/` | 10 seeds x 6 métodos | completo |
+| `hard_vs_soft/split_cifar100_mlp/` | 10 seeds x 6 métodos | completo |
+| `hard_vs_soft/split_cifar10_cnn/` | 10 seeds x 6 métodos | treino em 23/09; `pair_report` regenerado em 24/09 com `--report-only` (ver §6 dos resultados) |
+
+Único conjunto do repositório com **protocolo congelado antes da execução e
+árvore Git limpa** (commit `6f4d12d`) fora da confirmação Split-MNIST. Desenho
+em [`hard_vs_soft_protection.md`](hard_vs_soft_protection.md), resultados em
+[`hard_vs_soft_results.md`](hard_vs_soft_results.md).
 
 ## Pendências deste índice
 

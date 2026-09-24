@@ -164,6 +164,7 @@ def summarize_pair_results(
     *,
     output_dir: str | Path,
     pairs: Sequence[MethodPair] = METHOD_PAIRS,
+    allowed_backbones: Sequence[str] = ("mlp",),
 ) -> dict[str, Any]:
     """Recompute selected matched contrasts from complete per-seed files.
 
@@ -191,8 +192,12 @@ def summarize_pair_results(
     seeds = manifest["seeds"]
     _validate_seeds(seeds)
     base = manifest["base_config"]
-    if base.get("backbone", "mlp") != "mlp":
-        raise ValueError("este relatório avalia apenas MLPs")
+    backbone = base.get("backbone", "mlp")
+    if backbone not in tuple(allowed_backbones):
+        raise ValueError(
+            "este relatório avalia apenas "
+            f"{', '.join(allowed_backbones)}; encontrado backbone={backbone}"
+        )
     if not required_methods.issubset(base["methods"]):
         missing = sorted(required_methods - set(base["methods"]))
         raise ValueError(f"os resultados não contêm os métodos requeridos: {missing}")
@@ -383,6 +388,15 @@ def summarize_pair_results(
     return report
 
 
+def _architecture_line(config: dict[str, Any]) -> str:
+    """Describe the trained backbone honestly: an MLP label on a CNN run would
+    misreport the architecture the numbers came from."""
+    backbone = config.get("backbone", "mlp")
+    if backbone == "cnn":
+        return f"CNN canais {config.get('cnn_channels')}; "
+    return f"MLP {config['hidden_dims']}; "
+
+
 def _write_pair_report(
     destination: Path, report: dict[str, Any], seed_rows: list[dict[str, Any]]
 ) -> None:
@@ -398,8 +412,8 @@ def _write_pair_report(
             "(caminho relativo à pasta deste relatório).\n"
         ),
         (
-            f"MLP {report['config']['hidden_dims']}; "
-            f"cenário `{report['config']['scenario']}`; "
+            _architecture_line(report["config"])
+            + f"cenário `{report['config']['scenario']}`; "
             f"{report['config']['epochs_per_task']} épocas por tarefa.\n"
         ),
         (

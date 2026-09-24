@@ -16,7 +16,9 @@ método base ao qual ele é acoplado**, e a direção do efeito inverte:
 acoplado a ER-ACE melhora consistentemente (até +4,15 p.p. em Split-CIFAR-10),
 acoplado a DER++ **piora** (−1,13 p.p. em CIFAR-10, −0,53 p.p. em CIFAR-100),
 ambos sobrevivendo a Holm. Acrescentar FastHeat (Functional DualHeat) ao
-SlowHeat não produz ganho robusto em VGG11 nem em ResNet18.
+SlowHeat não produz ganho robusto em VGG11 nem em ResNet18. E o regime de
+proteção **hard não é melhor que soft** na CNN: perde 3,53 p.p. com replay e
+6,22 p.p. contra replay puro, unânime nas 10 seeds.
 
 Esta dependência de interação é o achado mais informativo do projeto para além
 do MLP, e é honestamente reportável como limite do método.
@@ -78,7 +80,41 @@ FastHeat não trouxe melhoria robusta nas duas arquiteturas sob este protocolo.
 **Artefatos:**
 `results/split_mnist_protocol/split_cifar10_{vgg11,resnet18}_functional_dualheat/functional_dualheat_analysis.json`.
 
-### C3 — Agregados disponíveis e não analisados
+### C3 — Regime de proteção: hard não vence soft (10 seeds, protocolo congelado)
+
+Suíte `hard_vs_soft`, Split-CIFAR-10 com CNN [32, 64], 10 seeds pareadas,
+protocolo congelado antes da execução, árvore Git limpa no commit `6f4d12d`.
+Contraste primário `hard_freeze − slowheat_beta_30_budget_0.25`: mesmas
+unidades protegidas, mesmo budget 0,25, muda só a dureza da máscara.
+
+| Contraste | Referência | Candidato | Diferença | p Holm | Sinais |
+|---|---:|---:|---:|---:|---|
+| Hard vs Soft | 15,57% | 14,41% | −1,157 pp | 0,0887 | 4+/6− |
+| Hard vs Soft (replay) | 33,79% | 30,26% | **−3,531 pp** | 0,0003 | 0+/10− |
+| Hard+replay vs Replay | 36,48% | 30,26% | **−6,222 pp** | <0,0001 | 0+/10− |
+| Hard vs Convencional | 17,38% | 14,41% | **−2,969 pp** | 0,0013 | 0+/10− |
+
+**Leitura.** Na CNN o regime hard não ajuda e prejudica quando há replay. O
+contraste primário não atinge significância, mas os três secundários são
+unânimes e negativos. Isso replica, fora dos Transformers, o achado negativo
+do BERT (hard perde para replay) — e contraria a expectativa declarada no
+protocolo, de que hard venceria soft aqui também.
+
+**Atenção à assimetria.** O hard reduz forgetting em 8,34 p.p. contra
+convencional e ainda assim **perde** 2,97 p.p. de acurácia final. Esquecer
+menos não ajudou porque a aquisição caiu junto. Citar só forgetting inverteria
+a conclusão.
+
+**Artefatos:** `results/hard_vs_soft/split_cifar10_cnn/pair_report.json`,
+commit `6f4d12d`, 10 seeds. Contexto completo dos 5 alvos em
+[hard_vs_soft_results.md](hard_vs_soft_results.md).
+
+**Ressalva de proveniência:** as 10 seeds treinaram em 23/09 e o passo de
+análise abortou; o relatório foi regenerado em 24/09 a partir dos artefatos
+treinados, sem retreino. `pair_report.json` traz `analysis_provenance`
+separando o fingerprint da análise da identidade do treino.
+
+### C4 — Agregados disponíveis e não analisados
 
 | Diretório | Conteúdo | Estado |
 |---|---|---|
@@ -94,12 +130,15 @@ CNN e nenhuma tabela publicada o utiliza.
 
 ## Proveniência
 
-| Item | C1 | C2 |
-|---|---|---|
-| Pré-registro congelado | não | manifesto de piloto, não pré-registro |
-| Árvore Git limpa | **não** | **não** |
-| Correção de multiplicidade | Holm por dataset | Holm por arquitetura |
-| Replicado | não | não |
+| Item | C1 | C2 | C3 |
+|---|---|---|---|
+| Pré-registro congelado | não | manifesto de piloto, não pré-registro | **sim, antes da execução** |
+| Árvore Git limpa | **não** | **não** | **sim** (`6f4d12d`) |
+| Correção de multiplicidade | Holm por dataset | Holm por arquitetura | Holm por alvo |
+| Replicado | não | não | não |
+
+C3 é o único agregado convolucional do repositório com protocolo congelado e
+árvore limpa. C1 e C2 continuam sob a ressalva geral de proveniência.
 
 **Ressalva específica de C2:** o manifesto congelado do piloto de FastHeat
 valida schema, status e pertinência à grade, mas **não recomputa o vencedor a
@@ -117,6 +156,11 @@ item P3.
   estabilidade.** É a hipótese plausível, mas não há ablação que a teste.
 - **Que Functional DualHeat (FastHeat) ajuda.** Nenhum contraste sobrevive a
   Holm nas duas arquiteturas.
+- **Que proteção hard é melhor que soft em CNN.** C3 mede o contrário: hard
+  perde em três dos quatro contrastes, todos unânimes nas 10 seeds.
+- **Que o ganho do BERT vem do regime de proteção.** A expectativa declarada
+  previa hard > soft aqui, e o observado é hard ≤ soft. O ganho do BERT é
+  específico da arquitetura ou do regime de capacidade.
 - **Que o método escala para CIFAR-100.** A acurácia absoluta é baixa em todos
   os braços (5–15%), então as diferenças ocorrem num regime de desempenho
   fraco.

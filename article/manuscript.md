@@ -13,14 +13,18 @@ are versioned and analysed in Section 6: they show that the sign of the
 SlowHeat effect depends on the base method it is attached to. Ten-seed
 exploratory Split-CIFAR-10 benchmarks with VGG11 and ResNet18 do not establish
 a multiplicity-adjusted final-accuracy advantage for Functional DualHeat.
-The three-seed pilot in Section 5 predates the functional-importance,
-factorized-protection, capacity-budget and optimizer-state changes; it is
-retained only as historical motivation and must not be reported as evidence for
-the current method.
+Section 8 reports a five-target suite, frozen before execution and run from a
+clean Git tree, that removes the confound between protection regime and
+architecture: hard protection does not beat soft protection anywhere, and
+loses where capacity is tight. The three-seed pilot in Section 5 predates the
+functional-importance, factorized-protection, capacity-budget and
+optimizer-state changes; it is retained only as historical motivation and must
+not be reported as evidence for the current method.
 
 Per-architecture evidence summaries, each stating its claim, citable numbers,
 provenance and explicit non-claims, are in `docs/arch_mlp.md`,
 `docs/arch_cnn.md`, `docs/arch_bert.md` and `docs/arch_qwen.md`. The
+hard-versus-soft results are in `docs/hard_vs_soft_results.md`. The
 provenance status of every versioned aggregate, including what must be
 re-executed before submission, is in `docs/results_provenance_status.md`.
 
@@ -46,7 +50,11 @@ Split-CIFAR-10 and +1.27 on Split-CIFAR-100, whereas attached to DER++ it
 *reduces* accuracy by 1.13 and 0.53 points respectively, all four surviving
 Holm correction within their dataset. Ten-seed Split-CIFAR-10 comparisons do
 not show a multiplicity-adjusted final-accuracy advantage for Functional
-DualHeat. No general efficacy or state-of-the-art claim is made.
+DualHeat. A five-target suite frozen before execution removes the confound
+between protection regime and architecture and finds that hard protection
+never beats soft protection outside Transformers, losing by 1.41 points on
+Split-CIFAR-100 (10/10 seeds): the hard-protection advantage measured on BERT
+does not transfer. No general efficacy or state-of-the-art claim is made.
 
 ## 1. Motivation
 
@@ -326,7 +334,7 @@ hypothesis. A competing explanation cannot be excluded from the present data:
 every aggregate uses a fixed `lr = 1e-3` for all methods, so DER++ and ER-ACE
 may be unequally tuned, and an interaction with learning rate would produce a
 similar pattern. Resolving this requires the per-method tuning listed in
-Section 9, item 1.
+Section 10, item 1.
 
 Two further limitations bound these numbers. Absolute accuracy on
 Split-CIFAR-100 is low in every arm, between 5.4% and 14.7%, so the
@@ -388,7 +396,67 @@ Transformer implementation and a stability mechanism, not superiority over
 replay. Complete artifacts and provenance limitations are recorded in
 `docs/bert_slowheat_diagnostic_results.md`.
 
-## 8. Related Work and Positioning
+## 8. Hard versus Soft Protection: the Regime Does Not Transfer
+
+Section 7 reports the Transformer result under *hard* protection: consolidated
+units frozen outright. Every MLP and convolutional result in Sections 5 and 6
+uses *soft* protection, `1 / (1 + 30 h)`. That left the protection regime
+perfectly confounded with the architecture, so the 22.92-point BERT gain could
+not be attributed to either.
+
+To remove the confound we ran both regimes on the non-Transformer hosts under
+one paired protocol, frozen to `hard_vs_soft_protocol.json` before the first
+training step and executed from a clean Git tree at commit `6f4d12d` — the only
+suite in the project other than the Split-MNIST confirmation to satisfy both.
+The two arms share the capacity budget (0.25), so they protect the same units
+and differ only in how hard those units are held, and the soft comparator is
+the output-protecting variant, because hard freezing protects the output layer
+too. Ten paired seeds per target; Holm within each target's four contrasts.
+
+The expectation was declared in the protocol file before execution: if the
+regime explains the Transformer result, hard should win here as well, and a
+null or reversed result would be reported as informative.
+
+| Target | Hard − Soft (pp) | 95% CI | p (Holm) | seeds |
+|---|---:|---|---:|---|
+| Split-MNIST / MLP | +0.50 | [−1.76, +2.75] | 1.00 | 5/10 |
+| Permuted-MNIST / MLP | +0.88 | [−0.14, +1.89] | 0.17 | 7/10 |
+| Split-CIFAR-10 / MLP | +1.11 | [−0.18, +2.41] | 0.17 | 7/10 |
+| **Split-CIFAR-100 / MLP** | **−1.41** | [−1.82, −1.00] | **2.9e−05** | **10/10** |
+| Split-CIFAR-10 / CNN | −1.16 | [−2.53, +0.22] | 0.089 | 6/10 |
+
+Hard protection does not beat soft protection on any of the five targets. The
+only Holm-surviving primary contrast is Split-CIFAR-100, where hard **loses**,
+with all ten seeds agreeing. The BERT advantage is therefore specific to the
+architecture or to its capacity regime; it is not a property of binary freezing
+that transfers to smaller hosts.
+
+The BERT replay finding is likewise not general. Hard+replay minus replay
+replicates the negative result on two targets (Split-CIFAR-100/MLP −3.19 pp and
+Split-CIFAR-10/CNN −6.22 pp, both 10/10 seeds under Holm), reverses on one
+(Split-CIFAR-10/MLP, +2.55 pp, 9/10) and is null on the remaining two.
+
+The sign tracks capacity pressure rather than architecture. Split-CIFAR-100
+runs on the same MLP [1024, 512] as Split-CIFAR-10 and flips the sign, with
+twice the boundaries, five times the classes per task and a tenth of the
+examples per class. This is consistent with the plasticity floor of
+Section 2.3: freezing `P` of `N` units costs plasticity in proportion, and the
+cost is only absorbable while `N − P` still suffices for the new task. We note
+that capacity, boundary count and data volume vary together across these
+targets, so the ordering is suggestive rather than an isolated capacity
+manipulation.
+
+A reading that cites forgetting alone would invert this conclusion. On the CNN,
+hard protection cuts forgetting by 8.34 points against vanilla and still loses
+2.97 points of final accuracy; Split-CIFAR-100 shows the same pattern (−11.35
+forgetting, −1.83 accuracy). Less forgetting did not help because acquisition
+fell with it.
+
+Full results, per-target secondary contrasts and provenance are in
+`docs/hard_vs_soft_results.md`; the frozen design is in
+`docs/hard_vs_soft_protection.md`.
+
+## 9. Related Work and Positioning
 
 The closest conceptual precedents include:
 
@@ -401,7 +469,7 @@ The closest conceptual precedents include:
 
 No claim of being the first method to use neuron importance, MAX masks, lateral inhibition or importance-dependent plasticity is justified. Novelty, if established, must be argued at the level of the exact combination and its optimizer-aware formulation.
 
-## 9. Required Experiments Before Submission
+## 10. Required Experiments Before Submission
 
 1. Tune learning rate and protection strength separately for every optimizer family using a declared validation protocol.
 2. Use at least five seeds for screening and preferably ten for final tables.
@@ -423,7 +491,7 @@ No claim of being the first method to use neuron importance, MAX masks, lateral 
 10. Repeat efficiency measurements after warm-up on the same hardware and
     software stack.
 
-## 10. Safe Claims
+## 11. Safe Claims
 
 Currently supported:
 
@@ -455,8 +523,19 @@ Currently supported:
   correction within their dataset.
 - Adding FastHeat to SlowHeat produced no Holm-surviving final-accuracy change
   on Split-CIFAR-10 with either VGG11 or ResNet18.
+- Hard protection does not beat soft protection on any of five non-Transformer
+  targets under a protocol frozen before execution with a clean Git tree. On
+  Split-CIFAR-100/MLP hard is worse by 1.41 points (Holm p = 2.9e-05, 10/10
+  seeds). The BERT hard-protection advantage is therefore specific to that
+  architecture or capacity regime, not a transferable property of the regime.
 
 Not currently supported:
+
+- That the protection regime explains the Transformer result. This was the
+  declared expectation of the hard-versus-soft suite and it was not observed.
+- Any isolated causal account of *why* hard loses under capacity pressure.
+  Across the five targets capacity, boundary count and data volume vary
+  together; a width sweep with everything else fixed has not been run.
 
 - SlowHeat outperforms established continual-learning baselines. The confirmed
   contrast is against plain Replay on Split-MNIST only; DER++ and ER-ACE were
@@ -474,7 +553,7 @@ Not currently supported:
 - Results generalize to other Transformer architectures, datasets, real-world
   tasks or a full CLINC150 task sequence.
 
-## 11. Reproducibility Artifacts
+## 12. Reproducibility Artifacts
 
 Per-architecture evidence summaries, each with citable numbers, artifact
 paths, provenance and explicit non-claims:
@@ -483,6 +562,8 @@ paths, provenance and explicit non-claims:
 - Convolutional evidence and limits: `docs/arch_cnn.md`
 - BERT evidence and limits: `docs/arch_bert.md`
 - Qwen2 status (no citable evidence yet): `docs/arch_qwen.md`
+- Hard versus soft protection, design and results:
+  `docs/hard_vs_soft_protection.md` and `docs/hard_vs_soft_results.md`
 - Provenance status and what must be re-executed: `docs/results_provenance_status.md`
 - Index of every versioned result directory: `docs/results_index.md`
 
@@ -513,3 +594,11 @@ confirmation is the result for which this matters most; its mitigation is the
 independent second execution, which reproduced every scientific metric from a
 different commit. `docs/results_provenance_status.md` lists, in priority
 order, what should be re-executed with a clean tree before submission.
+
+The hard-versus-soft suite of Section 8 is the exception and the template: it
+froze its protocol before the first training step, refused to start from a
+dirty tree, and recorded the commit (`6f4d12d`) in its queue log beforehand.
+Its CNN target carries one additional note — the ten seeds trained on 23/09
+but the analysis step aborted, and the report was regenerated on 24/09 from
+the trained artifacts alone, with `analysis_provenance` in `pair_report.json`
+distinguishing the analysis fingerprint from the training identity.

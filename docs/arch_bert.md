@@ -23,6 +23,13 @@ Este é um **resultado negativo deliberadamente reportado**. Ele delimita onde o
 mecanismo funciona (contra fine-tuning ingênuo) e onde não funciona (contra uma
 baseline forte de continual learning).
 
+**Atualização de 24/09/2026:** a suíte `hard_vs_soft` removeu o confundimento
+entre regime de proteção e arquitetura. Hard não vence soft em nenhum dos cinco
+alvos MLP/CNN, e perde onde a capacidade aperta. Logo, o +22,92 p.p. acima
+**não pode ser atribuído ao regime hard**; ele é específico desta arquitetura
+ou do seu regime de capacidade. Ver
+[hard_vs_soft_results.md](hard_vs_soft_results.md).
+
 ---
 
 ## Evidência citável
@@ -116,6 +123,17 @@ antes da run que de fato barrou a promoção de um resultado.
 - **Que as 11 runs históricas de dez tarefas suportam qualquer conclusão.** Cada
   método tem uma seed, o teste foi consultado a cada estágio, e o diretório
   `bert_10epoch` mistura duas sessões com metadados sobrescritos.
+- **Que o ganho de B1 venha do regime de proteção hard.** A suíte
+  `hard_vs_soft` testou os dois regimes em MLP e CNN sob protocolo congelado, e
+  hard **não** vence soft em nenhum dos cinco alvos, perdendo em
+  Split-CIFAR-100/MLP (−1,41 p.p., 10/10 seeds). O ganho do BERT é específico
+  desta arquitetura ou do seu regime de capacidade — não é uma propriedade
+  transferível do congelamento binário. Ver
+  [hard_vs_soft_results.md](hard_vs_soft_results.md).
+- **Que o achado negativo de B3/B4 seja uma regra geral.** Hard+replay contra
+  replay replica em 2 dos 5 alvos não-Transformer (CIFAR-100/MLP −3,19 p.p.,
+  CIFAR-10/CNN −6,22 p.p.), **inverte** em 1 (CIFAR-10/MLP, +2,55 p.p.) e é
+  nulo em 2.
 - **O contraste `dualheat_global_topk − slowheat_global`.** Continua fora da
   lista de pares agregados (achado #10 da auditoria), então FastHeat top-k não
   tem avaliação inferencial.

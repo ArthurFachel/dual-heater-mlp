@@ -1,8 +1,13 @@
 # Hard versus soft: o regime de proteção entre arquiteturas
 
-Estado: **preparado, aguardando execução**. Nenhum resultado existe ainda.
-O runner, o protocolo e os testes estão versionados; a fila espera o término
-da confirmação Qwen.
+Estado: **executado**. Os cinco alvos rodaram em 23/09/2026 com árvore limpa no
+commit `6f4d12d`. Resultados e leitura em **`docs/hard_vs_soft_results.md`**.
+Este documento descreve o desenho e permanece como o protocolo congelado.
+
+Resumo do achado, para quem chega aqui primeiro: **a expectativa declarada não
+se confirmou.** Hard não vence soft em nenhum dos cinco alvos; perde com
+significância em Split-CIFAR-100/MLP (−1,41 pp, 10/10 seeds). A vantagem do
+hard em BERT é específica da arquitetura ou do regime de capacidade.
 
 ## A pergunta
 
@@ -177,6 +182,14 @@ Logs por alvo em `results/run_logs/hard_vs_soft/<dataset>_<backbone>.log`;
 resultados em `results/hard_vs_soft/<dataset>_<backbone>/`.
 
 ## Depois da execução
+
+Executado. Ver `docs/hard_vs_soft_results.md`. O caminho 3 foi o que ocorreu:
+hard não venceu soft em nenhum alvo, e perdeu com significância onde a
+capacidade aperta. Falta atualizar `docs/arch_mlp.md`, `docs/arch_cnn.md`,
+`docs/arch_bert.md` e o manuscrito.
+
+Roteiro original, mantido como registro do que foi decidido antes de ver os
+números:
 
 1. Ler o contraste primário (Hard − Soft) nos cinco alvos.
 2. Se hard vencer soft de forma consistente, o achado do Transformer é sobre

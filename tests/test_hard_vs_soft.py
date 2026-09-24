@@ -129,3 +129,50 @@ def test_run_target_refuses_a_different_protocol(tmp_path: Path) -> None:
             output_dir=output,
             download=False,
         )
+
+
+def _write_manifest(destination: Path, backbone: str) -> None:
+    from experiments.artifacts import write_json_atomic
+
+    write_json_atomic(
+        destination / "multi_seed_config.json",
+        {
+            "seeds": [11, 12],
+            "base_config": {
+                "backbone": backbone,
+                "methods": list(PAIRED_METHODS),
+                "optimizer_state_policy": "follow_update",
+            },
+        },
+    )
+
+
+def test_pair_report_refuses_a_backbone_outside_the_allowed_set(
+    tmp_path: Path,
+) -> None:
+    """The gate exists so a CNN run is never summarized as if it were an MLP."""
+    from experiments.dualheat_pairs import summarize_pair_results
+
+    _write_manifest(tmp_path, "cnn")
+    with pytest.raises(ValueError, match="backbone=cnn"):
+        summarize_pair_results(tmp_path, output_dir=tmp_path)
+
+
+def test_pair_report_accepts_the_backbone_the_caller_declares(
+    tmp_path: Path,
+) -> None:
+    """A CNN suite may summarize CNN results; it still refuses an MLP source."""
+    from experiments.dualheat_pairs import summarize_pair_results
+
+    _write_manifest(tmp_path, "mlp")
+    with pytest.raises(ValueError, match="backbone=mlp"):
+        summarize_pair_results(tmp_path, output_dir=tmp_path, allowed_backbones=("cnn",))
+
+
+def test_report_header_names_the_architecture_actually_trained() -> None:
+    """A CNN result labelled 'MLP [1]' would misreport where the numbers came from."""
+    from experiments.dualheat_pairs import _architecture_line
+
+    cnn = _architecture_line({"backbone": "cnn", "cnn_channels": [32, 64], "hidden_dims": [1]})
+    assert "CNN" in cnn and "32" in cnn and "MLP" not in cnn
+    assert _architecture_line({"backbone": "mlp", "hidden_dims": [256, 128]}).startswith("MLP")
