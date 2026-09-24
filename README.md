@@ -2,7 +2,6 @@
 
 Research code for neuron-level plasticity mechanisms in continual learning.
 
-> Status: exploratory. The repository does not yet establish that SlowHeat outperforms established continual-learning methods. Historical claims such as “34% less forgetting” are not supported by the corrected protocol and have been removed.
 
 ## Current focus
 
