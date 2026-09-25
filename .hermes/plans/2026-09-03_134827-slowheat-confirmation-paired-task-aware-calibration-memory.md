@@ -819,7 +819,7 @@ For publication-grade CPU comparison, run each `(seed, method)` in an isolated s
 ## Task 13: Report outcomes conservatively
 
 **Files:**
-- Modify after evidence is final: `docs/split_mnist_experiment_log.md`
+- Modify after evidence is final: `docs/results/split_mnist_experiment_log.md`
 - Modify after evidence is final: `article/manuscript.md`
 - Modify after evidence is final: `README.md`
 
@@ -851,7 +851,7 @@ Do not add state bytes and replay bytes and call the sum runtime peak. Do not co
 Commit documentation separately:
 
 ```bash
-git add README.md article/manuscript.md docs/split_mnist_experiment_log.md
+git add README.md article/manuscript.md docs/results/split_mnist_experiment_log.md
 git commit -m "docs: report confirmatory and exploratory SlowHeat evidence"
 ```
 

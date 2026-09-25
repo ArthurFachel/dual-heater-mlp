@@ -770,7 +770,7 @@ Commit: `fix: restore clinc rng state on resume`.
 
 **Objetivo:** remover confusão entre posição da tarefa e LR.
 
-**Arquivos:** `experiments/split_clinc150.py`, `tests/test_split_clinc150.py`, `docs/functional_slowheat_transformers.md`.
+**Arquivos:** `experiments/split_clinc150.py`, `tests/test_split_clinc150.py`, `docs/mechanisms/functional_slowheat_transformers.md`.
 
 **RED:** helper de scheduler deve produzir a mesma sequência relativa para duas tarefas de mesmo tamanho e reiniciar no LR inicial.
 
@@ -1159,7 +1159,7 @@ Esperado:
 - `git status --short` vazio depois do último commit;
 - nenhum dataset baixado, nenhum treino GPU e nenhum novo resultado científico produzido.
 
-Depois do milestone, atualizar `docs/experiments_audit.md` marcando apenas itens comprovadamente corrigidos e citando os testes de regressão. Não apagar o histórico dos achados.
+Depois do milestone, atualizar `docs/audits/experiments_audit.md` marcando apenas itens comprovadamente corrigidos e citando os testes de regressão. Não apagar o histórico dos achados.
 
 ---
 

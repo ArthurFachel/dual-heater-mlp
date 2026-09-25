@@ -10,7 +10,7 @@
 
 1. **Nenhum hiperparâmetro é escolhido olhando acurácia.** Proteção (`beta`) e
    budget saem de critério de mecanismo declarado antes da run, ou de dataset
-   disjunto. Ver `docs/qwen_iso_plasticity_ablation.md`, Anexo A.
+   disjunto. Ver `docs/protocols/qwen_iso_plasticity_ablation.md`, Anexo A.
 2. **Escopo de capacidade faz parte do mecanismo.** Qualquer aritmética de heat
    usa as variantes `*_scoped` com o escopo explícito. Concatenar camadas e
    normalizar por máximo global dá resposta errada por ~2 ordens de magnitude.
@@ -20,7 +20,7 @@
    produção e confirmar que cada uma quebra algum teste. Mutação sobrevivente é
    lacuna de teste ou equivalência provada — investigar e documentar qual.
 5. **Isto não é continuação confirmatória do BERT.**
-   `docs/bert_slowheat_diagnostic_results.md` fechou aquele endpoint. A pergunta
+   `docs/results/bert_slowheat_diagnostic_results.md` fechou aquele endpoint. A pergunta
    aqui é outra: *a proteção seletiva tem efeito estrutural além da redução de
    capacidade que ela causa?* Resultado negativo é publicável.
 
@@ -191,7 +191,7 @@ pré-requisito. Se for implementada, troca `h = m / max(selecionado)` por
 **`concentration_ratio` registrado: 0,519 em `b=0,25` (faixa 0,512-0,551).**
 
 Pendência antes de fechar a Meta 1: o critério declarado de
-O critério declarado (`docs/qwen_iso_plasticity_ablation.md`, Anexo A) **não foi aplicado** nesta run — o manifesto
+O critério declarado (`docs/protocols/qwen_iso_plasticity_ablation.md`, Anexo A) **não foi aplicado** nesta run — o manifesto
 grava `declared_before_run=False`, `minimum_effective_plasticity=None` e
 `selection=None`. Isso precisa entrar no protocolo da Etapa 1.1.
 
@@ -203,7 +203,7 @@ grava `declared_before_run=False`, `minimum_effective_plasticity=None` e
 foi distribuída?
 
 **Estado:** desenho e aritmética prontos
-(`docs/qwen_iso_plasticity_ablation.md`). Runner **implementado e executado**:
+(`docs/protocols/qwen_iso_plasticity_ablation.md`). Runner **implementado e executado**:
 `experiments/qwen_iso_plasticity.py` (33.958 bytes, 42 testes em
 `tests/test_qwen_iso_plasticity.py`), com 6 runs de calibração em
 `results/qwen_iso_plasticity/`. O protocolo foi congelado em
@@ -446,7 +446,7 @@ o escopo local, para decidir se a redistribuição de cota corrige a subproteç�
 das camadas anômalas.
 
 **P6.4 — `docs/qwen_layer_anomaly.md`.** Formato de
-[`bert_slowheat_diagnostic_results.md`](../docs/bert_slowheat_diagnostic_results.md):
+[`bert_slowheat_diagnostic_results.md`](../docs/results/bert_slowheat_diagnostic_results.md):
 pergunta, protocolo, tabela por seed e por ordem, leitura e **o que continua sem
 explicação**. Os dados já estão em `results/qwen_layer_anomaly/` (7 manifestos,
 2 ordens x 3 seeds). Fecha o Gate 2.

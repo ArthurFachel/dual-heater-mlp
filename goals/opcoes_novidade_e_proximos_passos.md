@@ -31,9 +31,9 @@ reais no repositório que podem sustentá-la.
 
 | Ativo | Onde | Força | Limite |
 |---|---|---|---|
-| **A1 — Teorema `E(beta,b) >= (N-P)/N`** | `docs/qwen_iso_plasticity_ablation.md` §3 | Analítico, independente de dados, limite justo em `beta -> infinito`, verificado em 3000 casos | É um resultado sobre *quantidade*. Sozinho não é método. |
+| **A1 — Teorema `E(beta,b) >= (N-P)/N`** | `docs/protocols/qwen_iso_plasticity_ablation.md` §3 | Analítico, independente de dados, limite justo em `beta -> infinito`, verificado em 3000 casos | É um resultado sobre *quantidade*. Sozinho não é método. |
 | **A2 — Construção iso-plasticidade** | `experiments/capacity_calibration.py` (`*_scoped`, `solve_strength_for_plasticity_scoped`) | Constrói braços de custo pareado em plasticidade **efetiva**, por bisseção, sem busca em grade | Precisa de uma run para virar afirmação |
-| **A3 — Contrato de otimizador** | `src/dual_heater/optim.py`, `docs/optimizer_semantics.md` | Prova que escalar gradiente bruto não é escalar o passo sob Adam (`m/sqrt(v)` cancela `c`); mascara o delta nativo incluindo weight decay | É correção de bug conceitual, não mecanismo |
+| **A3 — Contrato de otimizador** | `src/dual_heater/optim.py`, `docs/mechanisms/optimizer_semantics.md` | Prova que escalar gradiente bruto não é escalar o passo sob Adam (`m/sqrt(v)` cancela `c`); mascara o delta nativo incluindo weight decay | É correção de bug conceitual, não mecanismo |
 
 Nenhum deles é "o método novo" isoladamente. **A decisão que trava todo o resto é
 em qual deles o artigo se ancora** (seção 6, item 5).

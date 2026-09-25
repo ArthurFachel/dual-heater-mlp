@@ -22,11 +22,11 @@ optimizer-state changes; it is retained only as historical motivation and must
 not be reported as evidence for the current method.
 
 Per-architecture evidence summaries, each stating its claim, citable numbers,
-provenance and explicit non-claims, are in `docs/arch_mlp.md`,
-`docs/arch_cnn.md`, `docs/arch_bert.md` and `docs/arch_qwen.md`. The
-hard-versus-soft results are in `docs/hard_vs_soft_results.md`. The
+provenance and explicit non-claims, are in `docs/architectures/arch_mlp.md`,
+`docs/architectures/arch_cnn.md`, `docs/architectures/arch_bert.md` and `docs/architectures/arch_qwen.md`. The
+hard-versus-soft results are in `docs/results/hard_vs_soft_results.md`. The
 provenance status of every versioned aggregate, including what must be
-re-executed before submission, is in `docs/results_provenance_status.md`.
+re-executed before submission, is in `docs/audits/results_provenance_status.md`.
 
 ## Abstract
 
@@ -350,7 +350,7 @@ points, has an adjusted p of 0.0803; all four ResNet18 contrasts fall between
 -0.50 and -0.01 points with adjusted p of 1.000. Adding FastHeat to SlowHeat
 therefore has no robust effect in this protocol.
 
-Full tables, artifacts and provenance are in `docs/arch_cnn.md`.
+Full tables, artifacts and provenance are in `docs/architectures/arch_cnn.md`.
 
 ## 7. BERT/CLINC150 Mechanism Diagnostics
 
@@ -394,7 +394,7 @@ the completed two-task diagnostic, but we do not advance this SlowHeat+replay
 configuration to the ten-task sequence. The evidence supports a functional
 Transformer implementation and a stability mechanism, not superiority over
 replay. Complete artifacts and provenance limitations are recorded in
-`docs/bert_slowheat_diagnostic_results.md`.
+`docs/results/bert_slowheat_diagnostic_results.md`.
 
 ## 8. Hard versus Soft Protection: the Regime Does Not Transfer
 
@@ -453,8 +453,8 @@ forgetting, −1.83 accuracy). Less forgetting did not help because acquisition
 fell with it.
 
 Full results, per-target secondary contrasts and provenance are in
-`docs/hard_vs_soft_results.md`; the frozen design is in
-`docs/hard_vs_soft_protection.md`.
+`docs/results/hard_vs_soft_results.md`; the frozen design is in
+`docs/protocols/hard_vs_soft_protection.md`.
 
 ## 9. Related Work and Positioning
 
@@ -558,26 +558,26 @@ Not currently supported:
 Per-architecture evidence summaries, each with citable numbers, artifact
 paths, provenance and explicit non-claims:
 
-- MLP evidence and limits: `docs/arch_mlp.md`
-- Convolutional evidence and limits: `docs/arch_cnn.md`
-- BERT evidence and limits: `docs/arch_bert.md`
-- Qwen2 status (no citable evidence yet): `docs/arch_qwen.md`
+- MLP evidence and limits: `docs/architectures/arch_mlp.md`
+- Convolutional evidence and limits: `docs/architectures/arch_cnn.md`
+- BERT evidence and limits: `docs/architectures/arch_bert.md`
+- Qwen2 status (no citable evidence yet): `docs/architectures/arch_qwen.md`
 - Hard versus soft protection, design and results:
-  `docs/hard_vs_soft_protection.md` and `docs/hard_vs_soft_results.md`
-- Provenance status and what must be re-executed: `docs/results_provenance_status.md`
-- Index of every versioned result directory: `docs/results_index.md`
+  `docs/protocols/hard_vs_soft_protection.md` and `docs/results/hard_vs_soft_results.md`
+- Provenance status and what must be re-executed: `docs/audits/results_provenance_status.md`
+- Index of every versioned result directory: `docs/results/results_index.md`
 
 Implementation and protocol:
 
 - Core implementation: `src/dual_heater/`
-- Optimizer contract: `docs/optimizer_semantics.md`
-- Functional method contract: `docs/functional_slowheat.md`
-- Synthetic protocol: `docs/reproducibility.md`
-- Diagnostic pilot: `docs/synthetic_ablation_pilot.md`
-- Frozen confirmation protocol: `docs/confirmatory_protocol.md`
-- Split-CIFAR protocol: `docs/split_cifar.md`
-- Split-MNIST experiment record: `docs/split_mnist_experiment_log.md`
-- BERT/CLINC150 diagnostic decision: `docs/bert_slowheat_diagnostic_results.md`
+- Optimizer contract: `docs/mechanisms/optimizer_semantics.md`
+- Functional method contract: `docs/mechanisms/functional_slowheat.md`
+- Synthetic protocol: `docs/protocols/reproducibility.md`
+- Diagnostic pilot: `docs/results/synthetic_ablation_pilot.md`
+- Frozen confirmation protocol: `docs/protocols/confirmatory_protocol.md`
+- Split-CIFAR protocol: `docs/protocols/split_cifar.md`
+- Split-MNIST experiment record: `docs/results/split_mnist_experiment_log.md`
+- BERT/CLINC150 diagnostic decision: `docs/results/bert_slowheat_diagnostic_results.md`
 - Smoke config: `configs/synthetic_smoke.json`
 - Ablation pilot config: `configs/synthetic_ablation_pilot.json`
 - Experiment runner: `experiments/synthetic_cl.py`
@@ -592,7 +592,7 @@ recorded commit therefore does not fully describe the executed code for most
 results, and the executed diff was not fingerprinted. The frozen Split-MNIST
 confirmation is the result for which this matters most; its mitigation is the
 independent second execution, which reproduced every scientific metric from a
-different commit. `docs/results_provenance_status.md` lists, in priority
+different commit. `docs/audits/results_provenance_status.md` lists, in priority
 order, what should be re-executed with a clean tree before submission.
 
 The hard-versus-soft suite of Section 8 is the exception and the template: it

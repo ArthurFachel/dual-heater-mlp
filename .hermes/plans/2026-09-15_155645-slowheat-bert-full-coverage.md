@@ -1307,13 +1307,13 @@ git commit -m "test: verify BERT leave-one-family-out wiring"
 **Objective:** Make the experimental claims and limitations explicit before any expensive run.
 
 **Files:**
-- Modify: `docs/functional_slowheat_transformers.md`
-- Modify: `docs/methods_catalog.md`
-- Create: `docs/bert_full_coverage_ablation.md`
+- Modify: `docs/mechanisms/functional_slowheat_transformers.md`
+- Modify: `docs/audits/methods_catalog.md`
+- Create: `docs/results/bert_full_coverage_ablation.md`
 
 **Step 1: Add documentation**
 
-`docs/bert_full_coverage_ablation.md` must include:
+`docs/results/bert_full_coverage_ablation.md` must include:
 
 1. The parameter graph and table from this plan.
 2. Exact definitions of all ten preset methods.
@@ -1340,9 +1340,9 @@ State clearly that this command may load the configured remote model/dataset and
 
 10. The intended confirmatory workflow: calibration on validation only, frozen manifest, disjoint seeds/orders, then test evaluation.
 
-Update `docs/functional_slowheat_transformers.md` to link the new document and replace statements that embeddings/LayerNorm/pooler are always unbound with the new optional behavior. Keep residual-stream caveats: this implementation coordinates local graph endpoints but does not prove representation-basis invariance.
+Update `docs/mechanisms/functional_slowheat_transformers.md` to link the new document and replace statements that embeddings/LayerNorm/pooler are always unbound with the new optional behavior. Keep residual-stream caveats: this implementation coordinates local graph endpoints but does not prove representation-basis invariance.
 
-Update the BERT table in `docs/methods_catalog.md` with the new preset and identifiers.
+Update the BERT table in `docs/audits/methods_catalog.md` with the new preset and identifiers.
 
 **Step 2: Verify references**
 
@@ -1366,7 +1366,7 @@ Expected: `documentation references verified`.
 **Step 3: Commit**
 
 ```bash
-git add docs/bert_full_coverage_ablation.md docs/functional_slowheat_transformers.md docs/methods_catalog.md
+git add docs/results/bert_full_coverage_ablation.md docs/mechanisms/functional_slowheat_transformers.md docs/audits/methods_catalog.md
 git commit -m "docs: specify BERT full-coverage ablations"
 ```
 

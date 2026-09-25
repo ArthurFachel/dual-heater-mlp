@@ -129,7 +129,7 @@ Arquivo a editar: `experiments/live_dashboard.html` (bloco JS do `#heatMetric`,
    ```
 
 ### Tarefa 3 — Documentação
-Arquivo a editar: `docs/live_dashboard.md`.
+Arquivo a editar: `docs/tooling/live_dashboard.md`.
 
 1. Na seção "Dados apresentados", após o item de "importância atual ... por
    cabeça" / "todos os neurônios FFN", adicionar:

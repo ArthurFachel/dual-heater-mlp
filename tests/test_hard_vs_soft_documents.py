@@ -1,7 +1,7 @@
 """The hard-versus-soft documents must quote the artifacts, not memory.
 
 This repository's largest documented debt is documents whose numbers no
-aggregate on disk reproduces (`docs/results_provenance_status.md`). This test
+aggregate on disk reproduces (`docs/audits/results_provenance_status.md`). This test
 re-derives every primary-endpoint number quoted in the hard-versus-soft
 documents straight from `pair_report.json` and fails if a document drifts.
 
@@ -78,7 +78,7 @@ def test_hard_never_beats_soft_on_the_primary_endpoint() -> None:
     ]
     assert not winners, (
         "hard venceu soft com significância em "
-        f"{winners}; a prosa de docs/hard_vs_soft_results.md está obsoleta"
+        f"{winners}; a prosa de docs/results/hard_vs_soft_results.md está obsoleta"
     )
 
 
@@ -98,7 +98,7 @@ def test_cifar100_is_the_only_holm_surviving_primary_contrast() -> None:
 def test_results_document_quotes_every_primary_delta() -> None:
     """Each of the 5 primary deltas must appear verbatim in the results doc."""
     deltas = _primary_deltas(_reports())
-    text = (ROOT / "docs" / "hard_vs_soft_results.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "results" / "hard_vs_soft_results.md").read_text(encoding="utf-8")
     quoted = _quoted_numbers(text)
     missing = [
         (target, round(value, 2))
@@ -113,10 +113,10 @@ def test_results_document_quotes_every_primary_delta() -> None:
     [
         # Each document must quote the target it actually covers. arch_cnn.md
         # covers the CNN, so demanding the MLP number there would be wrong.
-        ("docs/hard_vs_soft_results.md", "split_cifar100_mlp"),
-        ("docs/hard_vs_soft_results.md", "split_cifar10_cnn"),
-        ("docs/arch_mlp.md", "split_cifar100_mlp"),
-        ("docs/arch_cnn.md", "split_cifar10_cnn"),
+        ("docs/results/hard_vs_soft_results.md", "split_cifar100_mlp"),
+        ("docs/results/hard_vs_soft_results.md", "split_cifar10_cnn"),
+        ("docs/architectures/arch_mlp.md", "split_cifar100_mlp"),
+        ("docs/architectures/arch_cnn.md", "split_cifar10_cnn"),
         ("article/manuscript.md", "split_cifar100_mlp"),
     ],
 )

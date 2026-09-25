@@ -1,11 +1,23 @@
 # Documentação do DualHeat
 
-Estado deste índice: 19 de setembro de 2026.
+Estado deste índice: 25 de setembro de 2026.
 
 Este arquivo é a entrada autoritativa para a documentação. O projeto é um
 protótipo de pesquisa em aprendizagem contínua. A presença de uma implementação
 ou de um resultado em `results/` não implica validação confirmatória nem estado
 da arte.
+
+## Navegação por assunto
+
+| Pasta | Conteúdo |
+|---|---|
+| [architectures/](architectures/) | Um guia por host (MLP, CNN, BERT, Qwen2): claim, evidência citável e limites |
+| [mechanisms/](mechanisms/) | Contratos normativos de SlowHeat, FastHeat, mascaramento e replay |
+| [lora/](lora/) | As quatro aplicações de LoRA e o benchmark de 10 seeds |
+| [protocols/](protocols/) | Desenhos experimentais declarados antes das runs |
+| [results/](results/) | Relatórios de runs executadas, com o que cada uma falha em mostrar |
+| [audits/](audits/) | Revisões documentais, catálogo de métodos, proveniência |
+| [tooling/](tooling/) | Instrumentação de apoio |
 
 ## Por arquitetura (comece aqui para escrever o artigo)
 
@@ -15,32 +27,32 @@ pode afirmar** e **Ameaças à validade**.
 
 | Arquitetura | Estado da evidência | Documento |
 |---|---|---|
-| MLP (Split/Permuted-MNIST) | **confirmatório pré-registrado**, 20 seeds, +0,87 pp (p=0,0052) | [arch_mlp.md](arch_mlp.md) |
-| CNN (Split-CIFAR-10/100) | exploratório, 10 seeds; efeito **inverte** conforme o método base | [arch_cnn.md](arch_cnn.md) |
-| BERT (CLINC150) | diagnóstico com **resultado negativo** contra replay | [arch_bert.md](arch_bert.md) |
-| Qwen2 (CLINC150) | **sem evidência citável**; mecanismo e custo medidos | [arch_qwen.md](arch_qwen.md) |
-| Qwen2 — confirmação 10 seeds | resultados completos, por seed; 2 de 24 sobrevivem a Holm | [qwen_confirmation_results.md](qwen_confirmation_results.md) |
-| Hard vs soft (MLP e CNN) | **executado**, 10 seeds x 5 alvos; hard **não** vence soft em nenhum; perde em CIFAR-100/MLP | [hard_vs_soft_results.md](hard_vs_soft_results.md) · desenho: [hard_vs_soft_protection.md](hard_vs_soft_protection.md) |
-| Proveniência de todos os resultados | 96% dos agregados com árvore Git suja | [results_provenance_status.md](results_provenance_status.md) |
+| MLP (Split/Permuted-MNIST) | **confirmatório pré-registrado**, 20 seeds, +0,87 pp (p=0,0052) | [arch_mlp.md](architectures/arch_mlp.md) |
+| CNN (Split-CIFAR-10/100) | exploratório, 10 seeds; efeito **inverte** conforme o método base | [arch_cnn.md](architectures/arch_cnn.md) |
+| BERT (CLINC150) | diagnóstico com **resultado negativo** contra replay | [arch_bert.md](architectures/arch_bert.md) |
+| Qwen2 (CLINC150) | **sem evidência citável**; mecanismo e custo medidos | [arch_qwen.md](architectures/arch_qwen.md) |
+| Qwen2 — confirmação 10 seeds | resultados completos, por seed; 2 de 24 sobrevivem a Holm | [qwen_confirmation_results.md](results/qwen_confirmation_results.md) |
+| Hard vs soft (MLP e CNN) | **executado**, 10 seeds x 5 alvos; hard **não** vence soft em nenhum; perde em CIFAR-100/MLP | [hard_vs_soft_results.md](results/hard_vs_soft_results.md) · desenho: [hard_vs_soft_protection.md](protocols/hard_vs_soft_protection.md) |
+| Proveniência de todos os resultados | 96% dos agregados com árvore Git suja | [results_provenance_status.md](audits/results_provenance_status.md) |
 
 ## Estado atual
 
 | Área | Estado | Documento principal |
 |---|---|---|
-| Functional SlowHeat e Functional DualHeat | implementados e testados; benchmarks visuais exploratórios concluídos | [functional_slowheat.md](functional_slowheat.md) |
-| SlowHeat para CNN, VGG11 e ResNet18 | implementado e testado | [functional_slowheat_cnn.md](functional_slowheat_cnn.md) |
-| BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos; runs históricas na Parte II | [bert_slowheat_diagnostic_results.md](bert_slowheat_diagnostic_results.md) |
-| Trackers para Transformers | BERT implementado; SwiGLU implementado no host Qwen2; GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](functional_slowheat_transformers.md) |
-| Qwen2 / SlowHeat em LLM | host, diagnóstico de capacidade e runner de iso-plasticidade implementados e testados; smoke em GPU executado; sem resultado de continual learning agregado | [functional_slowheat_qwen.md](functional_slowheat_qwen.md) |
-| Ablação iso-plasticidade Qwen + calibração de capacidade | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); critério declarado nunca aplicado (Anexo A); **confirmação de 10 seeds concluída** em 23/09 | [qwen_iso_plasticity_ablation.md](qwen_iso_plasticity_ablation.md) · [goals/resultados_confirmacao.md](../goals/resultados_confirmacao.md) |
-| Aplicações de LoRA (4 formas) | catalogadas; três mecanismos novos implementados e testados (46 testes); benchmark de 10 seeds concluído — **os três falharam**, só o LoRA exato produtor-only sobrevive a Holm; run iso-plasticidade corretiva em execução | [lora_applications.md](lora_applications.md) |
-| RNN/LSTM | proposta de design, não implementada | [functional_slowheat_rnn_lstm.md](functional_slowheat_rnn_lstm.md) |
-| Replay seletivo | implementado com quatro estratégias | [replay_selection.md](replay_selection.md) |
-| Dashboard e telemetria ao vivo | implementados | [live_dashboard.md](live_dashboard.md) |
-| Otimizadores mascarados | implementados e testados | [optimizer_semantics.md](optimizer_semantics.md) |
-| Auditoria do engine experimental | 12 de 36 achados corrigidos; 24 ainda abertos | [experiments_audit.md](experiments_audit.md) |
-| Índice de resultados versionados | mapa de todos os diretórios de `results/` | [results_index.md](results_index.md) |
-| Protocolo confirmatório | executado; 20 seeds, duas execuções concordantes | [confirmatory_protocol.md](confirmatory_protocol.md) |
+| Functional SlowHeat e Functional DualHeat | implementados e testados; benchmarks visuais exploratórios concluídos | [functional_slowheat.md](mechanisms/functional_slowheat.md) |
+| SlowHeat para CNN, VGG11 e ResNet18 | implementado e testado | [functional_slowheat_cnn.md](mechanisms/functional_slowheat_cnn.md) |
+| BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos; runs históricas na Parte II | [bert_slowheat_diagnostic_results.md](results/bert_slowheat_diagnostic_results.md) |
+| Trackers para Transformers | BERT implementado; SwiGLU implementado no host Qwen2; GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](mechanisms/functional_slowheat_transformers.md) |
+| Qwen2 / SlowHeat em LLM | host, diagnóstico de capacidade e runner de iso-plasticidade implementados e testados; smoke em GPU executado; sem resultado de continual learning agregado | [functional_slowheat_qwen.md](architectures/functional_slowheat_qwen.md) |
+| Ablação iso-plasticidade Qwen + calibração de capacidade | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); critério declarado nunca aplicado (Anexo A); **confirmação de 10 seeds concluída** em 23/09 | [qwen_iso_plasticity_ablation.md](protocols/qwen_iso_plasticity_ablation.md) · [goals/resultados_confirmacao.md](../goals/resultados_confirmacao.md) |
+| Aplicações de LoRA (4 formas) | catalogadas; três mecanismos novos implementados e testados (46 testes); benchmark de 10 seeds concluído — **os três falharam**, só o LoRA exato produtor-only sobrevive a Holm; run iso-plasticidade corretiva em execução | [lora_applications.md](lora/lora_applications.md) |
+| RNN/LSTM | proposta de design, não implementada | [functional_slowheat_rnn_lstm.md](mechanisms/functional_slowheat_rnn_lstm.md) |
+| Replay seletivo | implementado com quatro estratégias | [replay_selection.md](mechanisms/replay_selection.md) |
+| Dashboard e telemetria ao vivo | implementados | [live_dashboard.md](tooling/live_dashboard.md) |
+| Otimizadores mascarados | implementados e testados | [optimizer_semantics.md](mechanisms/optimizer_semantics.md) |
+| Auditoria do engine experimental | 12 de 36 achados corrigidos; 24 ainda abertos | [experiments_audit.md](audits/experiments_audit.md) |
+| Índice de resultados versionados | mapa de todos os diretórios de `results/` | [results_index.md](results/results_index.md) |
+| Protocolo confirmatório | executado; 20 seeds, duas execuções concordantes | [confirmatory_protocol.md](protocols/confirmatory_protocol.md) |
 
 ## O que foi adicionado ao projeto
 
@@ -64,30 +76,30 @@ As adições que não estavam cobertas pelo catálogo histórico original são:
   estágio e comparação entre métodos.
 
 O inventário das implementações e identificadores aceitos pelos runners está em
-[methods_catalog.md](methods_catalog.md).
+[methods_catalog.md](audits/methods_catalog.md).
 
 ## Resultados
 
-- [Diagnósticos e runs BERT/CLINC150](bert_slowheat_diagnostic_results.md):
+- [Diagnósticos e runs BERT/CLINC150](results/bert_slowheat_diagnostic_results.md):
   Parte I com a comparação de dez seeds contra BERT sequencial, controles hard
   aleatórios, interação com replay, orçamento de memória e a decisão de não
   escalar a configuração atual; Parte II com o protocolo, a tabela das 11 runs
   históricas, artefatos-fonte e limitações.
-- [Functional SlowHeat e DualHeat](functional_slowheat.md): contrato dos dois
+- [Functional SlowHeat e DualHeat](mechanisms/functional_slowheat.md): contrato dos dois
   mecanismos, piloto de FastHeat e resultados pareados em Split-CIFAR-10.
-- [Catálogo histórico de métodos e resultados](project_methods_and_results.md):
+- [Catálogo histórico de métodos e resultados](audits/project_methods_and_results.md):
   análise do CSV Split-MNIST de cinco seeds. O documento preserva o recorte
   histórico e não deve ser usado como inventário do estado atual.
-- [Log Split-MNIST](split_mnist_experiment_log.md).
-- [Piloto sintético](synthetic_ablation_pilot.md).
-- [Split-CIFAR](split_cifar.md).
+- [Log Split-MNIST](results/split_mnist_experiment_log.md).
+- [Piloto sintético](results/synthetic_ablation_pilot.md).
+- [Split-CIFAR](protocols/split_cifar.md).
 
 ## Protocolos e reprodução
 
-- [Protocolo confirmatório](confirmatory_protocol.md)
-- [Protocolo pareado DualHeat](dualheat_paired_protocol.md)
-- [Reprodutibilidade do runner sintético](reproducibility.md)
-- [Auditoria dos experimentos](experiments_audit.md)
+- [Protocolo confirmatório](protocols/confirmatory_protocol.md)
+- [Protocolo pareado DualHeat](protocols/dualheat_paired_protocol.md)
+- [Reprodutibilidade do runner sintético](protocols/reproducibility.md)
+- [Auditoria dos experimentos](audits/experiments_audit.md)
 
 ## Implementação
 

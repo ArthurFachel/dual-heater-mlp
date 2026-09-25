@@ -40,7 +40,7 @@
 
 ## Files likely to change
 
-- Create: `docs/bert_slowheat_diagnostic_results.md`
+- Create: `docs/results/bert_slowheat_diagnostic_results.md`
 - Modify: `README.md:244-307`
 - Modify: `article/manuscript.md:206-299`
 
@@ -146,11 +146,11 @@ If either command fails, do not write the result narrative. Resolve missing/corr
 **Objective:** Replace scattered interpretation across three generated tables with one conservative, cited record of what passed, what failed and why no full sequence follows.
 
 **Files:**
-- Create: `docs/bert_slowheat_diagnostic_results.md`
+- Create: `docs/results/bert_slowheat_diagnostic_results.md`
 
 **Step 1: Write the complete document**
 
-Create `docs/bert_slowheat_diagnostic_results.md` with exactly this content:
+Create `docs/results/bert_slowheat_diagnostic_results.md` with exactly this content:
 
 ```markdown
 # BERT SlowHeat: diagnóstico mecanístico, replay e decisão
@@ -297,7 +297,7 @@ Expected: `BERT SlowHeat synthesis verified`.
 **Step 3: Commit the canonical result record only if commit authorization is active**
 
 ```bash
-git add docs/bert_slowheat_diagnostic_results.md
+git add docs/results/bert_slowheat_diagnostic_results.md
 git commit -m "docs: record BERT SlowHeat diagnostic outcome"
 ```
 
@@ -336,7 +336,7 @@ Budgets 5 and 10 did not provide a consistent alternative.
 The current decision is not to run a ten-task SlowHeat+replay sequence or add
 another post-hoc parameter grid for this hypothesis. Full protocol, paired
 contrasts, provenance limitations and source artifact paths are in
-[`docs/bert_slowheat_diagnostic_results.md`](docs/bert_slowheat_diagnostic_results.md).
+[`docs/results/bert_slowheat_diagnostic_results.md`](../../docs/results/bert_slowheat_diagnostic_results.md).
 The executable diagnostic runners remain available for exact reproduction:
 
 - `experiments.bert_slowheat_diagnostic`;
@@ -355,7 +355,7 @@ python3 - <<'PY'
 from pathlib import Path
 
 readme = Path("README.md").read_text()
-assert Path("docs/bert_slowheat_diagnostic_results.md").is_file()
+assert Path("docs/results/bert_slowheat_diagnostic_results.md").is_file()
 assert "BERT SlowHeat two-task diagnostics" in readme
 assert "2.17 points" in readme
 assert "violating the 2-point acquisition gate" in readme
@@ -414,7 +414,7 @@ ten-example budgets did not produce a consistent benefit.
 We therefore do not advance this SlowHeat+replay configuration to the ten-task
 sequence. The evidence supports a stability-plasticity effect and functional
 ranking signal, not superiority over replay. Complete artifacts and provenance
-limitations are recorded in `docs/bert_slowheat_diagnostic_results.md`.
+limitations are recorded in `docs/results/bert_slowheat_diagnostic_results.md`.
 ```
 
 **Step 2: Renumber only subsequent top-level sections**
@@ -445,7 +445,7 @@ Keep “SlowHeat outperforms established continual-learning baselines” under `
 Append this bullet to the artifact list:
 
 ```markdown
-- BERT/CLINC150 diagnostic decision: `docs/bert_slowheat_diagnostic_results.md`
+- BERT/CLINC150 diagnostic decision: `docs/results/bert_slowheat_diagnostic_results.md`
 ```
 
 **Step 5: Validate manuscript scope and wording**
@@ -461,7 +461,7 @@ assert "## 6. BERT/CLINC150 Mechanism Diagnostics" in text
 assert "failed the predeclared scaling gate" in text
 assert "not advance this SlowHeat+replay configuration" in text
 assert "SlowHeat outperforms established continual-learning baselines" in text
-assert text.count("docs/bert_slowheat_diagnostic_results.md") >= 2
+assert text.count("docs/results/bert_slowheat_diagnostic_results.md") >= 2
 print("manuscript scope verified")
 PY
 ```
@@ -491,14 +491,14 @@ from pathlib import Path
 
 required = {
     "README.md": [
-        "docs/bert_slowheat_diagnostic_results.md",
+        "docs/results/bert_slowheat_diagnostic_results.md",
         "not to run a ten-task SlowHeat+replay sequence",
     ],
     "article/manuscript.md": [
         "BERT/CLINC150 Mechanism Diagnostics",
         "stability-plasticity effect",
     ],
-    "docs/bert_slowheat_diagnostic_results.md": [
+    "docs/results/bert_slowheat_diagnostic_results.md": [
         "60/60",
         "12/12",
         "18/18",
@@ -559,7 +559,7 @@ Expected:
 
 - `git diff --check` emits nothing;
 - `git diff --name-only -- results/` emits nothing;
-- only `README.md`, `article/manuscript.md` and `docs/bert_slowheat_diagnostic_results.md` are newly changed by this plan, while pre-existing dirty files remain untouched.
+- only `README.md`, `article/manuscript.md` and `docs/results/bert_slowheat_diagnostic_results.md` are newly changed by this plan, while pre-existing dirty files remain untouched.
 
 **Step 6: Optional final documentation commit if earlier commits were not made and authorization is active**
 
@@ -567,7 +567,7 @@ Expected:
 git add \
   README.md \
   article/manuscript.md \
-  docs/bert_slowheat_diagnostic_results.md
+  docs/results/bert_slowheat_diagnostic_results.md
 git commit -m "docs: conclude BERT SlowHeat diagnostics"
 ```
 

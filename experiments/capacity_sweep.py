@@ -1,6 +1,6 @@
 """Width sweep: does capacity alone decide whether hard protection helps?
 
-`docs/hard_vs_soft_results.md` reports that hard protection beats soft where
+`docs/results/hard_vs_soft_results.md` reports that hard protection beats soft where
 capacity is loose and loses where it is tight. That reading is *suggestive but
 not isolated*: across those five targets width, boundary count, classes per
 task and examples per class all varied together. Split-CIFAR-100 flips the
@@ -197,7 +197,7 @@ def sweep_protocol(
         },
         "declared_expectations": [
             (
-                "The capacity reading of docs/hard_vs_soft_results.md predicts a "
+                "The capacity reading of docs/results/hard_vs_soft_results.md predicts a "
                 "positive slope: hard should overtake soft as width grows."
             ),
             (

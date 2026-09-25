@@ -26,8 +26,8 @@ first epoch of each stage. Any frozen Split-MNIST confirmation executed before
 the correction is invalid and must not be reported. The correction preserves
 the preregistered seeds, hyperparameters, endpoint and analysis. Two valid
 post-correction confirmation runs are versioned; see
-[`docs/confirmatory_protocol.md`](docs/confirmatory_protocol.md) and the
-[experiment log](docs/split_mnist_experiment_log.md).
+[`docs/protocols/confirmatory_protocol.md`](docs/protocols/confirmatory_protocol.md) and the
+[experiment log](docs/results/split_mnist_experiment_log.md).
 
 ### Frozen confirmation result
 
@@ -82,7 +82,7 @@ It writes `pair_report.md`, `pair_report.json`, `pair_summary.csv` and
 `pair_differences.csv` under `results/split_mnist_protocol/dualheat_pairs/`.
 The report includes paired confidence intervals, accuracy p-values adjusted
 for the four comparisons, negative results and observed runtime overhead.
-See [the paired protocol](docs/dualheat_paired_protocol.md) for other MLP
+See [the paired protocol](docs/protocols/dualheat_paired_protocol.md) for other MLP
 datasets, reanalysis of saved results and interpretation limits.
 
 SlowHeat maintains one importance value per output unit:
@@ -139,14 +139,14 @@ The frozen independent-confirmation protocol and expanded baseline suite are
 in `notebooks/split_mnist_confirmatory_suite.ipynb`. That notebook exposes
 DER++, ER-ACE, A-GEM, EWC, SI, calibrated LwF, balanced replay,
 equal-epoch/equal-example comparisons, early stopping and compute accounting
-through one interface. Read `docs/confirmatory_protocol.md` before running it;
+through one interface. Read `docs/protocols/confirmatory_protocol.md` before running it;
 the notebook is committed without executed cells. Two executed confirmation
 runs are versioned under `results/protocol_post_eval_fix*/confirmation/`.
 
 The complete chronological record of Split-MNIST tests, statistical
 conclusions and the meaning of structured method names such as
 `slowheat_replay_hidden_beta_30_budget_0.25` is available in
-`docs/split_mnist_experiment_log.md`.
+`docs/results/split_mnist_experiment_log.md`.
 
 ## Minimal usage
 
@@ -294,7 +294,7 @@ Add `--bert-base` to the second command to apply the same frozen
 hyperparameters to BERT-base. Exact LoRA controls are selected with
 `--methods lora_replay slowheat_lora_replay`. These are executable protocols,
 not completed efficacy results. See
-[`docs/functional_slowheat_transformers.md`](docs/functional_slowheat_transformers.md).
+[`docs/mechanisms/functional_slowheat_transformers.md`](docs/mechanisms/functional_slowheat_transformers.md).
 For GPUs near 12 GB, start BERT-Mini with batches of 8+8 and BERT-base with
 2+2; the runner explicitly releases model hooks and the CUDA cache between
 methods.
@@ -334,7 +334,7 @@ The current conclusion is therefore specific: SlowHeat outperformed standard
 sequential BERT in the completed two-task diagnostic, but did not demonstrate an
 acceptable advantage over replay. The full protocol, paired contrasts,
 provenance limitations and primary artifact paths are documented in
-[`docs/bert_slowheat_diagnostic_results.md`](docs/bert_slowheat_diagnostic_results.md).
+[`docs/results/bert_slowheat_diagnostic_results.md`](docs/results/bert_slowheat_diagnostic_results.md).
 The three executable runners remain available under
 `experiments.bert_slowheat_diagnostic`,
 `experiments.bert_slowheat_replay_diagnostic` and
@@ -359,7 +359,7 @@ python -m experiments.live_dashboard \
 
 Then open `http://127.0.0.1:8765`. The viewer can be started before, during or
 after training and never sends commands back to the experiment. See
-[`docs/live_dashboard.md`](docs/live_dashboard.md).
+[`docs/tooling/live_dashboard.md`](docs/tooling/live_dashboard.md).
 
 After each task:
 
@@ -377,7 +377,7 @@ Replay can also let each learner rank which training images enter its episodic
 memory. The `first`, `loss`, `representative` and `hybrid` policies work with
 both MLP and CNN backbones; no-memory controls remain available through
 `vanilla` and hidden-only SlowHeat. See
-[the replay-selection protocol](docs/replay_selection.md) for configuration,
+[the replay-selection protocol](docs/mechanisms/replay_selection.md) for configuration,
 the ten-seed visual sweep and task-boundary checkpoint behavior.
 
 The persistent evidence is converted to a `[0, 1]` protection vector after
@@ -385,7 +385,7 @@ each consolidation, so at least `plasticity_budget` of every layer remains
 unprotected. `adapt_capacity()` can update that budget from a separately held
 out validation acquisition score. Test-set scores must not drive the controller.
 
-See `docs/functional_slowheat.md` for the method contract.
+See `docs/mechanisms/functional_slowheat.md` for the method contract.
 
 ## Why optimizer-aware masking is necessary
 
@@ -411,7 +411,7 @@ are interpolated by the same mask as the parameter delta. The ablation
 `state_policy="native"` retains the previous behavior in which moments evolve
 from the native optimizer trajectory.
 
-See `docs/optimizer_semantics.md`.
+See `docs/mechanisms/optimizer_semantics.md`.
 
 ## Metrics
 
@@ -459,7 +459,7 @@ PYTHONPATH=src:. python -m experiments.multi_seed \
   --output-dir results/synthetic_ablation_pilot
 ```
 
-See `docs/reproducibility.md`.
+See `docs/protocols/reproducibility.md`.
 
 ## Diagnostic pilot
 
@@ -476,7 +476,7 @@ Main observation:
 
 The SGD and reduced-learning-rate variants in this pilot are diagnostics, not fair tuned comparisons. The current SGD comparison lacks matched `vanilla_sgd` and `slowheat_none_sgd` controls. MAX, mean and sum also require separate calibration of effective protection strength.
 
-See `docs/synthetic_ablation_pilot.md`.
+See `docs/results/synthetic_ablation_pilot.md`.
 
 ## Known limitations
 
@@ -581,18 +581,18 @@ article/manuscript.md technical manuscript draft
 
 Documentation entry points:
 
-- `docs/functional_slowheat.md`: method contract;
-- `docs/functional_slowheat_transformers.md`: BERT placement, exact LoRA and
+- `docs/mechanisms/functional_slowheat.md`: method contract;
+- `docs/mechanisms/functional_slowheat_transformers.md`: BERT placement, exact LoRA and
   future Transformer extensions;
-- `docs/live_dashboard.md`: real-time BERT/SlowHeat telemetry and local viewer;
-- `docs/optimizer_semantics.md`: masking and checkpoint semantics;
-- `docs/confirmatory_protocol.md`: frozen confirmation and baseline suite;
-- `docs/split_cifar.md`: exact Split-CIFAR-10/100 protocol;
-- `docs/reproducibility.md`: synthetic protocol;
-- `docs/split_mnist_experiment_log.md`: chronological experimental record;
-- `docs/project_methods_and_results.md`: catalog and analysis of the external
+- `docs/tooling/live_dashboard.md`: real-time BERT/SlowHeat telemetry and local viewer;
+- `docs/mechanisms/optimizer_semantics.md`: masking and checkpoint semantics;
+- `docs/protocols/confirmatory_protocol.md`: frozen confirmation and baseline suite;
+- `docs/protocols/split_cifar.md`: exact Split-CIFAR-10/100 protocol;
+- `docs/protocols/reproducibility.md`: synthetic protocol;
+- `docs/results/split_mnist_experiment_log.md`: chronological experimental record;
+- `docs/audits/project_methods_and_results.md`: catalog and analysis of the external
   exploratory result export;
-- `docs/synthetic_ablation_pilot.md`: superseded diagnostic pilot.
+- `docs/results/synthetic_ablation_pilot.md`: superseded diagnostic pilot.
 
 ## Verification
 
@@ -642,7 +642,7 @@ Split-CIFAR-10 uses five Class-IL tasks with two classes each;
 Split-CIFAR-100 uses ten Class-IL tasks with ten classes each. Evaluation does
 not receive a task ID. Images are normalized and flattened for the repository's
 paired MLP engine, so these runs test harder visual streams but are not CNN
-benchmarks. See [`docs/split_cifar.md`](docs/split_cifar.md) for the exact
+benchmarks. See [`docs/protocols/split_cifar.md`](docs/protocols/split_cifar.md) for the exact
 protocol.
 
 The small real-CNN pilot is a separate, opt-in section so it cannot alter the
@@ -715,7 +715,7 @@ python run_all_tests.py \
   --device cuda --run-unit-tests
 ```
 
-See [the Functional SlowHeat and DualHeat contract](docs/functional_slowheat.md) for the
+See [the Functional SlowHeat and DualHeat contract](docs/mechanisms/functional_slowheat.md) for the
 gate equation, placement, fixed seeds, calibration rule and paired contrasts.
 
 After the pilot, run the preselected CNN stability/plasticity sweep with ten
