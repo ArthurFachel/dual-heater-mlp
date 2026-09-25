@@ -1,7 +1,8 @@
-# SlowHeat em LoRA: três mecanismos
+# Aplicação 3 — Três mecanismos SlowHeat-em-LoRA
 
-Status: **protótipo implementado e testado; resultados exploratórios de uma
-seed**. Nenhum número aqui sustenta comparação inferencial entre braços.
+**Fonte:** `src/dual_heater/lora_slowheat.py` · **Testes:** `tests/test_lora_slowheat.py` (46)
+**Estado:** implementados e verificados por mutação. **Nenhum dos três superou o
+vanilla** no benchmark de 10 domínios × 10 seeds.
 
 ## 1. O problema
 
@@ -18,7 +19,8 @@ subespaço de entrada: todas as tarefas futuras ficam restritas ao mesmo
 subespaço.
 
 Os três mecanismos em `src/dual_heater/lora_slowheat.py` exploram o espaço
-entre esses dois pontos.
+entre esses dois pontos. Cada um responde de forma diferente à pergunta *qual
+unidade a proteção cobre*.
 
 ## 2. Os mecanismos
 
@@ -42,8 +44,18 @@ as saídas, porque `z_j` depende apenas de `A[j, :]`. A proteção é exata **po
 componente**, não por saída: a saída total continua se movendo pelas direções
 livres. Testado em `test_rank_hard_mask_freezes_the_protected_component_exactly`.
 
+O teorema A1 reescrito nesse espaço fica `E >= (r − P) / r`, enunciado bem mais
+forte que a versão no espaço de saída, já que `r` é pequeno.
+
 **Custo:** o tracker tem `r` unidades em vez de `intermediate_size`. Para
-`r=8` contra `d_ff=4864`, são três ordens de magnitude a menos de estado.
+`r=16` contra `d_ff=4864`, são duas ordens de magnitude a menos de estado.
+
+**Armadilha descoberta (testada):** com a inicialização padrão do LoRA (`B = 0`),
+a importância no gargalo é **identicamente zero**, porque
+`dL/dz = B^T dL/d(delta) = 0`. O estimador não coleta evidência nenhuma até `B`
+sair da inicialização. Não é bug, é propriedade do estimador, e não deve ser
+confundido com "não há direções importantes". Assertado em
+`test_bottleneck_importance_is_zero_while_b_is_still_zero`.
 
 **Falsificador:** se a importância no gargalo for quase uniforme entre as `r`
 direções, não há o que selecionar e o mecanismo degenera em LR reduzido.
@@ -68,19 +80,32 @@ treinável** — exatamente o que `DualHeatLoRALinear` alega e não entrega.
 Testado em `test_leak_hard_mask_protects_an_output_row_exactly_with_a_trainable_a`,
 com guarda de mutação em `test_leak_without_the_a_bound_lets_the_protected_output_drift`.
 
-**Falsificador, e ele dispara:** uma vez que `B` fica densa, quase toda linha
-`j` alcança alguma saída protegida, `a_j` colapsa e o método degenera em
-"congelar A" com custo extra. Isso não é hipótese: está assertado em
-`test_leak_bound_collapses_once_b_is_dense`, onde uma única saída protegida com
-`B` densa leva `leak_collapse_fraction` a 1,0. O runner mede essa fração por
-estágio; **ela deve ser reportada junto com qualquer resultado desse braço.**
+**Falsificador previsto, e o que de fato aconteceu:** a previsão era que, uma vez
+que `B` fica densa, quase toda linha `j` alcança alguma saída protegida, `a_j`
+colapsa e o método degenera em "congelar A" com custo extra. Isso está assertado
+para máscara hard em `test_leak_bound_collapses_once_b_is_dense`, onde uma única
+saída protegida com `B` densa leva `leak_collapse_fraction` a 1,0.
+
+Na run real, com máscara **soft**, `leak_collapse_fraction = 0,0` em todos os
+estágios. O colapso **não** ocorreu — ele é específico da máscara hard. O
+mecanismo sobreviveu ao seu falsificador previsto e ainda assim foi o pior braço
+da tabela.
 
 ### `slice` — fatiamento do rank por fronteira
 
 Particiona `r` entre tarefas. As dimensões de tarefas passadas ficam congeladas
-nos dois fatores, com rank total fixo (sem crescimento do adaptador).
+nos dois fatores, com rank total fixo (sem crescimento do adaptador). É a
+"Solução B" da doc de Transformers, mas com posto total fixo e alocação decidida
+pelo controlador de plasticidade declarada, não por heurística.
 
-**Exatidão:** total para as contribuições das tarefas anteriores.
+**Exatidão:** total para as contribuições das tarefas anteriores, por
+construção — uma fatia congelada não recebe gradiente nenhum. Isso também
+significa que o mecanismo **não usa informação nenhuma sobre o que é
+importante**: é alocação cega.
+
+**Problema que invalida o braço na run de 10 tarefas:** com `r = 16` e 10
+tarefas, cada tarefa recebe 1–2 direções, e `E_eff` medido foi **0,062**. O
+braço não foi avaliado pelo mecanismo; foi penalizado por remoção de capacidade.
 
 **Falsificador:** empata com "resetar o adaptador por tarefa e somar os deltas".
 Se empatar, a alocação não está fazendo trabalho nenhum.
@@ -89,9 +114,35 @@ Se empatar, a alocação não está fazendo trabalho nenhum.
 
 - `vanilla`: LoRA puro, sem tracker e sem máscara.
 - `exact`: Solução A, `A` congelada e linhas de `B` mascaradas. Espelha
-  `build_exact_slowheat_lora` num host Qwen.
+  `build_exact_slowheat_lora` num host Qwen. Ver
+  [aplicação 2](lora_exact_producer_only.md).
+- `lr_control`: remove a **mesma** quantidade de plasticidade, mas espalhada
+  uniformemente via learning rate (`lr · E`) em vez de seletivamente via
+  máscara. É o falsificador obrigatório: um mecanismo que não supera o
+  `lr_control` não está fazendo nada que um escalar não faça.
 
-## 3. Decisões de implementação
+## 3. Resultados (10 domínios, 10 seeds, sem pareamento de plasticidade)
+
+Contrastes pareados contra vanilla, teste de sinal exato bicaudal:
+
+| mecanismo | métrica | dif. média | p | vitórias | E_eff |
+|---|---|---|---|---|---|
+| `rank` | FAA | −0,0032 | 1,0000 | **5/10** | 0,645 |
+| `rank` | forgetting | +0,0044 | 1,0000 | 5/10 | |
+| `leak` | FAA | −0,0058 | 0,3438 | 3/10 | 0,659 |
+| `leak` | forgetting | +0,0033 | 0,7539 | 6/10 | |
+| `slice` | FAA | +0,0188 | 0,3438 | 7/10 | 0,062 |
+| `slice` | forgetting | −0,0243 | 0,3438 | 7/10 | |
+
+Nenhum sobrevive a Holm. `rank` é o resultado mais nulo possível (5/10, p=1,0).
+`leak` teve o pior FAA médio e o maior pico de memória. `slice` tem o sinal
+certo nas duas métricas, mas com 6% da plasticidade do vanilla — o que torna o
+número notável e não interpretável ao mesmo tempo.
+
+Detalhes completos, custo e ressalvas em
+[lora_qwen_benchmark_results.md](lora_qwen_benchmark_results.md).
+
+## 4. Decisões de implementação
 
 **PEFT continua sendo a autoridade do forward.** A instrumentação só registra
 forward hooks e lê os pesos de `lora_A`/`lora_B`. Nenhum forward de LoRA é
@@ -112,11 +163,30 @@ do Qwen declara `bfloat16`, que as Pascal não suportam nativamente, e a cabeça
 criada pelo `modules_to_save` do PEFT nasce em fp32 — sem forçar o dtype, o
 corpo e a cabeça divergem e o forward quebra.
 
-## 4. Verificação
+## 5. Controlador de plasticidade declarada
 
-`tests/test_lora_slowheat.py`, 29 testes. A suíte passou na primeira execução,
-o que a torna **não verificada, não correta**. Foram injetadas cinco mutações no
-código de produção:
+`calibrate_to_target_plasticity(target)` resolve, por bisseção em cada
+fronteira, o botão que faz a plasticidade **medida** igualar um alvo declarado.
+O hiperparâmetro do método passa a ser plasticidade retida — grandeza medida
+antes de qualquer acurácia ser lida.
+
+Qual botão é resolvido depende do mecanismo:
+
+- `exact`, `rank`, `leak`: `slow_strength` (monotonicamente decrescente em E).
+- `slice`: o **piso** aplicado às direções congeladas. Sob partição estrita uma
+  direção congelada vale exatamente zero, então a única forma de elevar E é
+  relaxar esse piso — o que **abre mão da exatidão** e existe apenas para
+  igualar custo.
+- `vanilla`, `lr_control`: sem botão, E = 1 por definição.
+
+Alvos abaixo do piso analítico `(N − P)/N` são inalcançáveis e o controlador
+reporta `solved = 0.0` em vez de aproximar em silêncio.
+
+## 6. Verificação
+
+46 testes, todos passando. A suíte passou na primeira execução, o que a torna
+**não verificada, não correta**. Foram injetadas cinco mutações no código de
+produção:
 
 | Mutação | Resultado |
 |---|---|
@@ -134,37 +204,30 @@ então assertado estruturalmente no call site
 passou a morrer. O teste comportamental de padding permanece como guarda de
 regressão, não como evidência de que a máscara funciona.
 
-## 5. Protocolo do benchmark
+## 7. Protocolo do benchmark
 
-`experiments/qwen_lora_slowheat.py`. Split-CLINC150 class-incremental, primeiros
-`--tasks` domínios oficiais, uma seed, uma GPU. Todos os braços compartilham
-stream de dados, tokenização, família de otimizador, learning rate, número de
-épocas e código de avaliação idênticos; só o mecanismo de mascaramento muda.
+`experiments/qwen_lora_slowheat.py` (uma seed) e `experiments/qwen_lora_sweep.py`
+(multi-seed, multi-GPU). Split-CLINC150 class-incremental, primeiros `--tasks`
+domínios oficiais. Todos os braços compartilham stream de dados, tokenização,
+família de otimizador, learning rate, número de épocas e código de avaliação
+idênticos; só o mecanismo de mascaramento muda. Tokens idênticos entre braços
+(205.570 ± 568) servem de checksum desse pareamento.
 
 Métricas por braço: FAA, forgetting médio e BWT (código compartilhado em
 `dual_heater.metrics`), segundos de wall-clock, tokens de treino (padding
 excluído), e pico de memória do alocador CUDA.
 
-Diagnósticos por estágio: `effective_plasticity` (valor médio da máscara sobre
-todos os elementos mascarados), `protected_unit_fraction`,
+Diagnósticos por estágio: `effective_plasticity`, `protected_unit_fraction`,
 `leak_collapse_fraction` e `frozen_rank_dims`.
 
-## 6. Limitações que devem acompanhar qualquer resultado
+## 8. Limitações que devem acompanhar qualquer resultado
 
-- **Uma seed.** Não sustenta comparação inferencial entre braços. É medição de
-  viabilidade e custo.
-- **Os braços não são pareados em plasticidade efetiva.** Eles usam o mesmo
-  `slow_strength` e o mesmo budget nominal, mas `effective_plasticity` medida
-  difere entre mecanismos, então qualquer diferença de acurácia é parcialmente
-  atribuível a quanta plasticidade foi removida. Parear via
-  `solve_strength_for_plasticity_scoped` é pré-requisito para qualquer
-  afirmação causal.
-- **Falta o controle de LR reduzido.** Sem um braço `lr * E` sem máscara, não se
-  pode distinguir o mecanismo de um simples agendamento de learning rate.
+- **Os braços da primeira run não são pareados em plasticidade efetiva.** Eles
+  usam o mesmo `slow_strength` e o mesmo budget nominal, mas `E_eff` medida
+  difere muito entre mecanismos (0,062 a 0,923), e a ordenação do FAA segue
+  `E_eff` quase monotonicamente. A run iso-plasticidade corrige isso.
 - **Só FFN.** GQA no Qwen2.5-0.5B (14 heads de query, 2 de KV) impede um tracker
   indexado por head de endereçar Q, K e V com um vetor só.
-- **`leak` provavelmente colapsa.** Ver `leak_collapse_fraction` por estágio
-  antes de interpretar qualquer número desse braço.
 - **Prioridade não verificada.** O-LoRA, InfLoRA e a família de LoRA para CL não
   foram levantados. Vários desses trabalhos particionam ou ortogonalizam
   subespaço por tarefa, o que toca diretamente `slice` e em parte `rank`. A §7
@@ -172,6 +235,8 @@ todos os elementos mascarados), `protected_unit_fraction`,
 
 ## Referências
 
+- [Índice das aplicações de LoRA](lora_applications.md)
+- [Resultados do benchmark](lora_qwen_benchmark_results.md)
 - [Contrato do Functional SlowHeat](functional_slowheat.md)
 - [SlowHeat em Transformers, seção 12 (mascaramento LoRA)](functional_slowheat_transformers.md)
 - [Semântica do otimizador](optimizer_semantics.md)

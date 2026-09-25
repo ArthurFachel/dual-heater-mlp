@@ -33,6 +33,7 @@ pode afirmar** e **Ameaças à validade**.
 | Trackers para Transformers | BERT implementado; SwiGLU implementado no host Qwen2; GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](functional_slowheat_transformers.md) |
 | Qwen2 / SlowHeat em LLM | host, diagnóstico de capacidade e runner de iso-plasticidade implementados e testados; smoke em GPU executado; sem resultado de continual learning agregado | [functional_slowheat_qwen.md](functional_slowheat_qwen.md) |
 | Ablação iso-plasticidade Qwen + calibração de capacidade | protocolo congelado em `goals/protocol_iso_plasticity.md`; runs de calibração obsoletas (30 passos); critério declarado nunca aplicado (Anexo A); **confirmação de 10 seeds concluída** em 23/09 | [qwen_iso_plasticity_ablation.md](qwen_iso_plasticity_ablation.md) · [goals/resultados_confirmacao.md](../goals/resultados_confirmacao.md) |
+| Aplicações de LoRA (4 formas) | catalogadas; três mecanismos novos implementados e testados (46 testes); benchmark de 10 seeds concluído — **os três falharam**, só o LoRA exato produtor-only sobrevive a Holm; run iso-plasticidade corretiva em execução | [lora_applications.md](lora_applications.md) |
 | RNN/LSTM | proposta de design, não implementada | [functional_slowheat_rnn_lstm.md](functional_slowheat_rnn_lstm.md) |
 | Replay seletivo | implementado com quatro estratégias | [replay_selection.md](replay_selection.md) |
 | Dashboard e telemetria ao vivo | implementados | [live_dashboard.md](live_dashboard.md) |
