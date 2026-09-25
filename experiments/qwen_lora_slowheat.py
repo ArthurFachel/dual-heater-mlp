@@ -52,7 +52,9 @@ from experiments.split_clinc150 import (
     load_clinc150_tasks,
 )
 
-ARMS: tuple[str, ...] = ("vanilla", "exact", "rank", "leak", "slice")
+ARMS: tuple[str, ...] = (
+    "vanilla", "exact", "rank", "leak", "slice", "lr_control",
+)
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,10 @@ class RunConfig:
     plasticity_budget: float = 0.5
     hard: bool = False
     leak_combination: str = "min"
+    #: When set, each arm's knob is solved so measured plasticity equals this
+    #: value at every task boundary, making arms cost-matched in retained
+    #: plasticity instead of in nominal protection strength.
+    target_plasticity: float | None = None
     device: str = "cuda:0"
 
     def validate(self) -> None:
@@ -206,12 +212,20 @@ def run_arm(
     tracker = PeakMemoryTracker(device).start()
     started = time.perf_counter()
 
+    # The lr_control arm removes plasticity uniformly through the learning
+    # rate instead of selectively through a mask. Scaling lr by the same
+    # target E makes it the cost-matched falsifier for every masked arm.
+    effective_lr = config.learning_rate
+    if method == "lr_control" and config.target_plasticity is not None:
+        effective_lr = config.learning_rate * config.target_plasticity
+
     optimizer = SlowHeatAdamW(
         trainable,
-        lr=config.learning_rate,
+        lr=effective_lr,
         weight_decay=config.weight_decay,
     )
     instrumentation.register_plasticity_masks(optimizer)
+    calibration: list[dict[str, float]] = []
 
     matrix = np.full((len(tasks), len(tasks)), np.nan)
     train_tokens = 0
@@ -242,7 +256,16 @@ def run_arm(
         # Consolidation happens at the task boundary, before evaluation, so the
         # protection an arm carries into the next task is the one measured here.
         instrumentation.consolidate()
+        # Solve the knob so measured plasticity hits the declared target. This
+        # happens AFTER consolidation (the mask exists) and BEFORE evaluation,
+        # and never looks at accuracy.
+        if config.target_plasticity is not None:
+            solved = instrumentation.calibrate_to_target_plasticity(
+                config.target_plasticity
+            )
+            calibration.append({"stage": float(stage), **solved})
         stage_diagnostics = instrumentation.diagnostics()
+        stage_memory = tracker.snapshot()
         per_stage.append(
             {
                 "stage": stage,
@@ -251,6 +274,12 @@ def run_arm(
                 "protected_unit_fraction": stage_diagnostics["protected_unit_fraction"],
                 "leak_collapse_fraction": stage_diagnostics["leak_collapse_fraction"],
                 "frozen_rank_dims": stage_diagnostics["frozen_rank_dims"],
+                # Cumulative peak up to the end of this stage: the tracker is
+                # monotonic, so a per-stage increase is what this reveals.
+                "cumulative_peak_memory_mib": (
+                    float(stage_memory["peak_memory_bytes"]) / 2**20
+                ),
+                "elapsed_seconds": time.perf_counter() - started,
             }
         )
 
@@ -293,6 +322,9 @@ def run_arm(
             else None
         ),
         "trainable_parameters": trainable_count,
+        "effective_learning_rate": effective_lr,
+        "target_plasticity": config.target_plasticity,
+        "calibration": calibration,
         "stages": per_stage,
     }
 
@@ -353,6 +385,12 @@ def main() -> None:
     parser.add_argument("--slow-strength", type=float, default=3.0)
     parser.add_argument("--plasticity-budget", type=float, default=0.5)
     parser.add_argument("--hard", action="store_true")
+    parser.add_argument(
+        "--target-plasticity",
+        type=float,
+        default=None,
+        help="Solve each arm's knob so measured plasticity equals this value.",
+    )
     parser.add_argument("--leak-combination", default="min", choices=["min", "weighted"])
     parser.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(ARMS))
     arguments = parser.parse_args()
@@ -370,6 +408,7 @@ def main() -> None:
         plasticity_budget=arguments.plasticity_budget,
         hard=arguments.hard,
         leak_combination=arguments.leak_combination,
+        target_plasticity=arguments.target_plasticity,
         device=arguments.device,
     )
     config.validate()
