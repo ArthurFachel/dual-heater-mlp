@@ -58,7 +58,7 @@ from torch import Tensor, nn
 from .optim import PlasticityMaskBinding
 from .transformer import SlowHeatFFNTracker
 
-LoRAMethod = Literal["vanilla", "exact", "rank", "leak", "slice"]
+LoRAMethod = Literal["vanilla", "exact", "rank", "leak", "slice", "lr_control"]
 LeakCombination = Literal["min", "weighted"]
 
 #: Mechanisms that build a per-unit importance tracker.
@@ -66,6 +66,12 @@ TRACKED_METHODS: frozenset[str] = frozenset({"exact", "rank", "leak"})
 
 #: Mechanisms whose tracker lives in the rank bottleneck instead of the output.
 RANK_SPACE_METHODS: frozenset[str] = frozenset({"rank"})
+
+#: Arms that register no mask at all. ``lr_control`` is the falsifier: it
+#: removes the SAME amount of plasticity as a matched mechanism, but spread
+#: uniformly via the learning rate instead of selectively via a mask. A
+#: mechanism that cannot beat it is doing nothing a scalar could not do.
+UNMASKED_METHODS: frozenset[str] = frozenset({"vanilla", "lr_control"})
 
 
 @dataclass(frozen=True)
@@ -92,9 +98,12 @@ class LoRASlowHeatConfig:
     adapter_name: str = "default"
 
     def __post_init__(self) -> None:
-        if self.method not in {"vanilla", "exact", "rank", "leak", "slice"}:
+        if self.method not in {
+            "vanilla", "exact", "rank", "leak", "slice", "lr_control",
+        }:
             raise ValueError(
-                "method deve ser 'vanilla', 'exact', 'rank', 'leak' ou 'slice'"
+                "method deve ser 'vanilla', 'exact', 'rank', 'leak', 'slice' "
+                "ou 'lr_control'"
             )
         for name in ("rank", "task_count"):
             value = getattr(self, name)
@@ -199,6 +208,10 @@ class QwenLoRASlowHeat:
         self._validity_mask: Tensor | None = None
         self._task_index = 0
         self._frozen_rank: Tensor = torch.zeros(config.rank, dtype=torch.bool)
+        # Plasticity floor applied to frozen rank dimensions. 0.0 is the exact
+        # mechanism; the iso-plasticity controller may raise it to cost-match
+        # the arm, which explicitly trades the exactness claim away.
+        self._slice_floor: float = 0.0
         self._collect_modules()
         if config.method in TRACKED_METHODS:
             self._install_hooks()
@@ -409,17 +422,120 @@ class QwenLoRASlowHeat:
 
     def _slice_source(self, *, columns: bool) -> Callable[[], Tensor]:
         def factor() -> Tensor:
-            plastic = (~self._frozen_rank).to(dtype=torch.float32)
+            plastic = torch.where(
+                self._frozen_rank,
+                torch.full_like(self._frozen_rank, self._slice_floor, dtype=torch.float32),
+                torch.ones_like(self._frozen_rank, dtype=torch.float32),
+            )
             return plastic.reshape(1, -1) if columns else plastic.reshape(-1, 1)
 
         return factor
+
+    # ------------------------------------------------------------------
+    # declared-plasticity controller
+    # ------------------------------------------------------------------
+
+    def calibrate_to_target_plasticity(
+        self,
+        target: float,
+        *,
+        tolerance: float = 1e-4,
+        iterations: int = 60,
+    ) -> dict[str, float]:
+        """Solve for the knob that makes measured plasticity equal ``target``.
+
+        The method's hyperparameter becomes retained plasticity, a quantity
+        measured before any accuracy is read, instead of an arbitrary
+        protection strength. Which knob is solved depends on the mechanism:
+
+        ``exact``/``rank``/``leak``
+            ``slow_strength``, monotonically decreasing in plasticity.
+        ``slice``
+            the floor applied to frozen rank dimensions. Under a strict
+            partition with ``task_count`` tasks, a frozen dimension is exactly
+            zero, so the only way to raise measured plasticity is to relax that
+            floor. Doing so TRADES AWAY the mechanism's exactness claim and
+            exists solely to make the arm cost-matched.
+        ``vanilla``
+            no knob; plasticity is 1.0 by definition.
+        """
+
+        if not 0.0 < target <= 1.0:
+            raise ValueError("target deve estar em (0, 1]")
+        method = self.config.method
+        if method in UNMASKED_METHODS:
+            # lr_control removes plasticity through the learning rate, which
+            # the caller applies; the mask is identity by construction.
+            return {"knob": float("nan"), "achieved": 1.0, "solved": 0.0}
+
+        if method == "slice":
+            def measure(value: float) -> float:
+                self._slice_floor = value
+                return self.effective_plasticity()
+
+            reset = self._slice_floor
+        else:
+            def measure(value: float) -> float:
+                for adapted in self.modules:
+                    assert adapted.tracker is not None
+                    adapted.tracker.slow_strength = value
+                return self.effective_plasticity()
+
+            reset = self.config.slow_strength
+
+        # Plasticity is monotonically INCREASING in the slice floor and
+        # monotonically DECREASING in slow_strength, so the bracket differs.
+        if method == "slice":
+            low, high = 0.0, 1.0
+            if measure(high) < target - tolerance:
+                measure(reset)
+                return {
+                    "knob": reset,
+                    "achieved": self.effective_plasticity(),
+                    "solved": 0.0,
+                }
+            for _ in range(iterations):
+                middle = 0.5 * (low + high)
+                if measure(middle) < target:
+                    low = middle
+                else:
+                    high = middle
+            solution = 0.5 * (low + high)
+        else:
+            low, high = 0.0, 1e6
+            if measure(low) < target - tolerance:
+                # Even with no protection the mask is already below target:
+                # the budget alone removed more than the target allows.
+                measure(reset)
+                return {
+                    "knob": reset,
+                    "achieved": self.effective_plasticity(),
+                    "solved": 0.0,
+                }
+            if measure(high) > target + tolerance:
+                measure(reset)
+                return {
+                    "knob": reset,
+                    "achieved": self.effective_plasticity(),
+                    "solved": 0.0,
+                }
+            for _ in range(iterations):
+                middle = 0.5 * (low + high)
+                if measure(middle) > target:
+                    low = middle
+                else:
+                    high = middle
+            solution = 0.5 * (low + high)
+
+        achieved = measure(solution)
+        return {"knob": solution, "achieved": achieved, "solved": 1.0}
 
     def mask_bindings(self) -> list[PlasticityMaskBinding]:
         """Return exactly one binding per masked trainable parameter."""
 
         method = self.config.method
         bindings: list[PlasticityMaskBinding] = []
-        if method == "vanilla":
+        if method in UNMASKED_METHODS:
             return bindings
 
         for adapted in self.modules:

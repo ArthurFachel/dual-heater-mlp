@@ -489,6 +489,153 @@ def test_the_validity_scope_is_restored_after_the_forward() -> None:
     assert instrumentation._validity_mask is None
 
 
+# ---------------------------------------------------------------------------
+# iso-plasticity controller and the lr_control falsifier
+# ---------------------------------------------------------------------------
+
+
+def test_lr_control_registers_no_mask_and_is_fully_plastic() -> None:
+    """The falsifier must differ from a mechanism ONLY in how E is removed."""
+
+    model, instrumentation = _build("lr_control")
+    assert instrumentation.mask_bindings() == []
+    assert instrumentation.effective_plasticity() == 1.0
+    assert any(
+        ".lora_A." in name and parameter.requires_grad
+        for name, parameter in model.named_parameters()
+    )
+
+
+def _plasticity_floor(instrumentation) -> float:
+    """E(beta -> infinity): the analytic floor a mask cannot go below."""
+
+    saved = [adapted.tracker.slow_strength for adapted in instrumentation.modules]
+    for adapted in instrumentation.modules:
+        adapted.tracker.slow_strength = 1e6
+    floor = instrumentation.effective_plasticity()
+    for adapted, value in zip(instrumentation.modules, saved, strict=True):
+        adapted.tracker.slow_strength = value
+    return floor
+
+
+def test_bottleneck_importance_is_zero_while_b_is_still_zero() -> None:
+    """LoRA's default init makes the rank-space estimator start blind.
+
+    With ``B = 0`` the gradient reaching the bottleneck is
+    ``dL/dz = B^T dL/ddelta = 0``, so ``|z * dL/dz|`` is identically zero no
+    matter what the data does. The rank mechanism therefore collects no
+    evidence until ``B`` moves away from its initialization, and a single
+    training step yields an all-zero importance vector. This is a property of
+    the estimator, not a bug, and it must not be mistaken for "no important
+    directions".
+    """
+
+    model, instrumentation = _build("rank")
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    tracker = instrumentation.modules[0].tracker
+    assert float(tracker.task_ema.abs().sum()) == 0.0
+
+    # Once B is non-zero the same estimator does see the bottleneck.
+    _randomize_b(instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    assert float(tracker.task_ema.abs().sum()) > 0.0
+
+
+@pytest.mark.parametrize("method", ["exact", "rank", "leak"])
+@pytest.mark.parametrize("fraction", [0.25, 0.5, 0.9])
+def test_controller_hits_any_target_above_the_analytic_floor(
+    method: str, fraction: float
+) -> None:
+    model, instrumentation = _build(method, plasticity_budget=0.5)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    instrumentation.consolidate()
+
+    # Targets are chosen relative to the measured floor: E(beta) can never go
+    # below (N - P) / N, so an absolute target is not portable across arms.
+    floor = _plasticity_floor(instrumentation)
+    target = floor + fraction * (1.0 - floor)
+
+    solved = instrumentation.calibrate_to_target_plasticity(target)
+    assert solved["solved"] == 1.0
+    assert solved["achieved"] == pytest.approx(target, abs=1e-3)
+    assert instrumentation.effective_plasticity() == pytest.approx(target, abs=1e-3)
+
+
+@pytest.mark.parametrize("method", ["exact", "leak"])
+def test_controller_reports_failure_below_the_analytic_floor(method: str) -> None:
+    """A target under the floor must fail loudly, not silently approximate."""
+
+    model, instrumentation = _build(method, plasticity_budget=0.5)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    instrumentation.consolidate()
+
+    floor = _plasticity_floor(instrumentation)
+    assert floor > 0.01, "o teste precisa de um piso positivo para ser válido"
+    solved = instrumentation.calibrate_to_target_plasticity(floor * 0.5)
+    assert solved["solved"] == 0.0
+
+
+def test_controller_solves_the_slice_floor_not_the_strength() -> None:
+    """slice has no beta: its only knob is the floor on frozen dimensions."""
+
+    _, instrumentation = _build("slice", task_count=2)
+    instrumentation.begin_task(1)
+    assert instrumentation.effective_plasticity() == pytest.approx(0.5, abs=1e-6)
+
+    solved = instrumentation.calibrate_to_target_plasticity(0.75)
+    assert solved["solved"] == 1.0
+    assert solved["achieved"] == pytest.approx(0.75, abs=1e-3)
+    # Raising the floor above zero is exactly what trades the exactness away.
+    assert solved["knob"] > 0.0
+
+
+def test_a_zero_slice_floor_preserves_exact_freezing() -> None:
+    """Default slice must stay exact; only calibration relaxes it."""
+
+    model, instrumentation = _build("slice", task_count=2)
+    _randomize_b(instrumentation)
+    instrumentation.begin_task(1)
+    start, end = rank_slice_bounds(RANK, 2, 0)
+    before = [
+        adapted.lora_b.weight[:, start:end].clone()
+        for adapted in instrumentation.modules
+    ]
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    for index, adapted in enumerate(instrumentation.modules):
+        assert torch.equal(before[index], adapted.lora_b.weight[:, start:end])
+
+
+def test_calibrating_arms_to_one_target_equalizes_measured_plasticity() -> None:
+    """The point of the protocol: arms differ in HOW, not in HOW MUCH."""
+
+    target = 0.95
+    achieved = {}
+    for method in ("exact", "rank", "leak"):
+        model, instrumentation = _build(method, plasticity_budget=0.5)
+        _randomize_b(instrumentation)
+        optimizer = _optimizer(model, instrumentation)
+        _train_step(model, instrumentation, optimizer)
+        instrumentation.consolidate()
+        solved = instrumentation.calibrate_to_target_plasticity(target)
+        assert solved["solved"] == 1.0, method
+        achieved[method] = instrumentation.effective_plasticity()
+    for method, value in achieved.items():
+        assert value == pytest.approx(target, abs=1e-3), method
+
+
+def test_controller_rejects_an_out_of_range_target() -> None:
+    _, instrumentation = _build("rank")
+    for bad in (0.0, -0.1, 1.5):
+        with pytest.raises(ValueError):
+            instrumentation.calibrate_to_target_plasticity(bad)
+
+
 def test_removing_hooks_stops_all_observation() -> None:
     model, instrumentation = _build("rank")
     instrumentation.remove_hooks()
