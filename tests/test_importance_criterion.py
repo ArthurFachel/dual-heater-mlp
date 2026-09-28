@@ -238,3 +238,59 @@ def test_split_clinc150_config_carries_the_importance_criterion() -> None:
         SplitCLINC150Config(device="cpu", importance_criterion="magnitude").importance_criterion
         == "magnitude"
     )
+
+
+def test_run_diagnostic_accepts_a_condition_matrix_and_propagates_the_criterion(
+    monkeypatch, tmp_path
+) -> None:
+    """Section I: the ablation needs its own matrix, and the criterion must ride along.
+
+    run_diagnostic built its configs from diagnostic_conditions() unconditionally
+    and never copied importance_criterion into the runner config, so the
+    magnitude arm would have silently executed as functional -- a guaranteed
+    null result with no way to notice from the artefacts.
+    """
+
+    from dataclasses import replace as dc_replace
+
+    import experiments.bert_slowheat_diagnostic as diagnostic
+    from experiments.split_clinc150 import SplitCLINC150Config
+    from tests.test_bert_slowheat_diagnostic import _fake_result
+
+    seen = []
+
+    def fake_run(config, tasks, **kwargs):
+        seen.append(config)
+        return {config.methods[0]: _fake_result()}
+
+    monkeypatch.setattr(diagnostic, "run_split_clinc150", fake_run)
+    monkeypatch.setattr(diagnostic, "write_environment_manifest", lambda *a, **k: None)
+
+    conditions = diagnostic.criterion_ablation_conditions()
+    diagnostic.run_diagnostic(
+        SplitCLINC150Config(device="cpu"),
+        tasks=[object()] * 10,
+        metadata={},
+        seeds=[4_000_003],
+        output_dir=tmp_path,
+        conditions=conditions,
+    )
+
+    assert len(seen) == len(conditions), "one run per ablation arm"
+
+    by_criterion = {c.name: c.importance_criterion for c in conditions}
+    for config, condition in zip(seen, conditions):
+        assert config.importance_criterion == by_criterion[condition.name], (
+            f"{condition.name} ran as {config.importance_criterion!r}"
+        )
+
+    # Default must still be the published six-condition matrix.
+    seen.clear()
+    diagnostic.run_diagnostic(
+        SplitCLINC150Config(device="cpu"),
+        tasks=[object()] * 10,
+        metadata={},
+        seeds=[4_000_003],
+        output_dir=tmp_path / "default",
+    )
+    assert len(seen) == len(diagnostic.diagnostic_conditions())

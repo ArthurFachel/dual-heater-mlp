@@ -118,14 +118,18 @@ def criterion_ablation_conditions() -> tuple[DiagnosticCondition, ...]:
 
 def summarize_diagnostic(
     raw: dict[int, dict[str, dict[str, Any]]],
+    conditions: tuple[DiagnosticCondition, ...] | None = None,
 ) -> dict[str, Any]:
     if not raw:
         raise ValueError("resultados diagnósticos não podem ser vazios")
     seeds = sorted(raw)
-    names = [condition.name for condition in diagnostic_conditions()]
+    matrix = diagnostic_conditions() if conditions is None else tuple(conditions)
+    names = [condition.name for condition in matrix]
     for seed in seeds:
         if set(raw[seed]) != set(names):
-            raise ValueError(f"seed {seed} não contém as seis condições diagnósticas")
+            raise ValueError(
+                f"seed {seed} não contém exatamente as {len(names)} condições declaradas"
+            )
     endpoints = {
         seed: {
             name: condition_endpoints(raw[seed][name])
@@ -168,6 +172,24 @@ def summarize_diagnostic(
             "slowheat_random_hard",
         ),
         "hard_minus_beta_3": ("slowheat_hard", "slowheat_beta_3"),
+        # Criterion ablation (goals/protocol_importance_criterion_ablation.md,
+        # I3): the two edges of the ordered hypothesis
+        # random < magnitude < functional.
+        "magnitude_minus_random": (
+            "slowheat_magnitude_hard",
+            "slowheat_random_hard",
+        ),
+        "functional_minus_magnitude": (
+            "slowheat_hard",
+            "slowheat_magnitude_hard",
+        ),
+    }
+    # Only contrasts whose both arms were actually run: the published matrix and
+    # the ablation matrix each supply a different subset.
+    contrast_pairs = {
+        contrast: pair
+        for contrast, pair in contrast_pairs.items()
+        if pair[0] in names and pair[1] in names
     }
     paired_contrasts: dict[str, dict[str, dict[str, Any]]] = {}
     for contrast, (left, right) in contrast_pairs.items():
@@ -210,10 +232,10 @@ def diagnostic_markdown(summary: dict[str, Any]) -> str:
         "Peak allocated (MiB) | Peak reserved (MiB) |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
-    for condition in diagnostic_conditions():
-        item = summary["conditions"][condition.name]
+    for name in summary["conditions"]:
+        item = summary["conditions"][name]
         lines.append(
-            f"| {condition.name} | "
+            f"| {name} | "
             f"{format_mean_std(item['task1_acquisition'], 100.0)} | "
             f"{format_mean_std(item['task1_retention'], 100.0)} | "
             f"{format_mean_std(item['task1_forgetting'], 100.0)} | "
@@ -275,9 +297,10 @@ def load_completed_diagnostic(
 def write_diagnostic_reports(
     output_dir: str | Path,
     raw: dict[int, dict[str, dict[str, Any]]],
+    conditions: tuple[DiagnosticCondition, ...] | None = None,
 ) -> dict[str, Any]:
     destination = Path(output_dir)
-    summary = summarize_diagnostic(raw)
+    summary = summarize_diagnostic(raw, conditions)
     write_json_atomic(destination / "diagnostic_summary.json", summary)
     (destination / "diagnostic_table.md").write_text(
         diagnostic_markdown(summary), encoding="utf-8"
@@ -295,11 +318,14 @@ def run_diagnostic(
     resume: bool = False,
     telemetry: bool = False,
     telemetry_every: int = 10,
+    conditions: tuple[DiagnosticCondition, ...] | None = None,
 ) -> dict[int, dict[str, dict[str, Any]]]:
     if not seeds or len(seeds) != len(set(seeds)):
         raise ValueError("seeds deve ser não vazio e sem duplicatas")
     if base_config.evaluate_test:
         raise ValueError("diagnóstico deve permanecer validation-only")
+
+    matrix = diagnostic_conditions() if conditions is None else tuple(conditions)
 
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
@@ -310,13 +336,14 @@ def run_diagnostic(
     raw: dict[int, dict[str, dict[str, Any]]] = {}
     for seed in seeds:
         raw[seed] = {}
-        for condition in diagnostic_conditions():
+        for condition in matrix:
             config = replace(
                 base_config,
                 seed=seed,
                 methods=(condition.method,),
                 slow_strength=condition.slow_strength,
                 plasticity_mask_mode=condition.mask_mode,
+                importance_criterion=condition.importance_criterion,
                 task_limit=2,
                 evaluate_test=False,
             )
@@ -331,7 +358,7 @@ def run_diagnostic(
             )[condition.method]
             raw[seed][condition.name] = result
 
-    write_diagnostic_reports(destination, raw)
+    write_diagnostic_reports(destination, raw, matrix)
     return raw
 
 
