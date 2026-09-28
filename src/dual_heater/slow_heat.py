@@ -113,12 +113,21 @@ def ranking_degeneracy_metrics(
     endpoints is what separates "the criterion does not matter" from "the
     criterion was never actually exercised".
 
+    Reads ``importance_memory``, the consolidated vector that ``
+    _apply_capacity_budget`` actually ranks. ``task_ema`` is NOT usable here:
+    ``consolidate`` zeroes it right after applying the budget, so measuring it
+    post-consolidation reports a constant zero for every criterion.
+
     Returns the variance of the normalized ranking and, when a ``reference``
     tracker is given, the Jaccard overlap of the protected top-k sets.
     """
 
-    scores = tracker.task_ema.detach().float()
-    metrics = {"ranking_variance": float(scores.var().item())}
+    scores = tracker.importance_memory.detach().float()
+    # Scale-free: magnitude and functional criteria live on different scales,
+    # so raw variance would compare units, not ranking informativeness.
+    total = float(scores.sum().item())
+    normalized = scores / total if total > 0.0 else scores
+    metrics = {"ranking_variance": float(normalized.var().item())}
 
     if reference is None:
         return metrics
@@ -130,7 +139,7 @@ def ranking_degeneracy_metrics(
     protected = max(1, int(math.floor(unit_count * (1.0 - fraction))))
 
     own = set(torch.topk(scores, protected).indices.tolist())
-    other_scores = reference.task_ema.detach().float()
+    other_scores = reference.importance_memory.detach().float()
     other = set(torch.topk(other_scores, protected).indices.tolist())
 
     union = own | other

@@ -182,6 +182,8 @@ def test_ranking_degeneracy_metrics_are_available() -> None:
             weights[:4] = 50.0          # only 4 units actually drive the loss
             weights[4:] = 0.001
             (out * weights).sum().backward()
+        # The metric reads importance_memory, the vector top-k actually ranks.
+        tracker.consolidate(strategy="max")
         return tracker
 
     functional = train("functional")
@@ -340,3 +342,37 @@ def test_slowheat_model_reports_ranking_degeneracy() -> None:
 
     same = aggregate_ranking_degeneracy(functional, reference=functional)
     assert same["mean_top_k_overlap"] == 1.0
+
+
+def test_degeneracy_metrics_survive_consolidation() -> None:
+    """The metric must read the vector that top-k actually ranks.
+
+    consolidate() zeroes task_ema right after applying the capacity budget, so
+    a diagnostic reading task_ema post-consolidation reports a constant 0.0 for
+    every criterion -- which is exactly when the falsifier is needed. It must
+    read importance_memory instead.
+    """
+
+    import torch
+
+    from dual_heater.slow_heat import ranking_degeneracy_metrics
+    from dual_heater.transformer import SlowHeatFFNTracker
+
+    torch.manual_seed(7)
+    tracker = SlowHeatFFNTracker(16, slow_strength=3.0, plasticity_budget=0.25)
+    tracker.train()
+    weights = torch.zeros(16)
+    weights[:4] = 50.0
+    weights[4:] = 0.001
+    torch.manual_seed(21)
+    for _ in range(6):
+        hidden = torch.randn(4, 16, requires_grad=True)
+        (tracker.observe(hidden) * weights).sum().backward()
+
+    tracker.consolidate(strategy="max")
+    assert float(tracker.task_ema.abs().sum()) == 0.0, "consolidate zeroes task_ema"
+
+    metrics = ranking_degeneracy_metrics(tracker)
+    assert metrics["ranking_variance"] > 0.0, (
+        "degeneracy must be measurable after consolidation"
+    )
