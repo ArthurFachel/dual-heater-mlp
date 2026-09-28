@@ -63,8 +63,8 @@ como tal.
 | # | Decisão | Valor congelado | Justificativa |
 |---|---|---|---|
 | R1 | Dataset | `split_cifar100`, apenas | é onde a inversão é mais limpa no exploratório; um dataset mantém a família pequena |
-| R2 | Seletores | `loss` e `representative`, exatamente dois | são os dois extremos da inversão; `first` e `hybrid` ficam fora da família confirmatória |
-| R3 | Métodos | `derpp` e `slowheat_derpp_hidden_beta_30_budget_0.25` | o par que produz o contraste |
+| R2 | Seletores | `loss`, `representative` e **`first`** | `loss` e `representative` são os dois extremos da inversão e formam a família confirmatória. `first` é **exigido estruturalmente** pelo runner (`replay_selection_sweep.py:397`): é o seletor de referência de `paired_differences_vs_first`, sem o qual o relatório não é construído. Seus contrastes são reportados como **exploratórios**, fora da família de R8 |
+| R3 | Contraste confirmatório | `slowheat_derpp_hidden_beta_30_budget_0.25 − derpp` | é o par que produz a inversão. **O runner executa a matriz fixa completa** (6 métodos, `SWEEP_METHODS`) e não aceita filtro; os demais métodos são computados e reportados, mas **só este contraste é confirmatório** |
 | R4 | Seeds | 20, banda `3_000_003, 3_025_011, 3_050_017, 3_075_037, 3_100_043, 3_125_059, 3_150_061, 3_175_087, 3_200_089, 3_225_097, 3_250_101, 3_275_103, 3_300_119, 3_325_127, 3_350_133, 3_375_149, 3_400_151, 3_425_163, 3_450_169, 3_475_179` | banda própria, disjunta de toda seed já usada no repositório (ver seção G) |
 | R5 | Endpoint primário | `final_average_accuracy`, contraste `slowheat_derpp − derpp`, por seletor | mesmo endpoint primário do sweep exploratório |
 | R6 | Endpoints secundários | `average_forgetting`, `backward_transfer`, tempo de parede, bytes de replay | reportados sempre, nunca promovidos |
@@ -90,15 +90,18 @@ para sobreviver à redução. Não há razão para gastar 50.
 
 ## F. Custo medido, não estimado
 
-Do `sweep_report.json` exploratório, `elapsed_seconds` médio para
-`split_cifar100` com 2 seletores e todos os métodos de memória é **3,6 min por
-seed**. Restringindo aos 2 métodos de R3, o custo real fica abaixo disso.
+Do `sweep_report.json` exploratório, somando `elapsed_seconds` médio para
+`split_cifar100` sobre os **3 seletores de R2** e a **matriz fixa completa de 6
+métodos** que o runner executa: **5,3 min por seed**.
 
-**20 seeds × ~2 min ≈ 40 min de CPU.** Cabe numa sessão, sem GPU.
+**20 seeds ≈ 1,8 h de CPU.** Sem GPU, sem download (os dados de CIFAR-100 já
+estão em `data/cifar-100-python`).
 
-Isso torna a confirmação barata o suficiente para que um resultado nulo não
-represente perda material — o que é exatamente a condição em que um
-pré-registro é fácil de honrar.
+> Correção registrada antes da run: a estimativa inicial de ~40 min supunha que
+> o runner aceitaria um filtro de métodos. Ele não aceita — executa
+> `SWEEP_METHODS` inteiro. O custo real é 2,7× maior. Ainda é barato o
+> suficiente para que um resultado nulo não represente perda material, que é a
+> condição em que um pré-registro é fácil de honrar.
 
 ## G. Verificação obrigatória antes da run
 
@@ -160,3 +163,4 @@ leitura.
 | Data | Alteração | Antes da run? |
 |---|---|---|
 | 28/09/2026 | criação e congelamento. R1 a R10 fechados. | sim — nenhuma seed executada |
+| 28/09/2026 | **emenda antes da primeira seed.** R2 passa a incluir `first` (exigência estrutural do runner, `replay_selection_sweep.py:397`, que o usa como referência de `paired_differences_vs_first`); R3 reformulado de "métodos" para "contraste confirmatório", porque o runner executa a matriz fixa de 6 métodos sem filtro; seção F corrigida de ~40 min para 1,8 h. **A família confirmatória de R8 permanece 2** (`loss` e `representative`), inalterada. Nenhum critério estatístico foi tocado. | sim — nenhuma seed executada |
