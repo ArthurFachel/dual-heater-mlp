@@ -57,6 +57,37 @@ SWEEP_DATASETS = (
     "split_cifar10_cnn",
 )
 
+#: Seeds frozen for the replay-selector inversion confirmation
+#: (goals/protocol_replay_selector_confirmation.md, R4; IJCNN 2027 target).
+#:
+#: Disjoint from every other band in the repository, including the 50
+#: exploratory seeds stored in the sweep artefact. Reusing those would
+#: re-analyse the data that generated the hypothesis, which is precisely what
+#: the pre-registration exists to prevent. Verified by
+#: tests/test_replay_selection_sweep.py.
+REPLAY_SELECTOR_CONFIRMATORY_SEEDS = (
+    3_000_003,
+    3_025_011,
+    3_050_017,
+    3_075_037,
+    3_100_043,
+    3_125_059,
+    3_150_061,
+    3_175_087,
+    3_200_089,
+    3_225_097,
+    3_250_101,
+    3_275_103,
+    3_300_119,
+    3_325_127,
+    3_350_133,
+    3_375_149,
+    3_400_151,
+    3_425_163,
+    3_450_169,
+    3_475_179,
+)
+
 
 def _holm_adjust(p_values: list[float]) -> list[float]:
     adjusted = [0.0] * len(p_values)

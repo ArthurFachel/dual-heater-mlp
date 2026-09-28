@@ -137,6 +137,12 @@ seletores, de −1,26 a −3,25 p.p.
 Material **exploratório por construção** — os dados precedem a pergunta — e o
 artefato declara `exploratory_not_independent_confirmation`.
 
+**Confirmação pré-registrada e congelada em 28/09:**
+[protocol_replay_selector_confirmation.md](../../goals/protocol_replay_selector_confirmation.md)
+— 20 seeds novas (banda 3.000.003+, disjunta das 50 exploratórias),
+`split_cifar100`, seletores `loss` e `representative`, Holm sobre família de 2,
+~40 min de CPU. Alvo de submissão: IJCNN 2027. **Nenhuma seed executada ainda.**
+
 ---
 
 ## Proveniência
