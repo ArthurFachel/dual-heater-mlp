@@ -136,9 +136,41 @@ Caso a decisão seja tentar, a regra da casa exige declarar antes:
 
 ## 6. O que fazer agora
 
-| # | Ação | Custo |
-|---|---|---|
-| 1 | Citar LoRA-FA e LoRA-Null em `protocol_lora_confirmation.md` e no manuscrito; rebaixar `exact` de "método" para "técnica avaliada" | texto |
-| 2 | Registrar em `docs/related_work/protocol_prior_art.md` que a prioridade 2 tem agora dois hits diretos | texto |
-| 3 | Desenhar a re-avaliação da família LoRA-CL sob iso-`E` (Caminho C) | meio dia |
-| 4 | Não iniciar mecanismo novo | — |
+**Decisão de sequenciamento (28/09, do usuário):** primeiro fechar o mecanismo em
+LoRA, depois validar em benchmark de instruction tuning. **CLINC150 permanece**
+como host de desenvolvimento.
+
+Justificativa: trocar de benchmark agora significaria migrar Qwen e BERT de
+classificação de conjunto fechado (`Qwen2ForSequenceClassification`,
+`num_labels=150`) para geração, redefinir FAA/forgetting/BWT sobre métrica
+generativa, reescrever o `TextReplayBuffer` e **abandonar o BERT** (encoder não
+gera texto). Fazer isso antes de saber qual mecanismo defender é pagar o custo
+duas vezes.
+
+O benchmark de destino, quando chegar a hora, **não é o Super-NaturalInstructions**:
+O-LoRA, N-LoRA, LFPT5 e InfLoRA usam o *standard CL benchmark* de 15 tarefas
+(AG News, Amazon, Yahoo, DBpedia + GLUE/SuperGLUE) em T5-large e LLaMA. SuperNI
+mede generalização para tarefas não vistas, não esquecimento sequencial.
+Confirmar com o grupo qual é o alvo antes de migrar.
+
+| # | Ação | Custo | Estado |
+|---|---|---|---|
+| 1 | Ablação de critério de importância (`aleatório` / `magnitude` / `funcional`) em BERT+CLINC150 | pequeno | **próximo** |
+| 2 | Citar LoRA-FA e LoRA-Null; rebaixar `exact` de "método" para "técnica avaliada" | texto | pendente |
+| 3 | Registrar em `docs/related_work/protocol_prior_art.md` os dois hits diretos da prioridade 2 | texto | pendente |
+| 4 | Migrar para o benchmark padrão e validar | semanas | **só depois de 1** |
+| 5 | Não iniciar mecanismo novo fora da ablação de 1 | — | regra |
+
+### Condição de parada da fase 1
+
+Sem isto, "definir o LoRA" vira iteração indefinida de mecanismos — exatamente o
+que a §3 desaconselha. A fase 1 encerra quando a ablação de critério responder
+**uma** pergunta:
+
+- se `magnitude` ≈ `funcional` ≈ `aleatório`: o ranking não é o gargalo, o
+  problema é a geometria da `A` compartilhada. **Fecha a linha de mecanismo** e
+  o LoRA entra no artigo como estudo de caso (Caminho B);
+- se houver separação entre os três: existe um critério que importa, e aí sim
+  faz sentido levar esse mecanismo para o benchmark padrão (fase 2).
+
+Em nenhum dos casos se inicia um quinto mecanismo sem a hipótese exigida na §5.
