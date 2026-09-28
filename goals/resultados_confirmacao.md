@@ -64,6 +64,19 @@ sobrevivem:
 As duas são o braço hard contra o controle sem proteção, na retenção da
 primeira tarefa, com concordância unânime das 10 seeds.
 
+> **Ressalva de pré-registro (28/09/2026).** As duas comparações acima vêm do
+> braço `hard`, que **não consta da seção E** de
+> [protocol_iso_plasticity.md](protocol_iso_plasticity.md) e não recebeu linha
+> na tabela K antes da run. São resultados **exploratórios**, não
+> confirmatórios, e não devem ser reportados como parte do contraste congelado.
+> Além disso, a família de Holm de 24 comparações inclui braços não declarados,
+> o que enfraquece o `p_Holm = 0,047`. Ver a seção "Correção desta nota" do
+> protocolo.
+>
+> A leitura honesta: **a parte A não tem resultado confirmatório.** A hipótese
+> central (`iso − permutado`) foi nula, e o que sobreviveu a Holm veio de fora
+> do pré-registro.
+
 ### Sinais consistentes que não atingem significância corrigida
 
 | E\* | comparação | endpoint | diferença | seeds | p | p_Holm |
@@ -79,10 +92,13 @@ primeira tarefa, com concordância unânime das 10 seeds.
 
 ## Leitura honesta
 
-**1. O braço hard funciona.** É o único resultado que sobrevive à correção, e
-sobrevive nos dois alvos de plasticidade com 10/10 seeds. Retenção da primeira
-tarefa sobe de 0,020 para 0,095-0,114 — de essencialmente acaso para 5x o
-acaso. O custo em aquisição da última tarefa é nulo (0,821 vs 0,820).
+**1. O braço hard funciona — mas o achado é exploratório.** É o único resultado
+que sobrevive à correção, e sobrevive nos dois alvos de plasticidade com 10/10
+seeds. Retenção da primeira tarefa sobe de 0,020 para 0,095-0,114 — de
+essencialmente acaso para 5x o acaso. O custo em aquisição da última tarefa é
+nulo (0,821 vs 0,820). **Ressalva (28/09):** `hard` não é braço pré-registrado
+(ver ressalva acima), então este item **não** pode ser reportado como achado
+confirmatório, por mais consistente que seja o sinal.
 
 **2. A hipótese central ficou sem suporte estatístico.** `iso − permutado` é a
 comparação que responde "importa *quais* unidades?". Ela dá o sinal certo

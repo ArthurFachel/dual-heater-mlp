@@ -83,8 +83,8 @@ entregável de P6 e base do Gate 2, não existe. Os dados estão em disco.
 | **Sem agregação** | Não há `aggregate.json`, nem diferenças pareadas, nem contagem de sinais |
 | **Critério nunca aplicado** | `minimum_effective_plasticity: null`, `declared_before_run: false`, `selection: null` |
 | **Gates não registrados** | Gate 1, Gate 2 e Gate 3 do roadmap não têm registro |
-| **Confirmação incompleta** | 10 seeds declaradas; nenhum manifesto `confirm120_seed*` produzido |
-| **Desvio de pré-registro** | Braço `hard` presente nos manifestos sem constar da seção E nem ter linha na tabela K antes da run |
+| **Confirmação incompleta** | ~~10 seeds declaradas; nenhum manifesto `confirm120_seed*` produzido~~ — **corrigido em 28/09:** os 10 manifestos `confirm120_seed{10..19}` existem em disco, com `steps_per_task = 120`. A afirmação anterior estava errada |
+| **Desvio de pré-registro** | Braço `hard` presente nos manifestos sem constar da seção E nem ter linha na tabela K antes da run — **incluindo os manifestos `confirm120_*` de 120 passos**, verificado em 28/09. As duas únicas comparações que sobrevivem a Holm vêm desse braço, logo são exploratórias, e a parte A fica **sem resultado confirmatório** |
 
 ---
 
