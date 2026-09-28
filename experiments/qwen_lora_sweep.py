@@ -35,6 +35,28 @@ from experiments.qwen_lora_slowheat import ARMS
 #: Declared exploratory sequence, matching the repository convention.
 DEFAULT_SEEDS: tuple[int, ...] = tuple(11 * index for index in range(1, 11))
 
+#: Seeds frozen for the LoRA confirmation in
+#: ``goals/protocol_lora_confirmation.md``. They live in their own band, far
+#: from the Split-MNIST confirmatory set and from every exploratory sequence,
+#: so that neither protocol can consume the other's seeds. Exploration must
+#: never touch these; --confirmatory is the only way in.
+LORA_CONFIRMATORY_SEEDS: tuple[int, ...] = (
+    700_001,
+    725_009,
+    750_019,
+    775_037,
+    800_053,
+    825_059,
+    850_061,
+    875_089,
+    900_089,
+    925_097,
+)
+
+#: The arm set frozen in the pre-registration. --confirmatory refuses to run
+#: anything else, so the Holm family size cannot be chosen after the fact.
+PREREGISTERED_ARMS: tuple[str, ...] = ("vanilla", "exact", "lr_control")
+
 #: Arm every other arm is compared against in the paired analysis.
 REFERENCE_ARM = "vanilla"
 #: The falsifier arm: same plasticity removed, but uniformly via the learning
@@ -238,18 +260,52 @@ def main() -> None:
     parser.add_argument("--hard", action="store_true")
     parser.add_argument("--target-plasticity", type=float, default=None)
     parser.add_argument(
+        "--confirmatory",
+        action="store_true",
+        help=(
+            "Run the frozen LoRA confirmation: pre-registered seeds and arms "
+            "only (goals/protocol_lora_confirmation.md). Refuses any deviation."
+        ),
+    )
+    parser.add_argument(
         "--summarize-only",
         action="store_true",
         help="Re-aggregate existing per-seed manifests without running anything.",
     )
     arguments = parser.parse_args()
 
+    # Two disjoint seed bands, two different guards. Split-MNIST's confirmatory
+    # seeds are never valid here. The LoRA confirmatory seeds are valid ONLY
+    # under --confirmatory, which also pins the pre-registered arm set: the
+    # guard exists so that an exploratory sweep cannot silently burn them.
     reserved = set(arguments.seeds) & set(CONFIRMATORY_SEEDS)
     if reserved:
         raise SystemExit(
             f"seeds confirmatórias reservadas não podem ser usadas em exploração: "
             f"{sorted(reserved)}"
         )
+    lora_reserved = set(arguments.seeds) & set(LORA_CONFIRMATORY_SEEDS)
+    if lora_reserved and not arguments.confirmatory:
+        raise SystemExit(
+            f"seeds da confirmação de LoRA são reservadas e exigem --confirmatory: "
+            f"{sorted(lora_reserved)}"
+        )
+    if arguments.confirmatory:
+        if arguments.target_plasticity is None:
+            raise SystemExit(
+                "--confirmatory exige --target-plasticity (protocolo: E=0.85)"
+            )
+        expected = list(LORA_CONFIRMATORY_SEEDS)
+        if sorted(arguments.seeds) != sorted(expected):
+            raise SystemExit(
+                "--confirmatory roda exatamente as seeds pré-registradas; "
+                f"esperado {expected}, recebido {sorted(arguments.seeds)}"
+            )
+        if sorted(arguments.arms) != sorted(PREREGISTERED_ARMS):
+            raise SystemExit(
+                "--confirmatory roda exatamente os braços pré-registrados "
+                f"{sorted(PREREGISTERED_ARMS)}; recebido {sorted(arguments.arms)}"
+            )
     if "slice" in arguments.arms and arguments.rank < arguments.tasks:
         raise SystemExit(
             f"o braço 'slice' requer rank >= tasks ({arguments.rank} < {arguments.tasks})"
@@ -336,7 +392,16 @@ def main() -> None:
             "difference is not attributable to the mechanism alone"
         )
     report = {
-        "status": "exploratory_multi_seed",
+        "status": (
+            "confirmatory_multi_seed"
+            if arguments.confirmatory
+            else "exploratory_multi_seed"
+        ),
+        "protocol": (
+            "goals/protocol_lora_confirmation.md"
+            if arguments.confirmatory
+            else None
+        ),
         "claim_scope": claim_scope,
         "target_plasticity": arguments.target_plasticity,
         "seeds": arguments.seeds,

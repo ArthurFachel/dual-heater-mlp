@@ -8,6 +8,12 @@
 **Estado: CONGELADO em 25/09/2026**, antes de qualquer seed confirmatória ter
 sido executada.
 
+As seeds e o conjunto de braços estão registrados em código
+(`LORA_CONFIRMATORY_SEEDS` e `PREREGISTERED_ARMS` em
+`experiments/qwen_lora_sweep.py`) e a flag `--confirmatory` **recusa** qualquer
+desvio: subconjunto de seeds, braço a mais, ou ausência do alvo de
+plasticidade. Coberto por `tests/test_lora_confirmation_guard.py`.
+
 ---
 
 ## A. O que motiva esta confirmação
@@ -58,7 +64,7 @@ o achado exploratório.
 | # | Decisão | Valor congelado | Justificativa |
 |---|---|---|---|
 | A1 | Braços | `vanilla`, `exact`, `lr_control` — exatamente três | `rank`, `leak` e `slice` falharam sob controle honesto; mantê-los inflaria a correção múltipla sem chance realista de efeito |
-| A2 | Seeds confirmatórias | `104729, 104743, 104759, 104761, 104773, 104779, 104789, 104801, 104803, 104827` (10 primos ≥ 104729) | declaradas **agora**, antes de qualquer acurácia; disjuntas das exploratórias (múltiplos de 11) e das do protocolo iso-plasticidade ({0,1,2} e {10..19}) |
+| A2 | Seeds confirmatórias | `700001, 725009, 750019, 775037, 800053, 825059, 850061, 875089, 900089, 925097` (banda própria; ver K, 25/09) | declaradas **antes** de qualquer acurácia; disjuntas das confirmatórias do Split-MNIST, das exploratórias (múltiplos de 11) e das do protocolo iso-plasticidade. Registradas em código como `LORA_CONFIRMATORY_SEEDS` e protegidas por guard-rail |
 | A3 | Endpoint primário | forgetting médio, contraste `exact − lr_control` | é o único contraste que isola distribuição de quantidade; forgetting é o endpoint com o maior efeito exploratório |
 | A4 | Endpoints secundários | FAA (mesmo contraste); forgetting e FAA vs vanilla | reportados sempre, nunca promovidos a primário depois de vistos |
 | A5 | Teste estatístico | sinal exato bicaudal sobre as 10 diferenças pareadas por seed | sem suposição de normalidade em n=10; é o mesmo teste do sweep exploratório |
@@ -130,6 +136,8 @@ O pareamento por seed é propriedade testada em
 
 ## H. Verificação obrigatória antes da run
 
+0. a run é lançada com `--confirmatory`, que pina seeds e braços e recusa
+   desvio silencioso;
 1. `E_eff = 0,8500` (tolerância 1e-3) para `exact` em **todas** as fronteiras e
    todas as seeds;
 2. `lr_control` não registra máscara nenhuma (`mask_bindings()` vazio) e tem
@@ -167,7 +175,8 @@ antes das 10 terminarem. As 10 seeds rodam e o teste é aplicado uma vez.
 
 | Data | Alteração | Antes da run? |
 |---|---|---|
-| 25/09 | criação e congelamento. A1 a A8 fechados. Seeds confirmatórias declaradas e disjuntas de todas as exploratórias já executadas. | sim — nenhuma seed confirmatória executada com braço de LoRA |
+| 25/09 | criação e congelamento. A1 a A8 fechados. | sim — nenhuma seed confirmatória executada com braço de LoRA |
+| 25/09 | **correção de A2, antes da primeira run.** A lista original começava em 104729, que é a **primeira seed confirmatória do Split-MNIST** (`CONFIRMATORY_SEEDS` em `experiments/confirmatory_split_mnist.py`); o guard-rail do repositório abortou o lançamento, corretamente. O erro expôs um problema maior: as outras nove eram primos arbitrários, não registrados em lugar nenhum, e portanto não protegidos contra uso exploratório futuro. Substituídas por uma banda própria (700001+), registradas em código como `LORA_CONFIRMATORY_SEEDS` e protegidas por guard-rail com teste. | sim — a run abortou na validação de argumentos, nenhum modelo foi carregado e nenhum endpoint foi lido |
 
 A partir daqui, qualquer alteração exige commit anterior à run correspondente e
 uma linha nova nesta tabela.
