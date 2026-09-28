@@ -51,6 +51,17 @@ CONFIRMATORY_SEEDS = (
 )
 DECLARED_EXPLORATORY_SEEDS = tuple(11 * index for index in range(1, 21))
 
+#: Seeds frozen for the SlowHeat+DER++ confirmation (goals/protocol_derpp_confirmation.md).
+#: Disjoint from CONFIRMATORY_SEEDS, from the exploratory multiples of 11, from the LoRA
+#: confirmatory band (700001+) and from QB-2's band (1000003+).
+#: Exploratory runs must never touch these.
+DERPP_CONFIRMATORY_SEEDS: tuple[int, ...] = (
+    2_000_003, 2_025_011, 2_050_017, 2_075_037, 2_100_043,
+    2_125_059, 2_150_061, 2_175_087, 2_200_089, 2_225_097,
+    2_250_101, 2_275_103, 2_300_119, 2_325_127, 2_350_133,
+    2_375_149, 2_400_151, 2_425_163, 2_450_169, 2_475_179,
+)
+
 FROZEN_CONFIG = SplitMNISTConfig(
     hidden_dims=(256, 128),
     batch_size=128,

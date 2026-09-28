@@ -889,3 +889,22 @@ def test_paired_suite_rejects_learner_adaptive_replay_selection(tmp_path):
             verbose=False,
             config=config,
         )
+
+
+def test_derpp_confirmatory_seeds_are_registered_and_disjoint() -> None:
+    """M1's seeds must live in code, not only in a markdown pre-registration.
+
+    A band that exists only in a document can be burned by an exploratory run
+    by accident; the LoRA protocol already hit this (table K, 25/09).
+    """
+
+    from experiments.confirmatory_split_mnist import (
+        CONFIRMATORY_SEEDS,
+        DECLARED_EXPLORATORY_SEEDS,
+        DERPP_CONFIRMATORY_SEEDS,
+    )
+
+    assert len(DERPP_CONFIRMATORY_SEEDS) == 20
+    assert len(set(DERPP_CONFIRMATORY_SEEDS)) == 20
+    assert not set(DERPP_CONFIRMATORY_SEEDS) & set(CONFIRMATORY_SEEDS)
+    assert not set(DERPP_CONFIRMATORY_SEEDS) & set(DECLARED_EXPLORATORY_SEEDS)
