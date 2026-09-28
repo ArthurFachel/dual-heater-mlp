@@ -162,7 +162,7 @@ antes das 10 terminarem. As 10 seeds rodam e o teste é aplicado uma vez.
 ## J. O que este protocolo não resolve
 
 - **Custo de aquisição do `exact`.** Ele treina metade dos parâmetros do
-  adaptador (2.174.208 contra 3.452.160) e chega mais baixo ao fim da primeira
+  adaptador (4.214.016 contra 6.769.920, r=16) e chega mais baixo ao fim da primeira
   tarefa. `E` mede plasticidade retida da máscara, não capacidade do adaptador,
   então a leitura *esquece menos porque aprendeu menos* permanece possível e
   deve ser reportada junto com o resultado.
@@ -177,6 +177,24 @@ antes das 10 terminarem. As 10 seeds rodam e o teste é aplicado uma vez.
 |---|---|---|
 | 25/09 | criação e congelamento. A1 a A8 fechados. | sim — nenhuma seed confirmatória executada com braço de LoRA |
 | 25/09 | **correção de A2, antes da primeira run.** A lista original começava em 104729, que é a **primeira seed confirmatória do Split-MNIST** (`CONFIRMATORY_SEEDS` em `experiments/confirmatory_split_mnist.py`); o guard-rail do repositório abortou o lançamento, corretamente. O erro expôs um problema maior: as outras nove eram primos arbitrários, não registrados em lugar nenhum, e portanto não protegidos contra uso exploratório futuro. Substituídas por uma banda própria (700001+), registradas em código como `LORA_CONFIRMATORY_SEEDS` e protegidas por guard-rail com teste. | sim — a run abortou na validação de argumentos, nenhum modelo foi carregado e nenhum endpoint foi lido |
+
+| 25/09 | correção factual na seção J: a contagem de parâmetros treináveis do braço `exact` estava copiada do smoke com rank 8 (2.174.208 contra 3.452.160); os valores corretos para `r=16`, lidos dos manifestos, são 4.214.016 contra 6.769.920. **Não** toca em nenhuma decisão A1–A8, endpoint ou critério — J é descritiva, sobre o que o protocolo não resolve. | run em execução; nenhum endpoint lido, nenhum critério alterado |
+
+| 28/09 | **registro pós-run, sem alteração de critério.** A run concluiu 10/10 seeds e a verificação dos manifestos expôs que a **seção E descreve dois valores que não foram os executados**: `alpha` consta como 32 mas foi **16**, e `max_length` consta como 64 mas foi **48**. A confirmatória usou exatamente o mesmo config da run exploratória que a motivou (verificado campo a campo nos dois conjuntos de manifestos), então nenhum braço foi favorecido e a comparação entre runs permanece válida. É erro de transcrição no protocolo, não desvio de execução. Registrado aqui em vez de corrigido em silêncio na seção E. **Nenhuma decisão A1–A8, endpoint ou critério é tocada.** | **não** — posterior à run. Por isso fica como registro, e a seção E abaixo mantém o texto original com esta nota anexada |
+
+### Valores executados, para referência (28/09)
+
+| item | seção E | executado nas 10 seeds |
+|---|---|---|
+| `alpha` | 32 | **16** |
+| `max_length` | 64 | **48** |
+
+Todos os demais campos da seção E batem com os manifestos: modelo, fp32,
+`r=16`, alvos `gate_proj`/`up_proj`/`down_proj`, 10 tarefas, 750/300 por tarefa,
+3 épocas, batch 8, `lr=1e-4`, cabeça treinável, uma seed por GPU.
+
+**Resultado da run:** [docs/lora/lora_confirmation_results.md](../docs/lora/lora_confirmation_results.md).
+Endpoint primário confirmado (`p = 0,02148 < 0,025`, mediana negativa, 9/10).
 
 A partir daqui, qualquer alteração exige commit anterior à run correspondente e
 uma linha nova nesta tabela.

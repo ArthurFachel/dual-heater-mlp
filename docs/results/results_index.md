@@ -48,12 +48,33 @@ Contrato em [`split_cifar.md`](../protocols/split_cifar.md).
 
 | Diretório | Conteúdo |
 |---|---|
-| `cache_derpp_10seeds/replay_selection_sweep/` | **~100 GB**: 5 datasets x 5 caches, 25 agregados de 50 seeds cada. Maior artefato do repositório |
+| `cache_derpp_10seeds/replay_selection_sweep/` | **959 MB**: 5 datasets x 5 caches, 25 agregados de 50 seeds cada. Maior *n* do repositório. **Checkpoints removidos em 28/09/2026** (ver nota abaixo) |
 | `replay_selection_full/replay_selection_sweep/` | 10 agregados de 10 seeds |
 
 [`replay_selection.md`](../mechanisms/replay_selection.md) referenciava
 `results/cache_all_datasets_10seeds/`, que **nunca existiu**; os comandos foram
 corrigidos para `cache_derpp_10seeds`.
+
+### Nota de remoção de checkpoints (28/09/2026)
+
+`cache_derpp_10seeds` ocupava 100 GB, dos quais **98,78 GB eram 4.000 arquivos
+`.pt`** — checkpoints de pesos finais, um por método por seed, todos em subdirs
+`checkpoints/`. Foram removidos.
+
+**O que foi preservado:** os 6.405 arquivos `.json` e `.csv` (959 MB), incluindo
+os 25 `aggregate.json` com `methods`, `paired_differences_vs_derpp`,
+`paired_differences_vs_replay`, `seeds` (50 em cada) e
+`primary_endpoint = final_average_accuracy`, mais `paired_differences.csv`,
+`multi_seed_config.json`, `run_identity.json` e `environment.json` por célula.
+Verificado após a remoção: os 25 agregados continuam legíveis e completos.
+
+**O que foi perdido:** a capacidade de retomar treino a partir desses pesos ou
+de inspecionar parâmetros aprendidos (drift, esparsidade, sobreposição de
+unidades protegidas). Nenhuma análise estatística de endpoint depende deles.
+
+**Consequência para o artigo:** a análise C-3 de
+[`goals/proximo_passo_cnn.md`](../../goals/proximo_passo_cnn.md) segue viável
+integralmente. Qualquer pergunta que exija os pesos exige retreino.
 
 ## BERT / CLINC150
 

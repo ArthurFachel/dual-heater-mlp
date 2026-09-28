@@ -254,7 +254,7 @@ antigas. **Nenhum teste cobre esse método** (`grep clear_plasticity_masks tests
 | `results/protocol_post_eval_fix_d5b22ad` | 1,7 GB — 9 agregados: confirmação (20 seeds), baselines equal-epochs (20 seeds × 12 métodos), SlowHeat+DER++ (20 seeds), ablações de método e de memória 5/10/20/50/100 | **crítica** |
 | `results/protocol_post_eval_fix` | 137 MB — confirmação de 20 seeds + lock de pré-registro | **crítica** |
 | `results/100seeds` | 1,1 GB — **100 seeds** × 12 métodos. Maior *n* do repositório; nenhuma tabela publicada o usa | alta |
-| `results/cache_derpp_10seeds` | **100 GB** — sweep de seleção de replay completo: 5 datasets × 5 caches, 25 agregados de 50 seeds cada. Maior artefato em disco, totalmente órfão | alta |
+| `results/cache_derpp_10seeds` | **959 MB** — sweep de seleção de replay completo: 5 datasets × 5 caches, 25 agregados de 50 seeds cada. Maior *n* em disco, totalmente órfão. **Os 98,78 GB de checkpoints `.pt` foram removidos em 28/09/2026**; agregados e CSVs preservados e verificados | alta |
 | `results/replay_selection_full` | 1,1 GB — 10 agregados de 10 seeds | alta |
 | `results/bert_slowheat_diagnostic` | 2,4 GB — versão de **3 seeds** do mesmo diagnóstico, com números diferentes de `bert_slowheat_review` (vanilla 46,83% vs 48,47%; hard 71,61% vs 71,38%). O nome do documento (`bert_slowheat_diagnostic_results.md`) sugere este diretório, mas as "Fontes primárias" apontam para o outro | **alta — risco de confusão** |
 | `results/qwen_layer_anomaly` | 7 manifestos, 2 ordens × 3 seeds. Executado para decidir se a anomalia de L3/L21 é artefato de seed/ordem; **a resposta nunca foi escrita**. Os dados mostram PR agregado variando 11.567–27.955 entre seeds, sugerindo forte dependência de seed | alta |

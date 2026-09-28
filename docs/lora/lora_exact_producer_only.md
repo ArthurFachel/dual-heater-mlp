@@ -34,7 +34,7 @@ A_novo       = A                                      (congelada)
 ## Custo: metade dos parâmetros treináveis
 
 Congelar `A` remove metade da capacidade do adaptador. No Qwen2.5-0.5B com
-`r=16`, medido: **2.174.208 parâmetros treináveis contra 3.452.160** dos demais
+`r=16`, medido: **4.214.016 parâmetros treináveis contra 6.769.920** dos demais
 braços (−37%, contando a cabeça de classificação que todos treinam).
 
 Esse custo aparece na acurácia da **primeira** tarefa, antes de existir
