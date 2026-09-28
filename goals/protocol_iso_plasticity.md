@@ -271,6 +271,43 @@ e os manifestos `results/qwen_iso_plasticity/hard_seed*` foram executados com
 run**, violando a regra do parágrafo acima.
 
 Consequência: o braço `hard` não é um braço pré-registrado. Ele pode ser
-reportado como exploratório, nunca como parte do contraste congelado. As runs
-afetadas usam 30 passos e já estão obsoletas por outro motivo, o que limita o
-dano a este desvio.
+reportado como exploratório, nunca como parte do contraste congelado.
+
+### Correção desta nota (28/09/2026)
+
+A frase anterior desta seção afirmava que "as runs afetadas usam 30 passos e já
+estão obsoletas por outro motivo, o que limita o dano a este desvio".
+**Isso está errado e a correção importa.**
+
+Verificação nos manifestos `results/qwen_iso_plasticity/confirm120_seed{10..19}/`
+(10 manifestos, `steps_per_task = 120`): as duas famílias contêm **8 braços**,
+e `hard_b0.75` e `hard_b0.5` estão entre eles.
+
+```text
+familia 0.75: iso_b0.05, iso_b0.1, iso_b0.25, iso_b0.5,
+              permuted_b0.25, hard_b0.75, reduced_lr, vanilla
+familia 0.50: iso_b0.05, iso_b0.1, iso_b0.25, iso_b0.5,
+              permuted_b0.25, hard_b0.5,  reduced_lr, vanilla
+```
+
+O desvio alcança a run de confirmação, não só as runs obsoletas de 30 passos.
+
+Consequência real, e ela é séria: em
+[resultados_confirmacao.md](resultados_confirmacao.md), as **duas únicas
+comparações que sobrevivem a Holm** são `hard − vanilla` em retenção t0
+(+0,075 em `E*=0,75` e +0,094 em `E*=0,50`, ambas 10/10 seeds,
+`p_Holm = 0,047`). Ambas vêm de um braço não pré-registrado.
+
+**O que isto obriga:**
+
+1. As duas comparações `hard − vanilla` são **exploratórias**, não
+   confirmatórias, e o artigo precisa dizer isso onde as reportar.
+2. A família de Holm de 24 comparações **inclui** braços não declarados. O
+   limiar corrigido foi calculado sobre uma família que o protocolo não
+   declarou, o que enfraquece — não fortalece — o `p_Holm = 0,047`.
+3. **Não** recalcular Holm sobre uma família reduzida agora. Escolher a família
+   depois de ver o resultado é exatamente o que a correção existe para impedir.
+   A saída honesta é reportar o que foi feito e a sua limitação.
+4. A parte A do Qwen, na prática, **não tem resultado confirmatório**. A
+   hipótese central (`iso − permutado`) já era nula; o que restava vinha de um
+   braço fora do pré-registro.
