@@ -127,21 +127,45 @@ medido.
 
 ## 4. O único bloqueador transversal
 
-### Levantamento de literatura sobre protocolos de pareamento (~meio dia, sem GPU)
+### Levantamento de literatura sobre protocolos de pareamento — **RESOLVIDO em 28/09/2026**
 
-A pergunta existencial: **alguém já pareia braços por plasticidade efetiva
-medida?** Se sim, a âncora da §3 cai e este documento precisa ser reescrito
-antes de qualquer redação.
+**Veredito: a âncora da §3 se mantém.** Registro completo em
+[../docs/related_work/protocol_prior_art.md](../docs/related_work/protocol_prior_art.md).
 
-A busca tem que ser explícita e com termos variados, porque a literatura de CL
-raramente usa a palavra "plasticidade": *iso-plasticity*, *matched-capacity
-control*, *effective step-size matching*, *gradient-mask budget*,
-*capacity-controlled ablation*.
+A pergunta existencial era: *alguém já pareia braços por plasticidade efetiva
+medida?* Depois de 21 consultas, a resposta é **não**. O padrão da literatura é
+consistente e diferente: plasticidade aparece como fenômeno estudado (Lyle 2023,
+Dohare 2024) ou alvo a preservar; learning rate aparece como fator causal
+investigado (Mirzadeh 2020) ou como componente de método proposto (SLCA);
+protocolos de avaliação padronizam *cenário* (Hsu 2018, van de Ven 2019), não
+plasticidade.
 
-Esta busca bloqueia os quatro hosts. A busca da família LoRA-CL (O-LoRA,
-InfLoRA, CorDA, MoRAL, SAPT) **não** é transversal: afeta só os resultados
-negativos do Qwen e está em [proximo_passo_qwen.md](proximo_passo_qwen.md),
-QB-3.
+O antecedente mais próximo **fortalece** o artigo: Mirzadeh et al. (NeurIPS 2020)
+mostrou que o regime de treino confunde a medida de esquecimento, e mesmo assim o
+pareamento não virou prática. É exatamente a lacuna que o protocolo preenche.
+
+**Três citações passaram a ser obrigatórias:**
+
+| Citação | Onde | Por quê |
+|---|---|---|
+| Mirzadeh et al. 2020 | §1 e §9 | antecedente do confundidor; sustenta "o problema é conhecido e não é controlado" |
+| SLCA / SLCA++ | §9 | quase-hit: reduz LR seletivamente, mas como **método**, não como **controle**. A distinção precisa ser explícita |
+| O-LoRA, InfLoRA | onde `rank`, `leak`, `slice` forem reportados | mecanismos vizinhos aos três que falharam |
+
+### Achado colateral que muda a redação do Qwen
+
+**LoRA-FA (arXiv 2308.03303, 2023) já congela `A` e treina só `B`** — o mecanismo
+do braço `exact`, com motivação diferente (memória de ativação, não esquecimento).
+O artigo **não pode** apresentar isso como mecanismo próprio; precisa citar LoRA-FA
+e LoRI e posicionar-se como *avaliação sob protocolo controlado*.
+
+Isso **não derruba** o resultado confirmado de 28/09: a contribuição é a comparação
+`exact − lr_control` sob plasticidade pareada, que LoRA-FA não faz.
+
+Mas **afeta QB-2**: LoRA-FA argumenta que congelar um fator não sacrifica
+expressividade. Se isso se sustentar, a explicação alternativa que QB-2 existe para
+eliminar já tem resposta teórica publicada. Detalhes e a ação exigida em
+[proximo_passo_qwen.md](proximo_passo_qwen.md), QB-2.
 
 ---
 

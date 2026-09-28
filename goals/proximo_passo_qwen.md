@@ -252,16 +252,46 @@ Dois pontos que o pré-registro precisa declarar **antes**:
 
 Ordem: depois de QB-1 e do levantamento de literatura (ver hub).
 
-### QB-3 — Levantamento da família LoRA-CL (CPU, ~meio dia)
+#### ⚠ Achado do levantamento (28/09) que pode encolher QB-2
 
-O-LoRA (ortogonalização de subespaço por tarefa) colide com `rank`; InfLoRA
-(subespaço livre de interferência) colide com `rank` e `slice`. Mais CorDA,
-MoRAL, SAPT e o que a busca revelar.
+**LoRA-FA** ([arXiv 2308.03303](https://arxiv.org/abs/2308.03303), 2023) **já
+congela `A` e treina só `B`** — é exatamente o mecanismo do braço `exact`,
+proposto com motivação diferente (reduzir memória de ativação, não esquecimento).
+LoRI (2025) faz o mesmo com múltiplos `B`.
 
-Esta metade da busca afeta só os **resultados negativos**, que são secundários.
-Importa para não escrever besteira na related work, mas não é existencial. A
-metade existencial da busca (protocolos de pareamento por plasticidade) está no
-hub, porque afeta os quatro hosts.
+Duas consequências:
+
+1. **Redação.** O artigo não pode apresentar "congelar `A`" como mecanismo
+   próprio. Precisa citar LoRA-FA e LoRI e posicionar `exact` como *avaliação de
+   um mecanismo conhecido sob protocolo controlado*. Isso **não** derruba o
+   resultado de 28/09 — a contribuição é o contraste `exact − lr_control` sob
+   plasticidade pareada, que LoRA-FA não faz.
+2. **Valor de QB-2.** LoRA-FA afirma revelar uma "estrutura assimétrica e
+   colapsável" na atualização do LoRA, reformulável como regressão linear de
+   camada única, implicando que **um dos fatores pode ser congelado sem sacrificar
+   expressividade**. Se essa afirmação se sustentar, a explicação alternativa que
+   QB-2 existe para eliminar (*"`exact` esquece menos porque tem menos
+   capacidade"*) já tem resposta teórica publicada, e QB-2 cai de "necessário"
+   para "confirmação empírica de algo já argumentado".
+
+**Ação obrigatória antes de gastar as 2h de GPU:** ler LoRA-FA na íntegra e
+decidir se QB-2 ainda se justifica. O resultado dessa leitura vai para a tabela K
+de `protocol_lora_rank_matched.md` **antes** da run, qualquer que seja a decisão.
+
+### QB-3 — Levantamento da família LoRA-CL — **CONCLUÍDO em 28/09**
+
+Feito junto com o levantamento transversal; registro em
+[../docs/related_work/protocol_prior_art.md](../docs/related_work/protocol_prior_art.md),
+seção "Prioridade 2".
+
+Resumo: **O-LoRA** ([2310.14152](https://arxiv.org/abs/2310.14152), EMNLP Findings
+2023) restringe atualizações a subespaços ortogonais entre tarefas e colide com o
+mecanismo `rank`. **InfLoRA** ([2404.00228](https://arxiv.org/abs/2404.00228),
+CVPR 2024) reparametriza para eliminar interferência e colide com `rank` e
+`slice`. Ambos **precisam ser citados** onde os três mecanismos negativos forem
+reportados — sem isso, "o mecanismo não funciona" fica indefensável, porque
+existem versões publicadas que funcionam. CURLoRA e GS-LoRA são vizinhos que não
+colidem diretamente (o segundo resolve unlearning, problema diferente).
 
 ### QB-4 — Não medir `E` baixo sob pareamento (decisão de escopo)
 
