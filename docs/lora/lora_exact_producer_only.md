@@ -2,8 +2,9 @@
 
 **Fonte:** `build_exact_slowheat_lora`, `src/dual_heater/bert.py:1055`
 **Braço equivalente no benchmark:** `exact` em `src/dual_heater/lora_slowheat.py`
-**Estado:** **único mecanismo com efeito estatisticamente sobrevivente** no
-benchmark de 10 domínios × 10 seeds.
+**Estado:** **único mecanismo com efeito estatisticamente sobrevivente** nas
+duas runs de 10 domínios × 10 seeds, incluindo sob pareamento de plasticidade
+e contra o controle de learning rate.
 
 ## Claim, com o escopo explícito
 
@@ -49,40 +50,45 @@ aquisição desde o passo zero.
 
 ## Resultado no benchmark (10 domínios, 10 seeds)
 
-Contraste pareado contra vanilla, teste de sinal exato bicaudal:
+Contrastes pareados, teste de sinal exato bicaudal. A run iso-plasticidade
+(todos os braços em `E = 0,85`) é a principal:
 
-| métrica | diferença média | p | vitórias |
-|---|---|---|---|
-| forgetting | **−0,0629** | **0,0020** | 10/10 |
-| FAA | +0,0349 | 0,1094 | 8/10 |
+| contraste | métrica | diferença média | p | vitórias |
+|---|---|---|---|---|
+| **vs lr_control** | **forgetting** | **−0,1190** | **0,0020** | **10/10** |
+| vs lr_control | FAA | +0,0810 | 0,0215 | 9/10 |
+| vs vanilla | forgetting | −0,0807 | 0,0020 | 10/10 |
+| vs vanilla | FAA | +0,0478 | 0,0215 | 9/10 |
 
-Sob Holm sobre as 8 comparações do sweep, **apenas a redução de forgetting
-sobrevive** (0,0020 < 0,00625). O ganho de acurácia final não é significativo.
+Sob Holm, **apenas a redução de forgetting sobrevive** em cada família de
+comparações. O ganho de acurácia final não atinge o limiar corrigido.
 
-O sinal é consistente — 10 de 10 seeds na direção esperada, sem exceção.
+O contraste contra `lr_control` é o que isola o mecanismo: mesma plasticidade
+removida, seletiva contra uniforme. Ele é **maior** que o contraste contra
+vanilla, e é o único resultado do projeto que sustenta "a distribuição da
+proteção importa, não só a quantidade".
 
-## Ressalva que impede a leitura causal
+## A ressalva que o pareamento resolveu, e a que permanece
 
-Este braço rodou com `E_eff = 0,923`, enquanto `rank` e `leak` rodaram com
-~0,65 e `slice` com 0,062. Os braços **não** foram pareados em plasticidade
-retida, e a ordenação do FAA segue `E_eff` quase monotonicamente.
+**Resolvida.** Na primeira run este braço tinha `E_eff = 0,923` contra 0,062 do
+`slice`, e a ordenação do FAA seguia `E_eff` quase monotonicamente — o efeito
+podia ser só "removeu menos plasticidade". Com todos os braços em `E = 0,85` o
+efeito **aumentou** (forgetting de −0,063 para −0,081 contra vanilla), o que
+descarta essa explicação.
 
-Ou seja: parte do resultado do `exact` pode vir de ele ter removido menos
-plasticidade, não de a proteção ser melhor distribuída. Somado ao custo de
-aquisição documentado acima, há uma leitura alternativa não descartada:
-*ele esquece menos porque aprendeu menos*.
-
-A run iso-plasticidade (`results/qwen_lora_iso_10seed/`) foi desenhada para
-separar as duas coisas, pareando todos os braços em `E = 0,85` e incluindo o
-braço `lr_control`.
+**Permanece.** O custo de aquisição não é corrigido pelo pareamento em E. Este
+braço treina metade dos parâmetros do adaptador e chega mais baixo ao fim da
+primeira tarefa; `E` mede plasticidade retida da máscara, não capacidade do
+adaptador. A leitura *ele esquece menos porque aprendeu menos* segue viva, ainda
+que enfraquecida pelo fato de o FAA final ser o **maior** de todos os braços.
 
 ## Custo computacional medido
 
 | | valor |
 |---|---|
-| tempo por seed (10 tarefas) | 17,7 ± 4,1 min |
-| sobrecusto vs vanilla | 1,67× |
-| pico de memória | 2.827,7 MiB (vs 2.759,8 do vanilla) |
+| tempo por seed (10 tarefas) | 10,4 min |
+| sobrecusto vs vanilla | 1,76× |
+| pico de memória | 2.827,3 MiB (vs 2.759,8 do vanilla) |
 
 O sobrecusto é dominado pelo passo pontual mascarado do `SlowHeatAdamW`, que
 percorre parâmetro a parâmetro em Python sem `foreach`.

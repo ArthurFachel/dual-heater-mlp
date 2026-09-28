@@ -2,7 +2,8 @@
 
 **Fonte:** `src/dual_heater/lora_slowheat.py` · **Testes:** `tests/test_lora_slowheat.py` (46)
 **Estado:** implementados e verificados por mutação. **Nenhum dos três superou o
-vanilla** no benchmark de 10 domínios × 10 seeds.
+vanilla** em duas runs de 10 domínios × 10 seeds, nem sob pareamento de
+plasticidade contra o controle de learning rate.
 
 ## 1. O problema
 
@@ -119,25 +120,38 @@ Se empatar, a alocação não está fazendo trabalho nenhum.
 - `lr_control`: remove a **mesma** quantidade de plasticidade, mas espalhada
   uniformemente via learning rate (`lr · E`) em vez de seletivamente via
   máscara. É o falsificador obrigatório: um mecanismo que não supera o
-  `lr_control` não está fazendo nada que um escalar não faça.
+  `lr_control` não está fazendo nada que um escalar não faça. Medido: ele é o
+  **pior** braço de todos (FAA 0,5684), ou seja, reduzir LR uniformemente
+  atrapalha — o que o torna um teste não-trivial, e não um alvo fácil.
 
-## 3. Resultados (10 domínios, 10 seeds, sem pareamento de plasticidade)
+## 3. Resultados
 
-Contrastes pareados contra vanilla, teste de sinal exato bicaudal:
+### Run principal: iso-plasticidade (todos os braços em E = 0,85)
 
-| mecanismo | métrica | dif. média | p | vitórias | E_eff |
-|---|---|---|---|---|---|
-| `rank` | FAA | −0,0032 | 1,0000 | **5/10** | 0,645 |
-| `rank` | forgetting | +0,0044 | 1,0000 | 5/10 | |
-| `leak` | FAA | −0,0058 | 0,3438 | 3/10 | 0,659 |
-| `leak` | forgetting | +0,0033 | 0,7539 | 6/10 | |
-| `slice` | FAA | +0,0188 | 0,3438 | 7/10 | 0,062 |
-| `slice` | forgetting | −0,0243 | 0,3438 | 7/10 | |
+Contraste contra `lr_control`, que remove a mesma plasticidade de forma uniforme
+via learning rate. É o teste que isola o mecanismo:
 
-Nenhum sobrevive a Holm. `rank` é o resultado mais nulo possível (5/10, p=1,0).
-`leak` teve o pior FAA médio e o maior pico de memória. `slice` tem o sinal
-certo nas duas métricas, mas com 6% da plasticidade do vanilla — o que torna o
-número notável e não interpretável ao mesmo tempo.
+| mecanismo | FAA vs lr_control | p | forgetting vs lr_control | p |
+|---|---|---|---|---|
+| `slice` | +0,0191 | 0,7539 | −0,0224 | 0,7539 |
+| `leak` | +0,0181 | 0,7539 | −0,0214 | 0,7539 |
+| `rank` | +0,0124 | 0,1094 | −0,0160 | 0,1094 |
+
+Nenhum é significativo, e **os três ficam abaixo do vanilla** em FAA (0,5875,
+0,5865 e 0,5808 contra 0,6016). Superar por pouco um controle que é pior que
+não fazer nada não é evidência de mecanismo.
+
+### Primeira run, sem pareamento (mantida por contraste)
+
+| mecanismo | FAA vs vanilla | p | vitórias | E_eff |
+|---|---|---|---|---|
+| `slice` | +0,0188 | 0,3438 | 7/10 | 0,062 |
+| `rank` | −0,0032 | 1,0000 | **5/10** | 0,645 |
+| `leak` | −0,0058 | 0,3438 | 3/10 | 0,659 |
+
+O `slice` parecia o melhor dos três aqui, com o sinal certo nas duas métricas,
+e tinha a defesa de que `E_eff = 0,062` o penalizava por remoção de capacidade.
+**Sob pareamento em 0,85 ele continua perdendo para o vanilla — a defesa caiu.**
 
 Detalhes completos, custo e ressalvas em
 [lora_qwen_benchmark_results.md](lora_qwen_benchmark_results.md).
@@ -222,10 +236,11 @@ Diagnósticos por estágio: `effective_plasticity`, `protected_unit_fraction`,
 
 ## 8. Limitações que devem acompanhar qualquer resultado
 
-- **Os braços da primeira run não são pareados em plasticidade efetiva.** Eles
-  usam o mesmo `slow_strength` e o mesmo budget nominal, mas `E_eff` medida
-  difere muito entre mecanismos (0,062 a 0,923), e a ordenação do FAA segue
-  `E_eff` quase monotonicamente. A run iso-plasticidade corrige isso.
+- **A primeira run não é pareada em plasticidade efetiva** (`E_eff` de 0,062 a
+  0,923, com o FAA seguindo essa ordenação). A run iso-plasticidade corrige
+  isso e é a que deve ser citada.
+- **Um único ponto de plasticidade foi pareado.** `E = 0,85` é alcançável por
+  todos os braços; o comportamento em E baixo não foi medido sob pareamento.
 - **Só FFN.** GQA no Qwen2.5-0.5B (14 heads de query, 2 de KV) impede um tracker
   indexado por head de endereçar Q, K e V com um vetor só.
 - **Prioridade não verificada.** O-LoRA, InfLoRA e a família de LoRA para CL não

@@ -4,14 +4,14 @@
 evidência de cada uma. Cada linha aponta para o documento que traz o contrato,
 os testes e — quando existe — os números.
 
-Última atualização: 25 de setembro de 2026.
+Última atualização: 25 de setembro de 2026 (run iso-plasticidade concluída).
 
 | # | Aplicação | Onde | Unidade protegida | Exatidão | Estado |
 |---|---|---|---|---|---|
 | 1 | DualHeat-LoRA (legado) | `src/dual_heater/lora.py` | saída, via hook no `delta` | **nenhuma** — `A` compartilhada vaza | [lora_dualheat_legacy.md](lora_dualheat_legacy.md) |
 | 2 | LoRA exato produtor-only | `src/dual_heater/bert.py:1055` | saída, com `A` congelada | exata por saída | [lora_exact_producer_only.md](lora_exact_producer_only.md) |
 | 3 | Três mecanismos SlowHeat-em-LoRA | `src/dual_heater/lora_slowheat.py` | rank / saída / fatia | ver documento | [lora_slowheat_mechanisms.md](lora_slowheat_mechanisms.md) |
-| 4 | Benchmark 10 seeds em Qwen2.5-0.5B | `experiments/qwen_lora_sweep.py` | — | — | [lora_qwen_benchmark_results.md](lora_qwen_benchmark_results.md) |
+| 4 | Benchmark em Qwen2.5-0.5B (2 runs × 10 seeds) | `experiments/qwen_lora_sweep.py` | — | — | [lora_qwen_benchmark_results.md](lora_qwen_benchmark_results.md) |
 
 ## O problema comum às quatro
 
@@ -34,13 +34,17 @@ de formas diferentes.
 - A aplicação 1 **não** oferece a proteção que a sua própria docstring alega, e
   isso está documentado no módulo desde a origem.
 - A aplicação 2 é a única com efeito estatisticamente sobrevivente: reduz
-  forgetting em 10/10 seeds (p=0,002, sobrevive a Holm sobre 8 comparações).
-- Os três mecanismos da aplicação 3 **falharam** em superar o vanilla no
-  benchmark de 10 domínios e 10 seeds.
-- A comparação da aplicação 4 está **confundida por capacidade**: os braços não
-  foram pareados em plasticidade efetiva, e a ordenação do FAA segue `E_eff`
-  quase monotonicamente. Uma segunda run, com pareamento iso-plasticidade e
-  braço de controle de LR reduzido, estava em execução na data desta revisão.
+  forgetting em 10/10 seeds contra o controle de learning rate (−0,119,
+  p=0,002, sobrevive a Holm), com o maior FAA de todos os braços.
+- Os três mecanismos da aplicação 3 **falharam** nas duas runs. Sob pareamento
+  de plasticidade eles ficam **abaixo do vanilla** e não superam
+  significativamente o controle de LR.
+- A primeira run da aplicação 4 estava **confundida por capacidade** (`E_eff` de
+  0,062 a 0,923, com o FAA seguindo essa ordenação). A segunda run pareia todos
+  os braços em `E = 0,85` e acrescenta o braço `lr_control`. O efeito da
+  aplicação 2 **aumentou** sob o controle mais rigoroso.
+- O `lr_control` é o pior braço de todos, pior que o vanilla: reduzir learning
+  rate uniformemente atrapalha. Isso o valida como falsificador não-trivial.
 
 ## Referências
 

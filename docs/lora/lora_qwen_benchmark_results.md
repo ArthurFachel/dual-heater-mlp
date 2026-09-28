@@ -1,8 +1,10 @@
 # Aplicação 4 — Benchmark de LoRA em Qwen2.5-0.5B
 
 **Fonte:** `experiments/qwen_lora_sweep.py`, `experiments/qwen_lora_slowheat.py`
-**Resultados:** `results/qwen_lora_sweep_10seed/sweep.json`
-**Estado:** run principal concluída. **Confundida por capacidade** — ver §5.
+**Resultados:** `results/qwen_lora_iso_10seed/` (principal, iso-plasticidade) e
+`results/qwen_lora_sweep_10seed/` (primeira run, confundida por capacidade)
+**Estado:** duas runs de 10 seeds concluídas. A segunda pareia os braços em
+plasticidade e inclui o controle de learning rate.
 
 ## 1. Protocolo
 
@@ -23,111 +25,125 @@ Seeds exploratórias declaradas (múltiplos de 11). As seeds confirmatórias
 Todos os braços compartilham stream de dados, tokenização, otimizador, learning
 rate e código de avaliação. **Tokens idênticos entre braços (205.570 ± 568)**
 confirmam o pareamento por seed — a contagem de tokens aqui é variável de
-controle, não de resultado.
+controle, não de resultado. O agregador pareia **por seed, nunca por posição na
+lista**, propriedade coberta por `tests/test_lora_sweep_aggregate.py`.
 
-## 2. Resultados agregados
+## 2. Resultados — run iso-plasticidade (principal)
 
-| arm | FAA (média±sd) | forgetting | BWT | min/seed | pico MiB | E_eff |
-|---|---|---|---|---|---|---|
-| vanilla | 0,6016±0,0297 | +0,3967±0,0323 | −0,3967 | 10,6 | 2.759,8 | 1,000 |
-| **exact** | **0,6365±0,0349** | **+0,3338±0,0341** | −0,3338 | 17,7 | 2.827,7 | 0,923 |
-| slice | 0,6203±0,0360 | +0,3725±0,0399 | −0,3725 | 13,1 | 2.759,7 | 0,062 |
-| rank | 0,5983±0,0447 | +0,4012±0,0445 | −0,4012 | 19,3 | 2.760,8 | 0,645 |
-| leak | 0,5958±0,0404 | +0,4001±0,0439 | −0,4001 | 19,2 | 3.008,1 | 0,659 |
+Todos os braços mascarados em `E = 0,85`, verificado exato nas 10 seeds.
+`lr_control` remove a mesma plasticidade via `lr × 0,85`, sem máscara.
 
-Custo total: **5h08min de wall-clock**, 13,3 GPU-horas, 50 runs, todas com
-sucesso.
-
-## 3. Contrastes pareados vs vanilla
-
-Teste de sinal exato bicaudal sobre as 10 diferenças por seed:
-
-| arm | métrica | dif. média | sd | p | vitórias |
+| arm | FAA (média±sd) | forgetting | min/seed | pico MiB | E_eff |
 |---|---|---|---|---|---|
-| **exact** | **forgetting** | **−0,0629** | 0,0366 | **0,0020** | **10/10** |
-| exact | FAA | +0,0349 | 0,0326 | 0,1094 | 8/10 |
-| slice | FAA | +0,0188 | 0,0356 | 0,3438 | 7/10 |
-| slice | forgetting | −0,0243 | 0,0397 | 0,3438 | 7/10 |
-| leak | FAA | −0,0058 | 0,0314 | 0,3438 | 3/10 |
-| leak | forgetting | +0,0033 | 0,0327 | 0,7539 | 6/10 |
-| rank | FAA | −0,0032 | 0,0236 | 1,0000 | 5/10 |
-| rank | forgetting | +0,0044 | 0,0239 | 1,0000 | 5/10 |
+| **exact** | **0,6494±0,0297** | **+0,3160±0,0281** | 10,4 | 2.827,3 | 0,850 |
+| vanilla | 0,6016±0,0297 | +0,3967±0,0323 | 5,9 | 2.759,8 | 1,000 |
+| slice | 0,5875±0,0422 | +0,4126±0,0426 | 8,9 | 2.759,7 | 0,850 |
+| leak | 0,5865±0,0304 | +0,4136±0,0319 | 12,6 | 3.007,0 | 0,850 |
+| rank | 0,5808±0,0580 | +0,4191±0,0612 | 12,2 | 2.760,8 | 0,850 |
+| lr_control | 0,5684±0,0542 | +0,4350±0,0602 | 5,9 | 2.759,7 | 1,000 |
 
-**Correção de Holm sobre as 8 comparações (α=0,05):** apenas
-`exact / forgetting` sobrevive (p=0,0020 < 0,00625). A segunda menor p já falha
-(0,1094 > 0,00714), e Holm para aí.
+Custo: 3h48min de wall-clock, 60 runs, todas com sucesso.
 
-## 4. Leitura honesta
+## 3. O contraste que isola o mecanismo
 
-**Os três mecanismos novos falharam.** `rank` é indistinguível do vanilla — 5
-vitórias em 10, p=1,0 nas duas métricas, ao custo de 1,82× o tempo. `leak` teve
-o pior FAA médio e o maior pico de memória. `slice` tem o sinal correto e 7/10
-vitórias, mas não chega perto da significância.
+`mecanismo − lr_control`: mesma plasticidade removida, a única diferença é
+**seletiva (máscara) contra uniforme (learning rate)**.
 
-**O único braço que funciona é o que já existia.** `exact` é a Solução A de
+| arm | métrica | dif. média | p | a favor |
+|---|---|---|---|---|
+| **exact** | **forgetting** | **−0,1190** | **0,0020** | **10/10** |
+| exact | FAA | +0,0810 | 0,0215 | 9/10 |
+| slice | FAA | +0,0191 | 0,7539 | 6/10 |
+| leak | FAA | +0,0181 | 0,7539 | 6/10 |
+| rank | FAA | +0,0124 | 0,1094 | 8/10 |
+
+Sob Holm (8 comparações), apenas `exact / forgetting` sobrevive
+(0,0020 < 0,00625).
+
+**Esse é o resultado central do documento.** Ele diz que a proteção seletiva do
+braço `exact` faz algo que um escalar no learning rate não faz — pergunta que a
+primeira run não conseguia responder.
+
+## 4. O que o pareamento mudou
+
+Na primeira run os braços tinham `E_eff` entre 0,062 e 0,923, e a ordenação do
+FAA seguia `E_eff` quase monotonicamente: o sweep media **quanta** plasticidade
+cada braço removeu, não se a **seleção** funcionava. É a confusão entre
+quantidade e distribuição que o protocolo iso-plasticidade existe para evitar
+(F5 em `goals/opcoes_novidade_e_proximos_passos.md`).
+
+Com todos em 0,85 a ordenação deixa de seguir a plasticidade, porque ela é
+constante. Efeitos:
+
+| contraste | run 1 (sem pareamento) | run 2 (E=0,85) |
+|---|---|---|
+| exact FAA vs vanilla | +0,0349 (p=0,11) | **+0,0478 (p=0,02)** |
+| exact forgetting vs vanilla | −0,0629 (p=0,002) | **−0,0807 (p=0,002)** |
+| exact forgetting vs lr_control | — | **−0,1190 (p=0,002)** |
+
+O `exact` ficou **mais** forte sob o controle mais rigoroso, não mais fraco.
+
+## 5. Os três mecanismos novos falharam, agora sem defesa disponível
+
+`rank`, `leak` e `slice` batem o `lr_control` por +0,012 a +0,019 de FAA,
+nenhuma diferença significativa (p ≥ 0,11), e **todos os três ficam abaixo do
+vanilla**.
+
+O `slice` tinha a defesa de que `E_eff = 0,062` o penalizava por remoção de
+capacidade na primeira run. Com `E = 0,85` ele continua perdendo (0,5875 contra
+0,6016 do vanilla). **Essa defesa caiu.**
+
+O único braço que funciona é o que já existia: `exact` é a Solução A de
 `build_exact_slowheat_lora`, usada como referência do experimento, não como
 contribuição.
 
-## 5. A confusão que invalida a comparação causal
+## 6. O `lr_control` é pior que o vanilla
 
-`E_eff` varia de 0,062 (`slice`) a 0,923 (`exact`) entre os braços, e **a
-ordenação do FAA segue `E_eff` quase monotonicamente**:
+FAA 0,5684 contra 0,6016; forgetting +0,4350 contra +0,3967, o pior de todos os
+braços. Reduzir o learning rate uniformemente em 15% não ajuda em continual
+learning — atrapalha.
 
-```text
-exact  E=0,923  FAA=0,637   <- mais plasticidade retida, melhor FAA
-slice  E=0,062  FAA=0,620
-rank   E=0,645  FAA=0,598
-leak   E=0,659  FAA=0,596
-```
-
-Este sweep mede principalmente **quanta** plasticidade cada braço removeu, não
-se o mecanismo de **seleção** funciona. É exatamente a confusão entre quantidade
-e distribuição que o protocolo iso-plasticidade existe para evitar (F5 em
-`goals/opcoes_novidade_e_proximos_passos.md`).
-
-Consequência direta: **nem o resultado do `exact` é atribuível ao mecanismo**.
-Ele retém mais plasticidade que os outros e, simultaneamente, paga custo de
-aquisição (acurácia 10 pontos menor ao fim da primeira tarefa, por ter metade
-dos parâmetros treináveis). A leitura alternativa não descartada é
-*ele esquece menos porque aprendeu menos*.
-
-## 6. Run iso-plasticidade (corretiva)
-
-Em execução na data desta revisão, saída em `results/qwen_lora_iso_10seed/`.
-Duas mudanças:
-
-1. **Pareamento em E = 0,85.** Todos os braços mascarados resolvem seu próprio
-   botão por bisseção em cada fronteira, até a plasticidade **medida** igualar
-   0,85. Verificado no probe: `exact`, `rank`, `leak` e `slice` atingiram
-   0,8500 exato nos três estágios.
-2. **Braço `lr_control`.** Remove a mesma plasticidade via `lr · 0,85`, sem
-   máscara. Qualquer mecanismo que não o supere não está fazendo nada que um
-   escalar não faça.
-
-Essa é a run que permite (ou não) uma afirmação causal. A atual não permite.
+Isso valida o falsificador como teste não-trivial: ele não é um alvo fácil
+posicionado abaixo de todo mundo, é um braço que **piora** o resultado, e ainda
+assim três dos quatro mecanismos mal o superam.
 
 ## 7. Custo computacional
 
 | arm | min/seed | vs vanilla | pico MiB |
 |---|---|---|---|
-| vanilla | 10,6 ± 2,4 | 1,00× | 2.759,8 |
-| slice | 13,1 ± 2,5 | 1,24× | 2.759,7 |
-| exact | 17,7 ± 4,1 | 1,67× | 2.827,7 |
-| leak | 19,2 ± 3,7 | 1,81× | 3.008,1 |
-| rank | 19,3 ± 3,4 | 1,82× | 2.760,8 |
+| vanilla | 5,9 | 1,00× | 2.759,8 |
+| lr_control | 5,9 | 1,00× | 2.759,7 |
+| slice | 8,9 | 1,51× | 2.759,7 |
+| exact | 10,4 | 1,76× | 2.827,3 |
+| rank | 12,2 | 2,06× | 2.760,8 |
+| leak | 12,6 | 2,13× | 3.007,0 |
 
 O sobrecusto é dominado pelo passo pontual mascarado do `SlowHeatAdamW`, que
 percorre parâmetro a parâmetro em Python sem `foreach` — requisito pendente
-listado na §13 de `functional_slowheat_transformers.md`. `slice` é o mais barato
-porque sua máscara é um vetor binário de `[r]` sem tracker nenhum; `rank` e
-`leak` pagam dois bindings por módulo.
+listado na §13 de
+[functional_slowheat_transformers.md](../mechanisms/functional_slowheat_transformers.md).
+`slice` é o mais barato dos mascarados porque sua máscara é um vetor binário de
+`[r]` sem tracker; `rank` e `leak` pagam dois bindings por módulo.
 
-## 8. Pendência que bloqueia publicação
+## 8. O que estes números ainda não sustentam
 
-O-LoRA, InfLoRA e a família de LoRA para continual learning **não foram
-levantados**. Vários desses trabalhos particionam ou ortogonalizam subespaço por
-tarefa, o que toca `slice` diretamente e `rank` em parte. Nenhuma reivindicação
-de novidade pode ser feita antes dessa checagem.
+- **Exploratório, não confirmatório.** Seeds múltiplas de 11; as confirmatórias
+  seguem reservadas. Um resultado exploratório com p=0,002 justifica
+  pré-registro, não publicação.
+- **Um único alvo.** 10 domínios do CLINC150, um modelo, um tamanho de rank. A
+  generalização para outros `r`, outros hosts e outros benchmarks é desconhecida.
+- **Um único ponto de plasticidade.** `E = 0,85` foi escolhido por ser
+  alcançável por todos os braços. O comportamento em E baixo (onde `slice` vivia
+  na run 1) não foi medido sob pareamento.
+- **O custo de aquisição do `exact` permanece.** Ele treina metade dos
+  parâmetros do adaptador e chega mais baixo ao fim da primeira tarefa. Parte do
+  seu forgetting menor ainda pode ser "aprendeu menos", e o pareamento em E não
+  corrige isso — E mede plasticidade retida da máscara, não capacidade do
+  adaptador.
+- **Prioridade não verificada.** O-LoRA, InfLoRA e a família de LoRA para
+  continual learning não foram levantados. Vários desses trabalhos particionam
+  ou ortogonalizam subespaço por tarefa, o que toca `slice` diretamente e `rank`
+  em parte.
 
 ## Referências
 
