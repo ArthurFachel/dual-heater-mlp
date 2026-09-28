@@ -197,18 +197,38 @@ artigo passou a ter um resultado confirmatório em Transformer, e a única
 explicação alternativa viva para ele é capacidade do adaptador — o que promove
 QB-2 a prioridade máxima de GPU.
 
-| # | Ação | Host | Custo |
-|---|---|---|---|
-| 1 | Levantamento de protocolos de pareamento | **transversal, bloqueador** | CPU, meio dia |
-| 2 | Pré-registrar e rodar `exact r=32` vs `vanilla r=16` | Qwen QB-2 | **~2h GPU** |
-| 3 | Registrar o desvio do braço `hard` na tabela K | Qwen QA-6 | texto |
-| 4 | Analisar os agregados de CNN já em disco (50 seeds) | CNN C-3 | CPU, horas |
-| 5 | Escrever `qwen_layer_anomaly.md` | Qwen QA-2 | CPU, horas |
-| 6 | Pré-registrar e confirmar SlowHeat+DER++ vs DER++ | MLP M1 | CPU, horas |
-| 7 | Reescrever §9, §10, §11 e depois §1 | manuscrito | CPU, dia |
-| 8 | Escolher veículo | — | — |
+| # | Ação | Host | Custo | Estado |
+|---|---|---|---|---|
+| 1 | Levantamento de protocolos de pareamento | **transversal, bloqueador** | CPU, meio dia | ✅ **concluído 28/09** — âncora mantida |
+| 2 | Rodar `exact r=26` vs `vanilla r=16` | Qwen QB-2 | **~2h GPU** | pré-registro congelado 28/09; **run pendente de autorização** |
+| 3 | Registrar o desvio do braço `hard` na tabela K | Qwen QA-6 | texto | ✅ **concluído 28/09** |
+| 4 | Analisar os agregados de CNN já em disco (50 seeds) | CNN C-3 | CPU, horas | ✅ **concluído 28/09** |
+| 5 | Escrever `qwen_layer_anomaly.md` | Qwen QA-2 | CPU, horas | pendente |
+| 6 | Pré-registrar e confirmar SlowHeat+DER++ vs DER++ | MLP M1 | CPU, horas | pré-registro congelado 28/09; **run pendente de autorização** |
+| 7 | Reescrever §9, §10, §11 e depois §1 | manuscrito | CPU, dia | pendente — **desbloqueado** pelo item 1 |
+| 8 | Escolher veículo | — | — | pendente |
 
 Itens 1, 3, 4, 5 e 6 não usam GPU e podem correr em paralelo com o item 2.
+
+### O que mudou em 28/09
+
+O bloqueador caiu: o levantamento
+([../docs/related_work/protocol_prior_art.md](../docs/related_work/protocol_prior_art.md))
+confirmou que ninguém pareia braços por plasticidade efetiva medida, e o
+antecedente mais próximo (Mirzadeh et al., NeurIPS 2020) **fortalece** a premissa.
+A redação do manuscrito está desbloqueada.
+
+Três achados colaterais, todos já registrados nos documentos de host:
+
+1. **LoRA-FA já faz o que o braço `exact` faz.** O artigo precisa citá-lo e
+   reposicionar `exact` como avaliação, não como proposta. Pode encolher QB-2 —
+   ver `proximo_passo_qwen.md`.
+2. **O desvio do braço `hard` é pior do que estava registrado**: alcança a run de
+   120 passos, não só as obsoletas. A parte A do Qwen fica **sem resultado
+   confirmatório**.
+3. **O sweep de 50 seeds mostra um segundo confundidor**: o sinal do contraste
+   inverte conforme o seletor de memória, dentro do mesmo dataset e método base.
+   Reforça a tese de protocolo por um caminho independente do learning rate.
 
 ### Concluído
 

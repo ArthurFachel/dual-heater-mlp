@@ -234,18 +234,39 @@ levar o FAA (`p_Holm = 0,1094`) até a significância. A família de 2 foi
 declarada em A6 e o FAA não passou. Fim. Reabrir agora invalidaria
 retroativamente o afrouxamento de limiar que o pré-registro comprou.
 
-### QB-2 — Pré-registrar e rodar `exact r=32` vs `vanilla r=16` (~2h GPU)
+### QB-2 — Pré-registrar e rodar `exact r=26` vs `vanilla r=16` (~2h GPU)
 
-**O experimento de maior valor por hora de GPU no projeto.** Iguala parâmetros
-treináveis e decide se o único resultado positivo é mecanismo ou artefato de
-capacidade.
+**Pré-registro CONGELADO em 28/09:**
+[protocol_lora_rank_matched.md](protocol_lora_rank_matched.md). A run ainda
+**não** foi executada e exige autorização.
 
-Dois pontos que o pré-registro precisa declarar **antes**:
+**Correção importante feita antes de congelar: o rank pareado é 26, não 32.**
+A contagem analítica de parâmetros (seção F do protocolo) mostrou que, como
+`exact` congela `A`, dobrar o rank não dobra a parte treinável na mesma
+proporção do `vanilla`:
+
+| configuração | treináveis | razão vs `vanilla r=16` |
+|---|---:|---:|
+| `vanilla r=16` | 6.769.920 | 1,0000 |
+| **`exact r=26`** | **6.763.776** | **0,9991** |
+| `exact r=32` | 8.293.632 | 1,2251 |
+
+`r=32` erraria o pareamento por 22,5% — exatamente o confundimento que o
+experimento existe para eliminar. Decisão tomada por aritmética, sem consultar
+nenhum dado de acurácia.
+
+**Segundo bug corrigido antes da GPU:** `scaling = alpha / r` em
+`src/dual_heater/lora.py:101`, e `--alpha` não existia como flag. Rodar
+`--rank 26` com `alpha=16` daria `scaling = 0,615` contra `1,0` do braço de
+referência — um segundo confundimento dentro do experimento. O flag foi
+acrescentado por TDD (commit `d528485`) e a invariante está travada em
+`tests/test_lora.py::test_scaling_is_constant_when_alpha_tracks_rank`.
+
+Dois pontos que o pré-registro declara **antes** da run:
 
 1. Igualar parâmetros treináveis **não** iguala a expressividade do subespaço.
-   `exact` com `r=32` e `A` congelada tem 32 direções aleatórias fixas;
-   `vanilla` com `r=16` tem 16 direções aprendíveis. Declarar como limitação, não
-   descobrir depois.
+   `exact r=26` tem 26 direções aleatórias fixas; `vanilla r=16` tem 16
+   aprendíveis. Declarado como limitação, não descoberto depois.
 2. O critério de ambos os desfechos. Se o efeito sobreviver, a explicação por
    capacidade cai. Se desaparecer, o único resultado positivo era artefato e
    **isso precisa ser reportado**, não engavetado.
@@ -327,7 +348,7 @@ limitação de escopo.
 | # | Ação | Custo | Bloqueia |
 |---|---|---|---|
 | ~~QB-1~~ | ~~Fechar a confirmação de LoRA~~ **CONCLUÍDA 28/09: confirmado, p=0,02148** | — | — |
-| **QB-2** | **Pré-registrar e rodar `exact r=32` vs `vanilla r=16`** | **~2h GPU** | **o resultado confirmado agora depende disto** |
+| **QB-2** | **Rodar `exact r=26` vs `vanilla r=16`** (pré-registro congelado em 28/09) | **~2h GPU** | **o resultado confirmado agora depende disto** |
 | QA-6 | Registrar o desvio do braço `hard` na tabela K | texto | integridade da parte A |
 | QA-2 | Escrever `qwen_layer_anomaly.md` a partir dos dados em disco | CPU, horas | Gate 2 |
 | QA-3 | Registrar Gate 1 e Gate 3 retroativamente | texto | dívida de protocolo |
