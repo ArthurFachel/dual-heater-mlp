@@ -58,7 +58,9 @@ from torch import Tensor, nn
 from .optim import PlasticityMaskBinding
 from .transformer import SlowHeatFFNTracker
 
-LoRAMethod = Literal["vanilla", "exact", "rank", "leak", "slice", "lr_control"]
+LoRAMethod = Literal[
+    "vanilla", "exact", "rank", "leak", "slice", "lr_control", "frozen_a_control"
+]
 LeakCombination = Literal["min", "weighted"]
 
 #: Mechanisms that build a per-unit importance tracker.
@@ -71,7 +73,23 @@ RANK_SPACE_METHODS: frozenset[str] = frozenset({"rank"})
 #: removes the SAME amount of plasticity as a matched mechanism, but spread
 #: uniformly via the learning rate instead of selectively via a mask. A
 #: mechanism that cannot beat it is doing nothing a scalar could not do.
-UNMASKED_METHODS: frozenset[str] = frozenset({"vanilla", "lr_control"})
+UNMASKED_METHODS: frozenset[str] = frozenset(
+    {"vanilla", "lr_control", "frozen_a_control"}
+)
+
+#: Arms that freeze the shared down-projection ``A``.
+#:
+#: Freezing ``A`` is LoRA-FA (arXiv 2308.03303), a published technique, later
+#: reused by LoRA-Null (arXiv 2503.02659) with our own knowledge-preservation
+#: motivation. ``exact`` freezes ``A`` AND masks rows of ``B``, so the contrast
+#: ``exact - lr_control`` confounds the two. ``frozen_a_control`` freezes ``A``
+#: and stops there, which decomposes the effect:
+#:
+#:     frozen_a_control - vanilla  ->  LoRA-FA alone
+#:     exact - frozen_a_control    ->  SlowHeat given LoRA-FA
+#:
+#: Only the second is ours to claim.
+FROZEN_A_METHODS: frozenset[str] = frozenset({"exact", "frozen_a_control"})
 
 
 @dataclass(frozen=True)
@@ -100,10 +118,11 @@ class LoRASlowHeatConfig:
     def __post_init__(self) -> None:
         if self.method not in {
             "vanilla", "exact", "rank", "leak", "slice", "lr_control",
+            "frozen_a_control",
         }:
             raise ValueError(
-                "method deve ser 'vanilla', 'exact', 'rank', 'leak', 'slice' "
-                "ou 'lr_control'"
+                "method deve ser 'vanilla', 'exact', 'rank', 'leak', 'slice', "
+                "'lr_control' ou 'frozen_a_control'"
             )
         for name in ("rank", "task_count"):
             value = getattr(self, name)
@@ -713,9 +732,11 @@ def build_lora_slowheat(
     )
     wrapped = get_peft_model(model, peft_config, adapter_name=config.adapter_name)
 
-    if config.method == "exact":
-        # Solution A: with A fixed, masking row i of B protects exactly the
-        # effective row of output i.
+    if config.method in FROZEN_A_METHODS:
+        # Freezing A is LoRA-FA (arXiv 2308.03303). For `exact` it is the
+        # precondition that makes masking row i of B protect exactly the
+        # effective row of output i; for `frozen_a_control` it is the whole
+        # arm, which is what lets the two be subtracted.
         found = False
         for name, parameter in wrapped.named_parameters():
             if ".lora_A." in name:

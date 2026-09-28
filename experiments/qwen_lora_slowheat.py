@@ -54,6 +54,28 @@ from experiments.split_clinc150 import (
 
 ARMS: tuple[str, ...] = (
     "vanilla", "exact", "rank", "leak", "slice", "lr_control",
+    # Decomposes `exact` into LoRA-FA (frozen A) and SlowHeat (masked B).
+    # See FROZEN_A_METHODS in dual_heater.lora_slowheat.
+    "frozen_a_control",
+)
+
+#: Seeds frozen for the `exact` decomposition
+#: (goals/protocol_exact_decomposition.md, D4).
+#:
+#: Disjoint from the 243 seeds already reserved across the project, verified
+#: mechanically against every artefact in results/ and by
+#: tests/test_frozen_a_control.py.
+EXACT_DECOMPOSITION_SEEDS: tuple[int, ...] = (
+    5_000_003,
+    5_025_016,
+    5_050_029,
+    5_075_042,
+    5_100_055,
+    5_125_068,
+    5_150_081,
+    5_175_094,
+    5_200_107,
+    5_225_120,
 )
 
 
