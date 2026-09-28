@@ -48,6 +48,7 @@ class SlowHeatFFNTracker(_SlowHeatImportanceMixin, nn.Module):
         plasticity_budget: float = 0.25,
         importance_decay: float = 0.99,
         importance_eps: float = 1e-8,
+        importance_criterion: str = "functional",
     ) -> None:
         super().__init__()
         if not isinstance(units, int) or isinstance(units, bool) or units < 1:
@@ -60,6 +61,7 @@ class SlowHeatFFNTracker(_SlowHeatImportanceMixin, nn.Module):
             importance_decay=importance_decay,
             importance_eps=importance_eps,
             gradient_masking=False,
+            importance_criterion=importance_criterion,
         )
 
     def observe(

@@ -30,6 +30,27 @@ class DiagnosticCondition:
     method: str
     slow_strength: float
     mask_mode: PlasticityMaskMode
+    importance_criterion: str = "functional"
+
+
+#: Seeds frozen for the importance-criterion ablation
+#: (goals/protocol_importance_criterion_ablation.md, I4).
+#:
+#: Disjoint from the seeds already spent on BERT: [2, 9, 10, 28, 30, 32, 57, 67,
+#: 2005, 2012] in results/bert_slowheat_review and [11, 22, 33] in
+#: results/bert_slowheat_diagnostic. Verified by tests/test_importance_criterion.py.
+IMPORTANCE_CRITERION_ABLATION_SEEDS = (
+    4_000_003,
+    4_025_011,
+    4_050_017,
+    4_075_037,
+    4_100_043,
+    4_125_059,
+    4_150_061,
+    4_175_087,
+    4_200_089,
+    4_225_097,
+)
 
 
 def diagnostic_conditions() -> tuple[DiagnosticCondition, ...]:
@@ -52,6 +73,45 @@ def diagnostic_conditions() -> tuple[DiagnosticCondition, ...]:
             "slowheat_ffn_attention",
             3.0,
             "random_hard",
+        ),
+    )
+
+
+def criterion_ablation_conditions() -> tuple[DiagnosticCondition, ...]:
+    """Arms for the importance-criterion ablation.
+
+    Deliberately NOT part of ``diagnostic_conditions()``: that matrix is the
+    six pre-declared conditions of the published BERT diagnostic, and silently
+    growing it would put an undeclared arm inside a finished experiment -- the
+    same deviation recorded against the Qwen `hard` arm in
+    goals/protocol_iso_plasticity.md.
+
+    Frozen by goals/protocol_importance_criterion_ablation.md (I2): the three
+    arms share method, slow_strength and capacity, so the only thing that
+    varies is how units are ranked.
+    """
+
+    return (
+        DiagnosticCondition("vanilla", "vanilla", 3.0, "soft"),
+        DiagnosticCondition(
+            "slowheat_random_hard",
+            "slowheat_ffn_attention",
+            3.0,
+            "random_hard",
+        ),
+        DiagnosticCondition(
+            "slowheat_magnitude_hard",
+            "slowheat_ffn_attention",
+            3.0,
+            "hard",
+            importance_criterion="magnitude",
+        ),
+        DiagnosticCondition(
+            "slowheat_hard",
+            "slowheat_ffn_attention",
+            3.0,
+            "hard",
+            importance_criterion="functional",
         ),
     )
 

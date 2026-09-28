@@ -88,6 +88,57 @@ def _adapt_budget(
     return min(maximum, max(minimum, updated))
 
 
+#: Importance criteria available for unit ranking.
+#:
+#: ``functional`` is the first-order contribution ``|z * dL/dz|`` and is the
+#: default everywhere -- it is what every published result in this repository
+#: used. ``magnitude`` ranks on ``|z|`` alone and exists for the criterion
+#: ablation pre-registered in
+#: goals/protocol_importance_criterion_ablation.md.
+IMPORTANCE_CRITERIA = ("functional", "magnitude")
+
+
+def ranking_degeneracy_metrics(
+    tracker: "_SlowHeatImportanceMixin",
+    *,
+    reference: "_SlowHeatImportanceMixin | None" = None,
+    budget: float | None = None,
+) -> dict[str, float]:
+    """Diagnose whether a unit ranking is informative or effectively flat.
+
+    Section F of goals/protocol_importance_criterion_ablation.md. Protection
+    keeps the top-k units by importance, so a nearly flat ranking makes that
+    selection noise-driven: the arm degenerates into a random mask while still
+    being labelled as a criterion. Reporting these two numbers alongside the
+    endpoints is what separates "the criterion does not matter" from "the
+    criterion was never actually exercised".
+
+    Returns the variance of the normalized ranking and, when a ``reference``
+    tracker is given, the Jaccard overlap of the protected top-k sets.
+    """
+
+    scores = tracker.task_ema.detach().float()
+    metrics = {"ranking_variance": float(scores.var().item())}
+
+    if reference is None:
+        return metrics
+
+    fraction = (
+        float(tracker.plasticity_budget_state.item()) if budget is None else float(budget)
+    )
+    unit_count = scores.numel()
+    protected = max(1, int(math.floor(unit_count * (1.0 - fraction))))
+
+    own = set(torch.topk(scores, protected).indices.tolist())
+    other_scores = reference.task_ema.detach().float()
+    other = set(torch.topk(other_scores, protected).indices.tolist())
+
+    union = own | other
+    metrics["top_k_overlap"] = len(own & other) / len(union) if union else 1.0
+    metrics["protected_units"] = float(protected)
+    return metrics
+
+
 class _SlowHeatImportanceMixin:
     """Shared functional-importance lifecycle for linear and convolution layers."""
 
@@ -95,6 +146,7 @@ class _SlowHeatImportanceMixin:
     importance_decay: float
     importance_eps: float
     gradient_masking: bool
+    importance_criterion: str
     importance_memory: Tensor
     slow_heat: Tensor
     task_ema: Tensor
@@ -128,6 +180,7 @@ class _SlowHeatImportanceMixin:
         importance_decay: float,
         importance_eps: float,
         gradient_masking: bool,
+        importance_criterion: str = "functional",
         state_device=None,
     ) -> None:
         validate_finite_hyperparameters(
@@ -144,10 +197,16 @@ class _SlowHeatImportanceMixin:
             raise ValueError("importance_decay deve estar em [0, 1)")
         if importance_eps <= 0.0:
             raise ValueError("importance_eps deve ser > 0")
+        if importance_criterion not in IMPORTANCE_CRITERIA:
+            raise ValueError(
+                "importance_criterion deve ser um de "
+                f"{sorted(IMPORTANCE_CRITERIA)}, recebido {importance_criterion!r}"
+            )
         self.slow_strength = slow_strength
         self.importance_decay = importance_decay
         self.importance_eps = importance_eps
         self.gradient_masking = gradient_masking
+        self.importance_criterion = importance_criterion
         self.register_buffer(
             "plasticity_budget_state",
             torch.tensor(
@@ -179,7 +238,12 @@ class _SlowHeatImportanceMixin:
         preactivation: Tensor,
         validity_mask: Tensor | None = None,
     ):
-        """Track normalized first-order contribution ``|z * dL/dz|``."""
+        """Track normalized unit importance.
+
+        ``functional`` (default) uses the first-order contribution
+        ``|z * dL/dz|``. ``magnitude`` uses ``|z|`` alone and ignores the
+        gradient -- see goals/protocol_importance_criterion_ablation.md.
+        """
 
         def hook(grad: Tensor) -> Tensor:
             with torch.no_grad():
@@ -189,7 +253,10 @@ class _SlowHeatImportanceMixin:
                     activation = activation.float()
                 if detached_grad.dtype in {torch.float16, torch.bfloat16}:
                     detached_grad = detached_grad.float()
-                contribution = activation.abs() * detached_grad.abs()
+                if getattr(self, "importance_criterion", "functional") == "magnitude":
+                    contribution = activation.abs().clone()
+                else:
+                    contribution = activation.abs() * detached_grad.abs()
                 if validity_mask is not None:
                     contribution.mul_(
                         validity_mask.to(
