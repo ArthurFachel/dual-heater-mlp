@@ -647,3 +647,22 @@ def test_removing_hooks_stops_all_observation() -> None:
         int(adapted.tracker.task_step.item()) == 0
         for adapted in instrumentation.modules
     )
+
+
+def test_alpha_is_configurable_and_defaults_to_sixteen() -> None:
+    """QB-2 needs alpha=32 at rank=32 so that scaling=alpha/r stays 1.0.
+
+    Without this, comparing r=32 against r=16 silently halves the adapter's
+    effective scale and introduces the very confound the experiment removes.
+    """
+
+    from experiments.qwen_lora_slowheat import build_parser
+
+    parser = build_parser()
+
+    default = parser.parse_args(["--output", "/tmp/x"])
+    assert default.alpha == 16.0
+
+    scaled = parser.parse_args(["--output", "/tmp/x", "--rank", "32", "--alpha", "32"])
+    assert scaled.alpha == 32.0
+    assert scaled.rank == 32

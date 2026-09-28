@@ -60,3 +60,25 @@ def test_lora_with_zero_delta_matches_frozen_base_when_inhibition_is_disabled():
     expected = F.linear(inputs, base_weight, base_bias)
 
     assert torch.equal(actual, expected)
+
+
+def test_scaling_is_constant_when_alpha_tracks_rank() -> None:
+    """r=16/alpha=16 and r=32/alpha=32 must produce the same adapter scale.
+
+    QB-2 compares those two configurations. Since scaling is alpha/r, leaving
+    alpha at 16 while doubling r would halve the effective scale, so the
+    comparison would measure scale rather than capacity.
+    """
+
+    from dual_heater.lora import DualHeatLoRALinear
+
+    small = DualHeatLoRALinear(64, 64, r=16, lora_alpha=16.0)
+    large = DualHeatLoRALinear(64, 64, r=32, lora_alpha=32.0)
+
+    assert small.scaling == 1.0
+    assert large.scaling == 1.0
+    assert small.scaling == large.scaling
+
+    # And the failure mode QB-2 must avoid: alpha left behind at 16.
+    unmatched = DualHeatLoRALinear(64, 64, r=32, lora_alpha=16.0)
+    assert unmatched.scaling == 0.5

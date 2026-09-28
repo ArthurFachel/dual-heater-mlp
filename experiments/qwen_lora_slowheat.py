@@ -370,7 +370,13 @@ def _format_table(results: list[dict[str, Any]]) -> str:
     return "\n".join([header, separator, *rows])
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser.
+
+    Extracted from ``main`` so tests can assert on the declared arguments
+    without executing a run.
+    """
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tasks", type=int, default=2)
@@ -382,6 +388,16 @@ def main() -> None:
     parser.add_argument("--epochs-per-task", type=int, default=2)
     parser.add_argument("--max-length", type=int, default=48)
     parser.add_argument("--rank", type=int, default=8)
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=16.0,
+        help=(
+            "LoRA alpha. Adapter scaling is alpha/r, so comparing two ranks "
+            "requires alpha to track the rank (e.g. r=32 with alpha=32) or the "
+            "comparison silently varies effective scale as well as capacity."
+        ),
+    )
     parser.add_argument("--slow-strength", type=float, default=3.0)
     parser.add_argument("--plasticity-budget", type=float, default=0.5)
     parser.add_argument("--hard", action="store_true")
@@ -393,6 +409,11 @@ def main() -> None:
     )
     parser.add_argument("--leak-combination", default="min", choices=["min", "weighted"])
     parser.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(ARMS))
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     arguments = parser.parse_args()
 
     config = RunConfig(
@@ -404,6 +425,7 @@ def main() -> None:
         batch_size=arguments.batch_size,
         epochs_per_task=arguments.epochs_per_task,
         rank=arguments.rank,
+        alpha=arguments.alpha,
         slow_strength=arguments.slow_strength,
         plasticity_budget=arguments.plasticity_budget,
         hard=arguments.hard,
