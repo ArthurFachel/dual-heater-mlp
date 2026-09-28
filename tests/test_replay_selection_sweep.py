@@ -41,3 +41,46 @@ def test_replay_selector_confirmatory_seeds_are_registered_and_disjoint() -> Non
         exploratory = set(json.loads(report.read_text())["seeds"])
         overlap = set(seeds) & exploratory
         assert not overlap, f"selector band reuses exploratory sweep seeds: {sorted(overlap)}"
+
+
+def test_resume_survives_json_tuple_to_list_roundtrip(tmp_path) -> None:
+    """Resume must not break because JSON turns tuples into lists.
+
+    The sweep index stores `configs` via config_payload(), which contains tuples
+    (class_order, hidden_dims, methods). json.dump writes them as lists, so the
+    reloaded index never compares equal to a freshly built one and resume dies
+    with "indice incompativel" even when nothing changed. A killed run could
+    therefore never be resumed -- the failure mode that matters, since these
+    sweeps run for hours.
+    """
+
+    import json
+
+    from experiments.replay_selection_sweep import (
+        _index_identity_matches,
+        config_payload,
+        replay_selection_configs,
+    )
+
+    payload = {"split_cifar100": config_payload(replay_selection_configs("cuda")["split_cifar100"])}
+    identity = {"seeds": [1, 2, 3], "configs": payload}
+
+    # What lands on disk after a json round-trip.
+    saved = json.loads(json.dumps(identity))
+
+    assert _index_identity_matches(saved, identity), (
+        "resume must treat a JSON round-trip of the same identity as equal"
+    )
+
+
+def test_index_identity_still_rejects_a_real_change() -> None:
+    """The tuple/list fix must not turn the guard-rail into a no-op."""
+
+    from experiments.replay_selection_sweep import _index_identity_matches
+
+    base = {"seeds": [1, 2, 3], "configs": {"a": {"device": "cuda"}}}
+    changed = {"seeds": [1, 2, 4], "configs": {"a": {"device": "cuda"}}}
+    device_changed = {"seeds": [1, 2, 3], "configs": {"a": {"device": "cpu"}}}
+
+    assert not _index_identity_matches(base, changed), "different seeds must be rejected"
+    assert not _index_identity_matches(base, device_changed), "different device must be rejected"

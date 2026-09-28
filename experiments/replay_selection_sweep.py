@@ -89,6 +89,38 @@ REPLAY_SELECTOR_CONFIRMATORY_SEEDS = (
 )
 
 
+def _normalize_for_index_comparison(value: Any) -> Any:
+    """Make a value comparable across a JSON round-trip.
+
+    ``config_payload`` keeps tuples (class_order, hidden_dims, methods) but JSON
+    stores them as lists, so a reloaded index never compares equal to a freshly
+    built one. Without this, resume rejects an identical configuration and a
+    killed multi-hour sweep can never be continued.
+    """
+
+    if isinstance(value, dict):
+        return {key: _normalize_for_index_comparison(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_for_index_comparison(item) for item in value]
+    return value
+
+
+def _index_identity_matches(saved: dict[str, Any], expected: dict[str, Any]) -> bool:
+    """True when a saved sweep index describes the same run as ``expected``."""
+
+    comparable = {
+        key: _normalize_for_index_comparison(saved.get(key))
+        for key in expected
+        if key != "status"
+    }
+    reference = {
+        key: _normalize_for_index_comparison(value)
+        for key, value in expected.items()
+        if key != "status"
+    }
+    return comparable == reference
+
+
 def _holm_adjust(p_values: list[float]) -> list[float]:
     adjusted = [0.0] * len(p_values)
     previous = 0.0
@@ -420,9 +452,7 @@ def run_replay_selection_sweep(
     }
     if index_path.is_file():
         saved = read_json_object(index_path)
-        comparable = {key: saved.get(key) for key in identity if key != "status"}
-        expected = {key: value for key, value in identity.items() if key != "status"}
-        if not resume or comparable != expected:
+        if not resume or not _index_identity_matches(saved, identity):
             reason = (
                 "resume está desativado"
                 if not resume
