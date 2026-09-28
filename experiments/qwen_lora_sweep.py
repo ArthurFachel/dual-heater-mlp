@@ -37,6 +37,9 @@ DEFAULT_SEEDS: tuple[int, ...] = tuple(11 * index for index in range(1, 11))
 
 #: Arm every other arm is compared against in the paired analysis.
 REFERENCE_ARM = "vanilla"
+#: The falsifier arm: same plasticity removed, but uniformly via the learning
+#: rate. A mechanism that cannot beat it is doing nothing a scalar could not do.
+CONTROL_ARM = "lr_control"
 
 
 @dataclass(frozen=True)
@@ -101,57 +104,69 @@ def _launch(job: Job, arguments: argparse.Namespace) -> subprocess.Popen:
 
 
 def _aggregate(manifests: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate per-seed results into paired contrasts against the reference."""
+    """Aggregate per-seed results into paired contrasts against each reference.
 
-    by_arm: dict[str, dict[str, list[float]]] = {}
+    Pairing is keyed by seed, never by list position: a missing or reordered
+    manifest must not silently pair seed 11's treatment against seed 22's
+    reference.
+    """
+
+    # seed -> arm -> metrics
+    by_seed: dict[int, dict[str, dict[str, float]]] = {}
     for manifest in manifests:
+        seed = int(manifest["config"]["seed"])
         for result in manifest["results"]:
-            bucket = by_arm.setdefault(
-                result["method"],
-                {
-                    "final_average_accuracy": [],
-                    "average_forgetting": [],
-                    "backward_transfer": [],
-                    "wall_clock_seconds": [],
-                    "peak_memory_mib": [],
-                    "train_tokens": [],
-                    "effective_plasticity": [],
-                },
-            )
-            bucket["final_average_accuracy"].append(result["final_average_accuracy"])
-            bucket["average_forgetting"].append(result["average_forgetting"])
-            bucket["backward_transfer"].append(result["backward_transfer"])
-            bucket["wall_clock_seconds"].append(result["wall_clock_seconds"])
-            bucket["peak_memory_mib"].append(result["peak_memory_mib"])
-            bucket["train_tokens"].append(float(result["train_tokens"]))
-            bucket["effective_plasticity"].append(
-                result["stages"][-1]["effective_plasticity"]
-            )
+            by_seed.setdefault(seed, {})[result["method"]] = {
+                "final_average_accuracy": result["final_average_accuracy"],
+                "average_forgetting": result["average_forgetting"],
+                "backward_transfer": result["backward_transfer"],
+                "wall_clock_seconds": result["wall_clock_seconds"],
+                "peak_memory_mib": result["peak_memory_mib"],
+                "train_tokens": float(result["train_tokens"]),
+                "effective_plasticity": result["stages"][-1]["effective_plasticity"],
+            }
 
+    metrics = (
+        "final_average_accuracy",
+        "average_forgetting",
+        "backward_transfer",
+        "wall_clock_seconds",
+        "peak_memory_mib",
+        "train_tokens",
+        "effective_plasticity",
+    )
+    arms = sorted({arm for arms_ in by_seed.values() for arm in arms_})
     summary: dict[str, Any] = {}
-    for arm, values in by_arm.items():
-        summary[arm] = {
-            key: {
+    for arm in arms:
+        summary[arm] = {}
+        for metric in metrics:
+            series = [
+                by_seed[s][arm][metric] for s in sorted(by_seed) if arm in by_seed[s]
+            ]
+            summary[arm][metric] = {
                 "mean": float(np.mean(series)),
                 "std": float(np.std(series, ddof=1)) if len(series) > 1 else 0.0,
                 "n": len(series),
             }
-            for key, series in values.items()
-        }
 
-    contrasts: dict[str, Any] = {}
-    if REFERENCE_ARM in by_arm:
-        for arm in by_arm:
-            if arm == REFERENCE_ARM:
+    def contrasts_against(reference: str) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for arm in arms:
+            if arm == reference:
                 continue
             paired: dict[str, Any] = {}
             for metric in ("final_average_accuracy", "average_forgetting"):
-                treatment = by_arm[arm][metric]
-                reference = by_arm[REFERENCE_ARM][metric]
-                if len(treatment) != len(reference):
+                # Only seeds where BOTH arms ran can be paired.
+                shared = [
+                    s
+                    for s in sorted(by_seed)
+                    if arm in by_seed[s] and reference in by_seed[s]
+                ]
+                if not shared:
                     continue
                 differences = [
-                    float(a - b) for a, b in zip(treatment, reference, strict=True)
+                    float(by_seed[s][arm][metric] - by_seed[s][reference][metric])
+                    for s in shared
                 ]
                 paired[metric] = {
                     "mean_difference": float(np.mean(differences)),
@@ -161,10 +176,21 @@ def _aggregate(manifests: list[dict[str, Any]]) -> dict[str, Any]:
                         else 0.0
                     ),
                     "exact_sign_test_p": exact_two_sided_sign_test(differences),
+                    "seeds": shared,
                     "per_seed_differences": differences,
                 }
-            contrasts[arm] = paired
-    return {"per_arm": summary, "paired_vs_" + REFERENCE_ARM: contrasts}
+            out[arm] = paired
+        return out
+
+    report: dict[str, Any] = {
+        "per_arm": summary,
+        "paired_vs_" + REFERENCE_ARM: contrasts_against(REFERENCE_ARM),
+    }
+    # The contrast that isolates the mechanism: same plasticity removed, but
+    # selectively via a mask instead of uniformly via the learning rate.
+    if CONTROL_ARM in arms:
+        report["paired_vs_" + CONTROL_ARM] = contrasts_against(CONTROL_ARM)
+    return report
 
 
 def _format_table(summary: dict[str, Any], arms: list[str]) -> str:
@@ -283,13 +309,36 @@ def main() -> None:
 
     aggregate = _aggregate(manifests)
     elapsed = time.perf_counter() - started
-    report = {
-        "status": "exploratory_multi_seed",
-        "claim_scope": (
+    # The scope a run can claim depends on what it actually controlled, so it
+    # is derived here instead of being a fixed string that silently outlives
+    # the protocol it described.
+    matched = arguments.target_plasticity is not None
+    has_control = "lr_control" in arguments.arms
+    if matched and has_control:
+        claim_scope = (
+            f"paired exploratory sweep; arms are matched on measured effective "
+            f"plasticity (E={arguments.target_plasticity}) and a "
+            f"reduced-learning-rate control is present, so a difference "
+            f"between a mechanism and lr_control isolates HOW plasticity was "
+            f"removed rather than HOW MUCH"
+        )
+    elif matched:
+        claim_scope = (
+            f"paired exploratory sweep; arms are matched on measured effective "
+            f"plasticity (E={arguments.target_plasticity}) but NO "
+            f"reduced-learning-rate control is present, so a difference is not "
+            f"separable from a uniform learning-rate change"
+        )
+    else:
+        claim_scope = (
             "paired exploratory sweep; arms are NOT matched on effective "
             "plasticity and no reduced-learning-rate control is present, so a "
             "difference is not attributable to the mechanism alone"
-        ),
+        )
+    report = {
+        "status": "exploratory_multi_seed",
+        "claim_scope": claim_scope,
+        "target_plasticity": arguments.target_plasticity,
         "seeds": arguments.seeds,
         "completed_seeds": [
             job.seed for job in jobs if (job.output / "manifest.json").exists()
