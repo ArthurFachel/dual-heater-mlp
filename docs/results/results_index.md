@@ -55,6 +55,10 @@ Contrato em [`split_cifar.md`](../protocols/split_cifar.md).
 `results/cache_all_datasets_10seeds/`, que **nunca existiu**; os comandos foram
 corrigidos para `cache_derpp_10seeds`.
 
+Os contrastes desse sweep foram analisados em 28/09/2026 e estão em
+[`replay_selection_50seed_analysis.md`](replay_selection_50seed_analysis.md).
+Até então, o maior *n* do repositório não era citado por nenhum documento.
+
 ### Nota de remoção de checkpoints (28/09/2026)
 
 `cache_derpp_10seeds` ocupava 100 GB, dos quais **98,78 GB eram 4.000 arquivos

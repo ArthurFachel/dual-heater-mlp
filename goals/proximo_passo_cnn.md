@@ -88,24 +88,35 @@ inversão é medida sob LR uniforme e que o tuning desigual não está excluído
 Isso já está escrito no manuscrito; só precisa subir de nota de rodapé para
 limitação declarada.
 
-### C-3 — Analisar os agregados que já existem em disco (CPU, barato, alto retorno)
+### C-3 — Analisar os agregados que já existem em disco — **PARCIALMENTE CONCLUÍDO (28/09)**
 
 Quatro conjuntos grandes estão medidos e **nunca foram analisados**:
 
-| Diretório | Conteúdo |
-|---|---|
-| `split_mnist_protocol/split_cifar10/` | 10 seeds × 19 métodos |
-| `split_mnist_protocol/split_cifar100/` | 10 seeds × 19 métodos |
-| `cache_derpp_10seeds/replay_selection_sweep/split_cifar*` | **50 seeds** × 5 caches, 959 MB |
+| Diretório | Conteúdo | Estado |
+|---|---|---|
+| `split_mnist_protocol/split_cifar10/` | 10 seeds × 19 métodos | **pendente** |
+| `split_mnist_protocol/split_cifar100/` | 10 seeds × 19 métodos | **pendente** |
+| `cache_derpp_10seeds/replay_selection_sweep/split_cifar*` | **50 seeds** × 5 caches, 959 MB | ✅ **analisado em 28/09** |
 
-O sweep de 50 seeds é o maior `n` disponível para CNN em todo o repositório e
-nenhuma tabela publicada o usa. Analisá-lo custa CPU e pode responder à
-pergunta de interação sem GPU nenhuma.
+O sweep de 50 seeds, o maior `n` do repositório, foi analisado: ver
+[../docs/results/replay_selection_50seed_analysis.md](../docs/results/replay_selection_50seed_analysis.md).
+Descobriu-se que a análise **já estava computada** no `sweep_report.json`
+(4.500 runs de learner, com `slowheat_vs_derpp`, `slowheat_vs_replay` e nota de
+multiplicidade); o trabalho foi de leitura e redação, não de computação.
 
-**Este é o item de maior retorno por custo deste host.** Deve vir antes de C-1.
+**Achado principal, e ele é melhor do que "confirma a inversão":** o sinal do
+contraste **inverte conforme o seletor de memória**, dentro do mesmo dataset e
+método base. Em `split_cifar100` contra DER++, `loss` dá +0,35 p.p. (44+/6−) e
+`representative` dá −0,50 p.p. (7+/43−) — duas direções opostas, ambas com `p`
+bruto abaixo de 1e-7. Isso é um **segundo confundidor documentado**, independente
+do learning rate, e reforça a tese de protocolo.
+
+Os dois sweeps `split_mnist_protocol/split_cifar*` continuam pendentes.
 
 Ressalva: como os dados já existem, qualquer análise feita agora é
-**exploratória por construção**. Declarar isso, não disfarçar de confirmação.
+**exploratória por construção**. Declarado no documento, não disfarçado de
+confirmação — o próprio artefato carrega
+`status: exploratory_not_independent_confirmation`.
 
 ### C-4 — Fechar a ressalva de proveniência de C3 (CPU, trivial)
 

@@ -121,10 +121,21 @@ separando o fingerprint da análise da identidade do treino.
 | `split_mnist_protocol/split_cifar10/` | 10 seeds × 19 métodos | não analisado |
 | `split_mnist_protocol/split_cifar100/` | 10 seeds × 19 métodos | não analisado |
 | `split_mnist_protocol/split_cifar10_{cnn,vgg11,resnet18}*` | sweeps por backbone | parcialmente analisado |
-| `cache_derpp_10seeds/replay_selection_sweep/split_cifar*` | 50 seeds × 5 caches | não analisado; checkpoints `.pt` removidos em 28/09, agregados intactos |
+| `cache_derpp_10seeds/replay_selection_sweep/split_cifar*` | 50 seeds × 5 caches | **analisado em 28/09**, ver [replay_selection_50seed_analysis.md](../results/replay_selection_50seed_analysis.md) — a inversão de sinal depende do **seletor de memória**, não só do método base; checkpoints `.pt` removidos, agregados intactos |
 
 O sweep de seleção de replay com **50 seeds** é o maior *n* disponível para
-CNN e nenhuma tabela publicada o utiliza.
+CNN. Analisado em 28/09 (antes, nenhuma tabela publicada o utilizava): ver
+[replay_selection_50seed_analysis.md](../results/replay_selection_50seed_analysis.md).
+
+O achado principal reforça a tese de protocolo por um caminho independente do
+learning rate: **o sinal do contraste inverte conforme o seletor de memória,
+dentro do mesmo dataset e método base**. Em `split_cifar100` contra DER++, o
+seletor `loss` dá +0,35 p.p. (44+/6−) e o `representative` dá −0,50 p.p.
+(7+/43−). O backbone convolucional (`split_cifar10_cnn`) é negativo nos quatro
+seletores, de −1,26 a −3,25 p.p.
+
+Material **exploratório por construção** — os dados precedem a pergunta — e o
+artefato declara `exploratory_not_independent_confirmation`.
 
 ---
 
