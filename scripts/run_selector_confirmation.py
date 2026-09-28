@@ -27,7 +27,7 @@ def main() -> None:
         seeds=list(REPLAY_SELECTOR_CONFIRMATORY_SEEDS),
         data_dir="data",
         output_dir=OUTPUT,
-        device="cpu",
+        device="cuda",
         download=False,
         verbose=True,
         resume=True,

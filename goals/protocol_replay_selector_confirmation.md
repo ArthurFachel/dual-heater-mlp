@@ -94,14 +94,29 @@ Do `sweep_report.json` exploratório, somando `elapsed_seconds` médio para
 `split_cifar100` sobre os **3 seletores de R2** e a **matriz fixa completa de 6
 métodos** que o runner executa: **5,3 min por seed**.
 
-**20 seeds ≈ 1,8 h de CPU.** Sem GPU, sem download (os dados de CIFAR-100 já
+**20 seeds ≈ 2,0 h de GPU** (1 Pascal). Sem download (os dados de CIFAR-100 já
 estão em `data/cifar-100-python`).
 
-> Correção registrada antes da run: a estimativa inicial de ~40 min supunha que
-> o runner aceitaria um filtro de métodos. Ele não aceita — executa
-> `SWEEP_METHODS` inteiro. O custo real é 2,7× maior. Ainda é barato o
-> suficiente para que um resultado nulo não represente perda material, que é a
-> condição em que um pré-registro é fácil de honrar.
+Decomposição do custo por seed, do `sweep_report.json` exploratório (medido em
+CUDA): 2 métodos sem memória rodam uma vez (0,52 min); 4 métodos com memória
+rodam uma vez por seletor (1,80 min × 3 seletores = 5,40 min). Total 5,9 min por
+seed.
+
+> **Duas correções registradas antes de qualquer análise.**
+>
+> 1. A estimativa inicial de ~40 min supunha que o runner aceitaria um filtro de
+>    métodos. Ele não aceita — executa `SWEEP_METHODS` inteiro.
+> 2. A estimativa seguinte de 1,8 h somou mal (tratou os 4 métodos de memória
+>    como se rodassem uma vez, não uma vez por seletor) e, pior, comparou tempos
+>    de CUDA com uma execução em CPU. **Uma tentativa em CPU foi iniciada e
+>    abandonada aos 19 min**, com fator CPU/GPU medido em 4,3× e projeção de
+>    8,5 h. A árvore parcial está preservada em
+>    `results/_abandoned_cpu_partial_replay_selector/` (8 runs de learner do
+>    grupo `no_memory`, nenhuma análise feita sobre ela).
+>
+> **Nenhuma decisão científica foi tocada por esses erros** — seeds, contraste,
+> família e critério permanecem como congelados. O device passa a ser `cuda`
+> para todas as 20 seeds, sem mistura.
 
 ## G. Verificação obrigatória antes da run
 
@@ -164,3 +179,4 @@ leitura.
 |---|---|---|
 | 28/09/2026 | criação e congelamento. R1 a R10 fechados. | sim — nenhuma seed executada |
 | 28/09/2026 | **emenda antes da primeira seed.** R2 passa a incluir `first` (exigência estrutural do runner, `replay_selection_sweep.py:397`, que o usa como referência de `paired_differences_vs_first`); R3 reformulado de "métodos" para "contraste confirmatório", porque o runner executa a matriz fixa de 6 métodos sem filtro; seção F corrigida de ~40 min para 1,8 h. **A família confirmatória de R8 permanece 2** (`loss` e `representative`), inalterada. Nenhum critério estatístico foi tocado. | sim — nenhuma seed executada |
+| 28/09/2026 | **correção de device e custo, antes de qualquer análise.** A run passa a ser executada em `cuda` (1 Pascal), não em CPU. Motivo: os tempos de referência do artefato exploratório foram medidos em CUDA, e a projeção em CPU dava 8,5 h contra as 2,0 h em GPU. A tentativa em CPU foi abandonada aos 19 min e a árvore parcial preservada em `results/_abandoned_cpu_partial_replay_selector/`, sem análise. Seção F reescrita com a decomposição correta do custo. **R1 a R10 inalterados** — nenhuma seed, contraste, família ou critério foi tocado. | sim — nenhuma análise feita |
