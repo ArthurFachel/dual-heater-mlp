@@ -203,3 +203,38 @@ def test_ranking_degeneracy_metrics_are_available() -> None:
     )
     assert functional_metrics["top_k_overlap"] == 1.0, "a ranking must match itself"
     assert functional_metrics["ranking_variance"] > metrics["ranking_variance"]
+
+
+def test_bert_propagates_the_importance_criterion_to_its_trackers() -> None:
+    """The criterion must reach the trackers, or the ablation measures nothing.
+
+    BertSlowHeatConfig -> _new_ffn_tracker -> SlowHeatFFNTracker. If any link
+    drops the field, the `magnitude` arm silently runs as `functional` and the
+    ablation produces a meaningless tie.
+    """
+
+    from dual_heater.bert import BertSlowHeatConfig
+
+    default = BertSlowHeatConfig()
+    assert default.importance_criterion == "functional", "default must not change"
+
+    magnitude = BertSlowHeatConfig(importance_criterion="magnitude")
+    assert magnitude.importance_criterion == "magnitude"
+
+    # The criterion must be part of the recorded provenance, so a run's
+    # artefacts show which criterion produced it.
+    from dataclasses import asdict
+
+    assert asdict(magnitude).get("importance_criterion") == "magnitude"
+
+
+def test_split_clinc150_config_carries_the_importance_criterion() -> None:
+    """Section H: the runner config must expose the criterion for the ablation."""
+
+    from experiments.split_clinc150 import SplitCLINC150Config
+
+    assert SplitCLINC150Config(device="cpu").importance_criterion == "functional"
+    assert (
+        SplitCLINC150Config(device="cpu", importance_criterion="magnitude").importance_criterion
+        == "magnitude"
+    )

@@ -258,6 +258,9 @@ class SplitCLINC150Config:
     evaluate_test: bool = False
     scheduler_scope: Literal["task", "stream"] = "task"
     plasticity_mask_mode: PlasticityMaskMode = "soft"
+    #: Unit-ranking criterion, frozen per-arm by
+    #: goals/protocol_importance_criterion_ablation.md (I2).
+    importance_criterion: str = "functional"
     task_limit: int | None = None
     methods: tuple[str, ...] = (
         "vanilla", "slowheat_none", "slowheat_ffn", "slowheat", "replay",
@@ -771,6 +774,7 @@ def _slowheat_config(config: SplitCLINC150Config, method: str) -> BertSlowHeatCo
         pooler_plasticity_budget=config.pooler_plasticity_budget,
         importance_decay=config.importance_decay,
         importance_eps=config.importance_eps,
+        importance_criterion=config.importance_criterion,
         attention_combination=config.attention_combination,  # type: ignore[arg-type]
         track_ffn=coverage_switches.get("track_ffn", True),
         track_attention=coverage_switches.get(

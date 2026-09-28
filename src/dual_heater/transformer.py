@@ -114,6 +114,7 @@ class SlowHeatAttentionTracker(_SlowHeatImportanceMixin, nn.Module):
         importance_decay: float = 0.99,
         importance_eps: float = 1e-8,
         combination: AttentionCombination = "max",
+        importance_criterion: str = "functional",
     ) -> None:
         super().__init__()
         for name, value in {"num_heads": num_heads, "head_dim": head_dim}.items():
@@ -132,6 +133,7 @@ class SlowHeatAttentionTracker(_SlowHeatImportanceMixin, nn.Module):
             importance_decay=importance_decay,
             importance_eps=importance_eps,
             gradient_masking=False,
+            importance_criterion=importance_criterion,
         )
 
     def _reduce_contribution(self, contribution: Tensor) -> Tensor:

@@ -55,6 +55,10 @@ class BertSlowHeatConfig:
     pooler_plasticity_budget: float = 0.25
     importance_decay: float = 0.99
     importance_eps: float = 1e-8
+    #: How units are ranked. Frozen per-arm by
+    #: goals/protocol_importance_criterion_ablation.md; "functional" is what
+    #: every published BERT result used.
+    importance_criterion: str = "functional"
     attention_combination: AttentionCombination = "max"
     track_ffn: bool = True
     track_attention: bool = True
@@ -362,6 +366,7 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
             plasticity_budget=budget,
             importance_decay=config.importance_decay,
             importance_eps=config.importance_eps,
+            importance_criterion=config.importance_criterion,
         )
 
     def _needs_embedding_state(self) -> bool:
@@ -457,6 +462,7 @@ class SlowHeatBertForSequenceClassification(BertForSequenceClassification):
                         importance_decay=slow_config.importance_decay,
                         importance_eps=slow_config.importance_eps,
                         combination=slow_config.attention_combination,
+                        importance_criterion=slow_config.importance_criterion,
                     )
                     self.attention_trackers.append(tracker)
                 attention_index += 1
