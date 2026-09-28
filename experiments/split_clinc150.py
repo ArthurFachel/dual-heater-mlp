@@ -38,6 +38,7 @@ from dual_heater.bert import (
 from dual_heater.fast_heat import FastHeatConfig
 from dual_heater.metrics import compute_cl_metrics
 from dual_heater.optim import PlasticityMaskBinding, SlowHeatAdamW
+from dual_heater.slow_heat import aggregate_ranking_degeneracy
 from experiments.artifacts import (
     read_json_object,
     read_torch_checkpoint,
@@ -1156,6 +1157,7 @@ def _run_split_clinc150(
         macro_f1 = np.full_like(accuracy, np.nan)
         training_losses: list[list[float]] = []
         capacity_history: list[list[dict[str, float]]] = []
+        degeneracy_history: list[dict[str, float]] = []
         parameter_drift_history: list[dict[str, float | int | None]] = []
         tokens_processed = 0
         next_stage = 0
@@ -1192,6 +1194,7 @@ def _run_split_clinc150(
             macro_f1 = checkpoint["macro_f1"].numpy()
             training_losses = checkpoint["training_losses"]
             capacity_history = checkpoint["capacity_history"]
+            degeneracy_history = checkpoint.get("degeneracy_history", [])
             parameter_drift_history = checkpoint["parameter_drift_history"]
             tokens_processed = int(checkpoint["tokens_processed"])
             next_stage = int(checkpoint["next_stage"])
@@ -1466,6 +1469,19 @@ def _run_split_clinc150(
                         seed=config.seed * 1_000_003 + stage * 10_007 + 97,
                     )
                 capacity_history.append(slow_model.capacity_metrics())
+                # Section F of goals/protocol_importance_criterion_ablation.md:
+                # record whether the ranking is informative or effectively flat.
+                # A flat ranking makes top-k protection noise-driven, so a tie
+                # between criteria would be an artefact rather than evidence.
+                degeneracy_history.append(
+                    {
+                        "stage": stage,
+                        **aggregate_ranking_degeneracy(
+                            slow_model.get_ffn_trackers()
+                            + slow_model.get_attention_trackers()
+                        ),
+                    }
+                )
                 if telemetry_writer is not None:
                     telemetry_writer.emit(
                         "consolidation",
@@ -1577,6 +1593,7 @@ def _run_split_clinc150(
                         "macro_f1": torch.from_numpy(macro_f1.copy()),
                         "training_losses": training_losses,
                         "capacity_history": capacity_history,
+                        "degeneracy_history": degeneracy_history,
                         "parameter_drift_history": parameter_drift_history,
                         "tokens_processed": tokens_processed,
                         "elapsed_seconds": checkpoint_elapsed_seconds,
@@ -1667,6 +1684,7 @@ def _run_split_clinc150(
             ),
             "training_losses": training_losses,
             "capacity_history": capacity_history,
+            "degeneracy_history": degeneracy_history,
             "parameter_drift_history": parameter_drift_history,
             "mask_coverage": (
                 slow_model.mask_coverage_summary()

@@ -26,7 +26,15 @@ def condition_endpoints(result: dict[str, Any]) -> dict[str, float | None]:
     tokens_processed = float(result["tokens_processed"])
     if elapsed_seconds <= 0.0:
         raise ValueError("elapsed_seconds deve ser positivo")
+    # Section F of goals/protocol_importance_criterion_ablation.md: a flat
+    # ranking makes top-k protection noise-driven, so a criterion tie could be
+    # an artefact. Absent for arms that never consolidate (e.g. vanilla).
+    degeneracy = result.get("degeneracy_history") or []
+    ranking_variance = (
+        float(degeneracy[-1]["mean_ranking_variance"]) if degeneracy else None
+    )
     return {
+        "ranking_variance": ranking_variance,
         "task1_acquisition": float(matrix[0][0]),
         "task1_retention": float(matrix[1][0]),
         "task1_forgetting": float(matrix[0][0] - matrix[1][0]),

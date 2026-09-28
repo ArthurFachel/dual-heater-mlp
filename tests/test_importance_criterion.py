@@ -294,3 +294,49 @@ def test_run_diagnostic_accepts_a_condition_matrix_and_propagates_the_criterion(
         output_dir=tmp_path / "default",
     )
     assert len(seen) == len(diagnostic.diagnostic_conditions())
+
+
+def test_slowheat_model_reports_ranking_degeneracy() -> None:
+    """Section F: degeneracy must be measured on the real model, per consolidation.
+
+    ranking_degeneracy_metrics() works on a single tracker. The ablation needs
+    one number per run, aggregated over every tracker, recorded in the artefact
+    -- otherwise a magnitude/functional tie cannot be told apart from a flat
+    ranking whose top-k was decided by noise.
+    """
+
+    import torch
+
+    from dual_heater.transformer import SlowHeatFFNTracker
+    from dual_heater.slow_heat import aggregate_ranking_degeneracy
+
+    def make(criterion, weights):
+        torch.manual_seed(7)
+        tracker = SlowHeatFFNTracker(
+            16, slow_strength=3.0, plasticity_budget=0.25,
+            importance_criterion=criterion,
+        )
+        tracker.train()
+        torch.manual_seed(21)
+        for _ in range(6):
+            hidden = torch.randn(4, 16, requires_grad=True)
+            out = tracker.observe(hidden)
+            (out * weights).sum().backward()
+        return tracker
+
+    weights = torch.zeros(16)
+    weights[:4] = 50.0
+    weights[4:] = 0.001
+
+    functional = [make("functional", weights) for _ in range(2)]
+    magnitude = [make("magnitude", weights) for _ in range(2)]
+
+    metrics = aggregate_ranking_degeneracy(magnitude, reference=functional)
+
+    assert "mean_ranking_variance" in metrics
+    assert "mean_top_k_overlap" in metrics
+    assert metrics["tracker_count"] == 2
+    assert 0.0 <= metrics["mean_top_k_overlap"] <= 1.0
+
+    same = aggregate_ranking_degeneracy(functional, reference=functional)
+    assert same["mean_top_k_overlap"] == 1.0

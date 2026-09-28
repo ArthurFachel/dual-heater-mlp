@@ -28,7 +28,7 @@ Arquitetura:
 
 
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -137,6 +137,43 @@ def ranking_degeneracy_metrics(
     metrics["top_k_overlap"] = len(own & other) / len(union) if union else 1.0
     metrics["protected_units"] = float(protected)
     return metrics
+
+
+def aggregate_ranking_degeneracy(
+    trackers: "Sequence[_SlowHeatImportanceMixin]",
+    *,
+    reference: "Sequence[_SlowHeatImportanceMixin] | None" = None,
+    budget: float | None = None,
+) -> dict[str, float]:
+    """Aggregate ranking-degeneracy diagnostics across a model's trackers.
+
+    One number per run, so the artefact carries the falsifier of Section F in
+    goals/protocol_importance_criterion_ablation.md: a flat ranking makes
+    top-k protection noise-driven, which turns a criterion arm into a random
+    mask under another name.
+    """
+
+    if reference is not None and len(reference) != len(trackers):
+        raise ValueError("reference deve ter o mesmo número de trackers")
+
+    variances: list[float] = []
+    overlaps: list[float] = []
+    for index, tracker in enumerate(trackers):
+        peer = None if reference is None else reference[index]
+        metrics = ranking_degeneracy_metrics(tracker, reference=peer, budget=budget)
+        variances.append(metrics["ranking_variance"])
+        if "top_k_overlap" in metrics:
+            overlaps.append(metrics["top_k_overlap"])
+
+    summary = {
+        "tracker_count": float(len(trackers)),
+        "mean_ranking_variance": (
+            sum(variances) / len(variances) if variances else 0.0
+        ),
+    }
+    if overlaps:
+        summary["mean_top_k_overlap"] = sum(overlaps) / len(overlaps)
+    return summary
 
 
 class _SlowHeatImportanceMixin:
