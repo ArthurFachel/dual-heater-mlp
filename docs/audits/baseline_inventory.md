@@ -18,12 +18,33 @@ isso sozinho. Antes de planejar o que implementar, é preciso saber o que existe
 | A-GEM | sim | não | não | não |
 | **EWC** | **sim** | **não** | **não** | **não** |
 | **SI** | **sim** | **não** | **não** | **não** |
-| **MAS** | **não existe em lugar nenhum** | não | não | não |
+| **MAS** | **sim** (29/09, ver abaixo) | não | não | não |
 | **LwF** | parcial (ver nota) | não | não | não |
 | DER/DER++ | citado no agregador, não implementado como método | não | não | não |
 | SlowHeat / DualHeat (casa) | sim | sim | sim | sim |
 | `lr_control` (falsificador de plasticidade) | parcial | não | **sim** | não |
 | `frozen_a_control` (LoRA-FA) | n/a | n/a | sim | n/a |
+
+> **Atualização 29/09, commits `e6a427e` e `12b7d05`.** A penalidade quadrática
+> foi extraída de `experiments/split_mnist.py` para `src/dual_heater/ewc.py`
+> (EWC, MAS, Fisher por exemplo, consolidação), com equivalência numérica
+> contra a implementação histórica pinada em
+> `tests/test_ewc_extraction_equivalence.py`. MAS foi implementado e ligado ao
+> runner do MLP. As linhas BERT e Qwen desta tabela **continuam vazias** — o
+> módulo existe e é reutilizável, mas nenhum host transformer o consome ainda.
+>
+> MAS fica deliberadamente **fora** dos registros visuais
+> (`ALL_VISUAL_METHODS`, 33 métodos) pelo mesmo motivo que
+> `hard_freeze_replay`: os sweeps já rodados foram executados com aquele
+> conjunto, e acrescentar um 34º método mudaria silenciosamente o que uma
+> re-execução de um sweep publicado roda. MAS entra em suíte apenas pelo
+> piloto da Fase 2.4, cujo protocolo precisa ser pré-registrado antes da
+> primeira seed. Guarda em `tests/test_visual_generalization.py`.
+>
+> Pelo mesmo motivo, `mas_lambda`/`mas_decay` só entram no `config_payload`
+> quando `"mas"` está em `config.methods`: caso contrário o sha256 do
+> pré-registro congelado em `experiments/confirmatory_split_mnist.py` mudaria.
+> Verificado — o hash segue `015b3162...`, inalterado.
 
 ---
 
