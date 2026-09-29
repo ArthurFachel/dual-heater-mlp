@@ -302,3 +302,50 @@ def test_shadow_step_restores_pending_gradients() -> None:
         assert torch.equal(parameter.grad, grads_before[name]), (
             f"{name}: gradiente pendente foi alterado pela medição"
         )
+
+
+def test_the_ratio_is_not_bounded_above_by_one_for_an_additive_penalty() -> None:
+    """A propriedade que o §B do pré-registro NÃO garante, medida e fixada.
+
+    O lema §B.1 dá `ratio = média(m) <= 1` quando a intervenção é um
+    escalonamento diagonal. Uma penalidade aditiva não é: ela soma
+    `λ Ω (θ − θ*)` ao gradiente, e num elemento onde o gradiente da loss e o
+    da penalidade têm sinais OPOSTOS o update penalizado pode ter magnitude
+    MAIOR que o não penalizado. O ratio daquele elemento passa de 1 e a média
+    sobe junto.
+
+    Isto não é bug nem do instrumento nem do wiring: é a diferença entre as
+    duas famílias de intervenção, que é exatamente o que o protocolo do
+    instrumento diz não ser único (§D.1). Fica fixado por teste para que
+    ninguém "conserte" a métrica clampando em 1 — o clamp esconderia a
+    evidência de que a intervenção não é diagonal, que é o que `D2` existe
+    para reportar.
+    """
+
+    from dual_heater.plasticity import plasticity_ratio
+
+    # Elemento 0: penalidade na mesma direção do update -> encolhe.
+    # Elemento 1: penalidade na direção oposta -> AUMENTA a magnitude.
+    unpenalized = {"w": torch.tensor([2.0, 2.0])}
+    native = {"w": torch.tensor([1.0, 5.0])}
+
+    ratio = plasticity_ratio(native=native, unpenalized=unpenalized)
+    assert ratio == pytest.approx((0.5 + 2.5) / 2)
+    assert ratio > 1.0
+
+
+def test_the_cosine_stays_one_when_the_ratio_exceeds_one_by_scaling() -> None:
+    """Separa "girou" de "cresceu": D2 é 1 mesmo com ratio > 1.
+
+    Um update uniformemente AMPLIFICADO continua sendo escalonamento diagonal
+    (com `m > 1`), e o cosseno reporta 1. É o par de números que o artigo
+    precisa: `ratio` sozinho não distingue amplificação de rotação.
+    """
+
+    from dual_heater.plasticity import direction_cosine, plasticity_ratio
+
+    unpenalized = {"w": torch.tensor([1.0, 2.0, 3.0])}
+    native = {"w": unpenalized["w"] * 1.5}
+
+    assert plasticity_ratio(native=native, unpenalized=unpenalized) == pytest.approx(1.5)
+    assert direction_cosine(native=native, unpenalized=unpenalized) == pytest.approx(1.0)

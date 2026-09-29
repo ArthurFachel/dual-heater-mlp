@@ -25,6 +25,7 @@ from dual_heater.ewc import (
     consolidate_importance,
     ewc_penalty,
 )
+from dual_heater.plasticity import measure_shadow_step
 from experiments.artifacts import (
     atomic_text_writer,
     build_run_identity,
@@ -398,6 +399,11 @@ class SplitMNISTConfig:
     mas_decay: float = 1.0
     si_lambda: float = 1.0
     si_epsilon: float = 0.1
+    #: Passos entre duas medições do passo-sombra de plasticidade
+    #: (`goals/protocol_penalty_reevaluation.md` §E; G7 do instrumento).
+    #: `0` desliga a medição, que é o default: medir custa 3 passos em vez de
+    #: 1 e só o piloto de re-avaliação precisa do número.
+    plasticity_sampling_interval: int = 0
     lwf_old_class_weight: float = 1.0
     replay_more_epochs: int = 20
     early_stopping_max_epochs: int = 30
@@ -697,6 +703,12 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
     if "mas" not in config.methods:
         payload.pop("mas_lambda")
         payload.pop("mas_decay")
+    # Mesma convenção: a medição de plasticidade foi adicionada depois que
+    # protocolos como `confirmatory_split_mnist.py` já estavam congelados.
+    # Desligada (o default), o campo não entra no payload e o sha256 daqueles
+    # pré-registros não se move.
+    if not config.plasticity_sampling_interval:
+        payload.pop("plasticity_sampling_interval")
     if not any(_is_fastheat(method) for method in config.methods):
         for field in (
             "fast_decay",
@@ -1313,6 +1325,59 @@ def _parameter_penalty(
     return penalty
 
 
+#: Métodos cuja loss carrega a quadrática de consolidação. É a lista que o
+#: passo-sombra consulta para saber se há penalidade a medir.
+_PENALTY_METHODS: frozenset[str] = frozenset({"ewc", "si", "mas"})
+
+
+def _penalty_scale(method: str, config: SplitMNISTConfig) -> float:
+    """Fator que o runner soma junto da quadrática, por método.
+
+    Existe como função para que o passo-sombra e o laço de treino leiam a
+    MESMA constante. Duas cópias de `0.5 * ewc_lambda` divergem, e a
+    plasticidade medida passaria a ser a de uma penalidade que nunca foi
+    aplicada. A convenção (EWC com o meio, SI e MAS sem) está documentada em
+    `_parameter_penalty` e em `src/dual_heater/ewc.py`.
+    """
+
+    if method == "ewc":
+        return 0.5 * config.ewc_lambda
+    if method == "si":
+        return config.si_lambda
+    if method == "mas":
+        return config.mas_lambda
+    return 0.0
+
+
+def _build_shadow_losses(
+    *,
+    model: nn.Module,
+    inputs: Tensor,
+    targets: Tensor,
+    seen_classes: tuple[int, ...],
+    importance: dict[str, Tensor],
+    anchors: dict[str, Tensor],
+    scale: float,
+) -> tuple[Callable[[], Tensor], Callable[[], Tensor]]:
+    """Os dois fluxos de loss que o passo-sombra compara.
+
+    Diferem EXATAMENTE pelo termo de penalidade: o mascaramento de logits, o
+    batch e a redução são idênticos nos dois. Se o ramo não penalizado
+    recomputasse uma cross-entropy sem máscara, a razão mediria o mascaramento
+    junto e não seria a plasticidade da penalidade.
+    """
+
+    def unpenalized() -> Tensor:
+        return F.cross_entropy(
+            _mask_unseen_logits(model(inputs), seen_classes), targets
+        )
+
+    def penalized() -> Tensor:
+        return unpenalized() + scale * _parameter_penalty(model, importance, anchors)
+
+    return penalized, unpenalized
+
+
 def replay_selection_is_method_independent(strategy: str) -> bool:
     """True only when the replay indices are identical across methods."""
 
@@ -1783,6 +1848,8 @@ def run_split_mnist(
         )
         pretrain_scores = np.full(config.task_count, np.nan, dtype=np.float64)
         training_losses: list[list[float]] = []
+        plasticity_samples: list[dict[str, Any]] = []
+        plasticity_step_index = 0
         validation_acquisition: list[float] = []
         validation_history: list[list[float]] = []
         completed_epochs: list[int] = []
@@ -1966,6 +2033,54 @@ def run_split_mnist(
                     cost["current_examples"] += current_count
                     cost["replay_examples"] += replay_count
                     cost["learner_forward_examples"] += current_count + replay_count
+
+                    # Passo-sombra: mede a plasticidade que a penalidade remove
+                    # NESTE passo, partindo exatamente do estado do qual o
+                    # passo real vai partir, e restaura tudo.
+                    # `goals/protocol_penalty_reevaluation.md` §E.
+                    #
+                    # Fica ANTES do forward real de propósito. Medir depois de
+                    # `loss` estar construída corrompe o grafo: o passo-sombra
+                    # escreve nos parâmetros in-place e o backward seguinte
+                    # falha com "variable needed for gradient computation has
+                    # been modified by an inplace operation".
+                    if (
+                        config.plasticity_sampling_interval
+                        and method in _PENALTY_METHODS
+                    ):
+                        if (
+                            plasticity_step_index
+                            % config.plasticity_sampling_interval
+                            == 0
+                        ):
+                            shadow_importance, shadow_anchors = {
+                                "ewc": (ewc_importance, ewc_anchors),
+                                "si": (si_importance, si_anchors),
+                                "mas": (mas_importance, mas_anchors),
+                            }[method]
+                            # Sem âncora não há penalidade a medir: a razão
+                            # seria 1,0 por construção e não é evidência.
+                            if shadow_importance:
+                                shadow_penalized, shadow_unpenalized = (
+                                    _build_shadow_losses(
+                                        model=model,
+                                        inputs=current_x,
+                                        targets=current_y,
+                                        seen_classes=seen_classes,
+                                        importance=shadow_importance,
+                                        anchors=shadow_anchors,
+                                        scale=_penalty_scale(method, config),
+                                    )
+                                )
+                                sample = measure_shadow_step(
+                                    model=model,
+                                    optimizer=optimizer,
+                                    penalized_loss=shadow_penalized,
+                                    unpenalized_loss=shadow_unpenalized,
+                                )
+                                sample["stage"] = int(stage)
+                                plasticity_samples.append(sample)
+                        plasticity_step_index += 1
 
                     optimizer.zero_grad(set_to_none=True)
                     current_logits = model(current_x)
@@ -2450,6 +2565,7 @@ def run_split_mnist(
             "validation_history": validation_history,
             "completed_epochs": completed_epochs,
             "training_losses": training_losses,
+            "plasticity_samples": plasticity_samples,
             "baseline_scores": baseline_scores.tolist(),
             "pretrain_scores": pretrain_scores.tolist(),
             "capacity_history": capacity_history,
