@@ -112,6 +112,65 @@ def test_the_protocol_document_exists_and_is_not_authorized() -> None:
     assert "7000003, 7025011" in text, "banda do documento saiu de sincronia"
 
 
+def test_the_amendment_is_recorded_in_both_protocols() -> None:
+    """G1 → G1': a primária mudou, e a troca tem de estar nos dois change logs.
+
+    Uma emenda registrada só no protocolo do instrumento deixaria o piloto
+    construindo `lr_scale` a partir de uma métrica que não é mais a primária.
+    Uma emenda registrada só no piloto esconderia a revogação de G1.
+    """
+
+    import pathlib
+
+    goals = pathlib.Path(__file__).resolve().parents[1] / "goals"
+
+    instrument = (goals / "protocol_plasticity_generalization.md").read_text(
+        encoding="utf-8"
+    )
+    # A primária nova, a antiga preservada, e o motivo medido.
+    assert "G1'" in instrument, "a emenda não aparece no protocolo do instrumento"
+    assert "REVOGADA" in instrument, "G1 não foi marcada como revogada"
+    assert "1,7759" in instrument, "o número que motivou a emenda não está registrado"
+    assert "§B.0" in instrument, "a métrica original não foi preservada"
+    assert "Nenhuma acurácia foi lida" in instrument or (
+        "Nenhum endpoint de acurácia foi lido" in instrument
+    ), "a emenda precisa declarar que nenhuma acurácia foi consultada"
+
+    pilot = (goals / "protocol_penalty_reevaluation.md").read_text(encoding="utf-8")
+    assert "razão de normas" in pilot, "o piloto não reflete a métrica nova"
+    assert "não-pareável" in pilot, "a regra G8 não chegou ao piloto"
+
+
+def test_the_calibration_seed_produced_a_recorded_measurement() -> None:
+    """A emenda cita números; eles têm de existir num artefato, não na memória.
+
+    Se o JSON da calibração sumir, a justificativa da emenda vira alegação sem
+    lastro — que é exatamente o que um pré-registro não pode ter.
+    """
+
+    import json
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    artifact = (
+        root
+        / "results"
+        / "penalty_calibration"
+        / "calibration_seed_7999991.json"
+    )
+    if not artifact.exists():
+        pytest.skip("artefato da calibração não está nesta cópia de trabalho")
+
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    assert payload["seed"] == 7_999_991
+    # Os três métodos de penalidade mediram algo; vanilla não mede nada.
+    assert payload["per_arm"]["vanilla"]["samples"] == 0
+    for method in ("ewc", "si", "mas"):
+        record = payload["per_arm"][method]
+        assert record["samples"] > 0, f"{method} não registrou amostras"
+        assert "norm_ratio_mean" in record, f"{method} sem a métrica primária nova"
+
+
 def test_the_confirmatory_family_is_six_paired_contrasts() -> None:
     """§F. The family is fixed here so it cannot be narrowed after the run.
 

@@ -349,3 +349,106 @@ def test_the_cosine_stays_one_when_the_ratio_exceeds_one_by_scaling() -> None:
 
     assert plasticity_ratio(native=native, unpenalized=unpenalized) == pytest.approx(1.5)
     assert direction_cosine(native=native, unpenalized=unpenalized) == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# O que a primária G1' (norm_ratio) garante, e o que ela PERDE em relação à
+# razão por elemento. Emenda de 2026-09-29 ao protocolo, §K linha 2.
+# ---------------------------------------------------------------------------
+
+
+def test_norm_ratio_reduces_to_the_mask_mean_for_a_UNIFORM_mask() -> None:
+    """O lema §B.1 sobrevive à emenda, mas SÓ para máscara uniforme.
+
+    Com `m_i = c` para todo i, `‖m ⊙ Δ‖ / ‖Δ‖ = c = média(m)`, qualquer que
+    seja a distribuição de `Δ`. É o caso do `lr_control`, que é exatamente o
+    braço contra o qual o pareamento é feito — por isso a emenda preserva a
+    comensurabilidade que motivou o instrumento.
+    """
+
+    from dual_heater.plasticity import norm_ratio
+
+    # Denominador deliberadamente heterogêneo: o lema não depende dele.
+    unpenalized = {"w": torch.tensor([1.0, 2.0, 3.0, 4.0])}
+    for scale in (0.25, 0.5, 0.85, 1.0):
+        native = {"w": unpenalized["w"] * scale}
+        assert norm_ratio(native=native, unpenalized=unpenalized) == pytest.approx(
+            scale
+        ), f"máscara uniforme {scale}"
+
+
+def test_norm_ratio_does_NOT_equal_the_mask_mean_for_a_heterogeneous_mask() -> None:
+    """O custo da emenda, medido e fixado.
+
+    `norm_ratio` é uma média QUADRÁTICA ponderada pela magnitude do update,
+    não a média aritmética da máscara. Sob máscara heterogênea os dois números
+    divergem, e a divergência não é pequena: máscara [1,1,0,0] sobre um
+    denominador homogêneo dá `sqrt(0.5) = 0.707`, não `0.5`.
+
+    Consequência declarada no protocolo (§B, emenda): a métrica primária deixa
+    de ser comensurável com o `E` de `surface_plasticity()` para máscaras
+    heterogêneas de LoRA. Ela continua comensurável com um `lr_control`, que é
+    o pareamento que o piloto da Fase 2.4 realmente faz. Este teste existe
+    para que ninguém afirme a equivalência forte por engano.
+    """
+
+    from dual_heater.plasticity import norm_ratio, plasticity_ratio
+
+    unpenalized = {"w": torch.tensor([2.0, 2.0, 2.0, 2.0])}
+    mask = torch.tensor([1.0, 1.0, 0.0, 0.0])
+    native = {"w": unpenalized["w"] * mask}
+
+    # A razão por elemento acerta a média da máscara...
+    assert plasticity_ratio(native=native, unpenalized=unpenalized) == pytest.approx(0.5)
+    # ...e a razão de normas dá a RMS, que é sqrt(1/2).
+    assert norm_ratio(native=native, unpenalized=unpenalized) == pytest.approx(
+        0.5**0.5, abs=1e-6
+    )
+
+
+def test_norm_ratio_is_bounded_by_one_when_the_penalty_only_shrinks() -> None:
+    """A propriedade que motiva a emenda: um `lr_scale` utilizável.
+
+    A razão por elemento é ilimitada acima (ver o teste do denominador
+    pequeno), o que produziu `E = 1,78` na calibração e um `lr_scale > 1` —
+    que não é um controle de plasticidade, é um aumento de learning rate.
+    `surface_plasticity()` recusa `lr_scale` fora de [0, 1] por isso.
+
+    A razão de normas não tem esse defeito quando o update encolhe: ela é
+    exatamente ‖·‖ menor sobre ‖·‖ maior.
+    """
+
+    from dual_heater.plasticity import norm_ratio
+
+    # Um único elemento com denominador minúsculo domina a média por elemento
+    # e não move a norma.
+    unpenalized = {"w": torch.tensor([1.0, 1.0, 1e-9])}
+    native = {"w": torch.tensor([0.9, 0.9, 1e-3])}
+
+    from dual_heater.plasticity import plasticity_ratio
+
+    per_element = plasticity_ratio(native=native, unpenalized=unpenalized)
+    assert per_element > 100.0, "o defeito que a emenda corrige"
+
+    norms = norm_ratio(native=native, unpenalized=unpenalized)
+    assert norms is not None
+    assert 0.0 < norms <= 1.0
+    assert norms == pytest.approx(0.9, abs=1e-3)
+
+
+def test_norm_ratio_can_exceed_one_when_the_penalty_amplifies() -> None:
+    """A emenda não promete um limite superior universal, e não deve prometer.
+
+    Se a penalidade de fato AMPLIFICA o update — possível, porque ela é
+    aditiva e não um escalonamento — a razão de normas passa de 1 e isso é a
+    medição correta, não um artefato. O protocolo declara que, nesse caso, o
+    `lr_control` daquele método não é construtível e o contraste é reportado
+    como não-pareável em vez de pareado na marra.
+    """
+
+    from dual_heater.plasticity import norm_ratio
+
+    unpenalized = {"w": torch.tensor([1.0, 1.0])}
+    native = {"w": torch.tensor([2.0, 2.0])}
+
+    assert norm_ratio(native=native, unpenalized=unpenalized) == pytest.approx(2.0)

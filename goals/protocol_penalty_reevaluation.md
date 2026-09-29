@@ -56,6 +56,18 @@ Um `lr_control` único forçaria os três métodos ao mesmo `E`, que é precisam
 a grandeza que o instrumento existe para medir em vez de assumir. O `E` de cada
 método é lido do passo-sombra do próprio método (§E), sem consultar acurácia.
 
+> **Emenda de 2026-09-29, alinhada a G1' do protocolo do instrumento.** `E_M` é
+> agora a **razão de normas** `‖Δ_native‖/‖Δ_unpenalized‖`, não a razão média
+> por elemento. A calibração mediu razão por elemento `> 1` em `ewc` e `mas`,
+> o que tornaria `lr_scale > 1` — um aumento de learning rate, não um controle.
+> Ver `goals/protocol_plasticity_generalization.md` §B.2 e §K.
+>
+> **Se `E_M > 1` mesmo sob a razão de normas** (G8), o método é declarado
+> **não-pareável**: seu contraste contra `vanilla` é reportado como secundário,
+> o `lr_control` correspondente **não é construído**, e a comparação sai da
+> família confirmatória — com a redução de `m` declarada AQUI, antes das seeds,
+> e não depois de ver quem venceu.
+
 ### C.1 A ordem obrigatória de duas passadas
 
 O `lr_scale` de um `lr_control` depende do `E` medido do seu método, que só
@@ -87,16 +99,29 @@ Ver `docs/audits/baseline_inventory.md` para a tabela host × baseline.
 
 | campo | fonte |
 |---|---|
-| `plasticity_ratio` | métrica primária G1 do protocolo do instrumento |
-| `norm_ratio` | diagnóstica D1 |
+| `norm_ratio` | **métrica primária G1'** do protocolo do instrumento |
+| `plasticity_ratio` | diagnóstica D1 (era a primária até a emenda de 29/09) |
 | `direction_cosine` | diagnóstica D2 |
 
 **Taxa de amostragem: 1 a cada 50 passos de treino**, declarada aqui e gravada
 no manifest (G7 do instrumento). Custo: 3 passos em vez de 1 nos passos medidos,
 ou seja ≈ +4% de passos no total.
 
-`E_M` de um método é a **média dos `plasticity_ratio` amostrados ao longo de
-todas as tarefas daquela seed**, e entra no manifest com o número de amostras.
+> **Ressalva de potência, registrada na calibração.** A 1/50, o Split-MNIST na
+> configuração deste protocolo produz apenas **3 medições por arm por seed**
+> (160 passos de treino). Três amostras é pouco para estimar `E_M` com
+> estabilidade, e `E_M` é o que define o `lr_scale` do controle. A taxa
+> **não foi alterada** porque mudá-la depois de ver os números seria a mesma
+> seleção pós-hoc que a emenda G1' tomou o cuidado de evitar; em vez disso, a
+> passada 1 deve **reportar o desvio-padrão de `E_M` entre as amostras e entre
+> as seeds**, e se ele for grande em relação à diferença entre métodos, o
+> pareamento é declarado impreciso no artigo em vez de ser apresentado como
+> exato. Com 12 seeds são 36 medições por arm, o que é a base real da
+> estimativa.
+
+`E_M` de um método é a **média das razões de normas amostradas ao longo de
+todas as tarefas daquela seed**, e entra no manifest com o número de amostras e
+o desvio-padrão.
 
 ### E.1 O portão de comensurabilidade
 
@@ -208,3 +233,4 @@ Uma run já morreu por SIGTERM aos 34 minutos por não estar destacada. Verifica
 | data | alteração |
 |---|---|
 | 2026-09-29 | documento congelado, antes de qualquer seed e de qualquer GPU |
+| 2026-09-29 | **`E_M` passa a ser a razão de normas** (§C, §E), alinhado à emenda G1' de `protocol_plasticity_generalization.md`. Motivo: razão por elemento `> 1` em `ewc` e `mas` na calibração tornaria `lr_scale > 1`. Acrescentada a regra do método **não-pareável** (G8) e a ressalva de potência do §E (3 amostras/arm/seed a 1/50). Evidência mecanismo-only, `n=1`, seed fora da banda, nenhuma acurácia lida. Nenhuma seed confirmatória gasta até aqui. |

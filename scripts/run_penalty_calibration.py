@@ -40,6 +40,12 @@ from experiments.split_mnist import (  # noqa: E402
 )
 
 #: §E do protocolo: 1 medição a cada 50 passos.
+#:
+#: Ressalva medida na primeira calibração: a 1/50 o Split-MNIST produz apenas
+#: 3 medições por arm por seed (160 passos). O valor NÃO foi alterado depois de
+#: ver os números — mudá-lo seria a seleção pós-hoc que a emenda G1' evitou —
+#: mas o desvio-padrão de `E` vai no artefato para que a imprecisão do
+#: pareamento seja reportável em vez de invisível.
 SAMPLING_INTERVAL = 50
 
 #: Passada 1 do §C.1. Os `lr_control` NÃO entram aqui: o escalar de cada um
@@ -88,7 +94,11 @@ def main() -> int:
     }
 
     print("\n=== plasticidade medida (passada 1)")
-    header = f"{'arm':<10}{'E':>10}{'norm':>10}{'cos':>10}{'amostras':>10}"
+    print("primária G1' = razão de normas; D1 = razão por elemento (rebaixada)")
+    header = (
+        f"{'arm':<10}{'E (norma)':>12}{'dp':>9}{'D1/elem':>10}"
+        f"{'cos':>9}{'amostras':>10}{'pareável?':>11}"
+    )
     print(header)
     print("-" * len(header))
     for arm in ARMS:
@@ -101,20 +111,43 @@ def main() -> int:
             "samples": len(samples),
             "elapsed_seconds": results[arm].get("elapsed_seconds"),
         }
-        if ratios:
+        if norms:
+            primary = statistics.fmean(norms)
+            spread = statistics.stdev(norms) if len(norms) > 1 else 0.0
+            # G8: E > 1 significa que o lr_control não é construível.
+            pairable = primary <= 1.0
+            record["norm_ratio_mean"] = primary
+            record["norm_ratio_stdev"] = spread
+            record["norm_ratio_min"] = min(norms)
+            record["norm_ratio_max"] = max(norms)
             record["plasticity_ratio_mean"] = statistics.fmean(ratios)
-            record["plasticity_ratio_min"] = min(ratios)
             record["plasticity_ratio_max"] = max(ratios)
-            record["norm_ratio_mean"] = statistics.fmean(norms)
             record["direction_cosine_mean"] = statistics.fmean(cosines)
+            record["pairable"] = pairable
             print(
-                f"{arm:<10}{record['plasticity_ratio_mean']:>10.4f}"
-                f"{record['norm_ratio_mean']:>10.4f}"
-                f"{record['direction_cosine_mean']:>10.4f}{len(samples):>10}"
+                f"{arm:<10}{primary:>12.4f}{spread:>9.4f}"
+                f"{record['plasticity_ratio_mean']:>10.4f}"
+                f"{record['direction_cosine_mean']:>9.4f}{len(samples):>10}"
+                f"{('sim' if pairable else 'NÃO'):>11}"
             )
         else:
-            print(f"{arm:<10}{'—':>10}{'—':>10}{'—':>10}{len(samples):>10}")
+            print(
+                f"{arm:<10}{'—':>12}{'—':>9}{'—':>10}{'—':>9}"
+                f"{len(samples):>10}{'n/a':>11}"
+            )
         summary["per_arm"][arm] = record  # type: ignore[index]
+
+    unpairable = [
+        arm
+        for arm in ARMS
+        if summary["per_arm"].get(arm, {}).get("pairable") is False  # type: ignore[union-attr]
+    ]
+    if unpairable:
+        print(
+            f"\nATENÇÃO (G8): {', '.join(unpairable)} com E > 1. O lr_control "
+            "desses métodos não é construível; o protocolo manda declará-los "
+            "não-pareáveis em vez de parear na marra."
+        )
 
     destination = OUTPUT_DIR / f"calibration_seed_{seed}.json"
     destination.write_text(json.dumps(summary, indent=2), encoding="utf-8")
