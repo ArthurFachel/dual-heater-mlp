@@ -62,6 +62,22 @@ DERPP_CONFIRMATORY_SEEDS: tuple[int, ...] = (
     2_375_149, 2_400_151, 2_425_163, 2_450_169, 2_475_179,
 )
 
+#: Seeds frozen for the penalty re-evaluation pilot
+#: (goals/protocol_penalty_reevaluation.md, section G). Twelve seeds, chosen so
+#: the design's significance floor (m * 2 / 2^n = 6 * 2 / 2^12 = 0.0029) clears
+#: 0.05 with room for two dissenting seeds. Disjoint from every band already
+#: spent; pinned by tests/test_penalty_reevaluation_seeds.py.
+PENALTY_REEVALUATION_SEEDS: tuple[int, ...] = (
+    7_000_003, 7_025_011, 7_050_017, 7_075_037, 7_100_043,
+    7_125_059, 7_150_061, 7_175_087, 7_200_089, 7_225_097,
+    7_250_101, 7_275_103,
+)
+
+#: Calibration seed for section I: cost and wiring only, deliberately OUTSIDE
+#: the band above so its endpoints can never be pooled with the confirmatory
+#: ones. Its n=1 endpoints carry no statistical standing.
+PENALTY_REEVALUATION_CALIBRATION_SEED: int = 7_999_991
+
 FROZEN_CONFIG = SplitMNISTConfig(
     hidden_dims=(256, 128),
     batch_size=128,
