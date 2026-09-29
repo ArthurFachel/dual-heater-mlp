@@ -4,7 +4,20 @@
 antes da primeira seed).
 **Execução:** 29/09/2026, 10 seeds, 71,4 min no caminho crítico, 3 GPUs
 (2× GTX 1080 Ti + Titan Xp), lançada destacada.
-**Artefatos:** `results/plasticity_matched/`.
+**Artefatos:** `results/plasticity_matched/`, agregado em
+`results/plasticity_matched/analysis.json`.
+**Ferramentas:** `scripts/verify_plasticity_matched.py` (H1–H8, roda antes de
+qualquer endpoint) e `scripts/analyze_plasticity_matched.py` (família de 2,
+sinal exato, Holm). Ambas com testes e mutações mortas em
+`tests/test_verify_plasticity_matched.py` e
+`tests/test_analyze_plasticity_matched.py`.
+
+**Reverificação independente (29/09, após o fechamento das 10 seeds):** todos
+os números deste documento foram recomputados a partir dos manifests pelo
+agregador acima, sem consultar o texto. Conferem dígito a dígito — os dois
+contrastes da família (−0,1260 / +0,0992, 10/0, p_Holm = 0,0039), os três
+contrastes descritivos contra `vanilla`, a tabela de valores absolutos, e a
+aquisição/retenção por braço. A integridade reporta `OK: 10 seeds, 8/8`.
 
 ---
 

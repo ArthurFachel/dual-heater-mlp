@@ -1,0 +1,113 @@
+{
+  "root": "results/plasticity_matched",
+  "seeds": [
+    6000003,
+    6025019,
+    6050029,
+    6075041,
+    6100057,
+    6125069,
+    6150077,
+    6175091,
+    6200107,
+    6225119
+  ],
+  "arms": [
+    {
+      "arm": "vanilla",
+      "n_seeds": 10,
+      "forgetting_mean": 0.41248148148148145,
+      "forgetting_stdev": 0.038157156633418086,
+      "FAA_mean": 0.5879,
+      "FAA_stdev": 0.033517288702627906,
+      "surface_plasticity": 1.0,
+      "trainable_parameters": 6769920,
+      "acquisition_last_mean": 0.923,
+      "retention_first_mean": 0.049
+    },
+    {
+      "arm": "lr_control",
+      "n_seeds": 10,
+      "forgetting_mean": 0.4740740740740741,
+      "forgetting_stdev": 0.04252866915441541,
+      "FAA_mean": 0.5275,
+      "FAA_stdev": 0.039908614744992056,
+      "surface_plasticity": 0.6224617129892229,
+      "trainable_parameters": 6769920,
+      "acquisition_last_mean": 0.9176666666666666,
+      "retention_first_mean": 0.042666666666666665
+    },
+    {
+      "arm": "frozen_a_control",
+      "n_seeds": 10,
+      "forgetting_mean": 0.34803703703703703,
+      "forgetting_stdev": 0.04066361948600726,
+      "FAA_mean": 0.6266999999999999,
+      "FAA_stdev": 0.03756622136513492,
+      "surface_plasticity": 0.6224617129892229,
+      "trainable_parameters": 4214016,
+      "acquisition_last_mean": 0.895,
+      "retention_first_mean": 0.093
+    }
+  ],
+  "family": [
+    {
+      "contrast": "frozen_a_control \u2212 lr_control",
+      "endpoint": "average_forgetting",
+      "n": 10,
+      "per_seed": {
+        "6000003": -0.1051851851851851,
+        "6025019": -0.12740740740740747,
+        "6050029": -0.06407407407407412,
+        "6075041": -0.1462962962962963,
+        "6100057": -0.1437037037037036,
+        "6125069": -0.1655555555555555,
+        "6150077": -0.10703703703703699,
+        "6175091": -0.13,
+        "6200107": -0.10185185185185186,
+        "6225119": -0.1692592592592594
+      },
+      "mean": -0.12603703703703703,
+      "median": -0.12870370370370374,
+      "negative": 10,
+      "positive": 0,
+      "p_raw": 0.001953125,
+      "label": "forgetting",
+      "role": "prim\u00e1rio",
+      "p_holm": 0.00390625
+    },
+    {
+      "contrast": "frozen_a_control \u2212 lr_control",
+      "endpoint": "final_average_accuracy",
+      "n": 10,
+      "per_seed": {
+        "6000003": 0.07799999999999996,
+        "6025019": 0.11166666666666664,
+        "6050029": 0.047666666666666635,
+        "6075041": 0.1156666666666667,
+        "6100057": 0.12266666666666648,
+        "6125069": 0.12966666666666654,
+        "6150077": 0.07633333333333325,
+        "6175091": 0.10933333333333328,
+        "6200107": 0.06800000000000006,
+        "6225119": 0.13299999999999995
+      },
+      "mean": 0.09919999999999995,
+      "median": 0.11049999999999996,
+      "negative": 0,
+      "positive": 10,
+      "p_raw": 0.001953125,
+      "label": "FAA",
+      "role": "secund\u00e1rio",
+      "p_holm": 0.00390625
+    }
+  ],
+  "verdict": {
+    "p_holm_below_alpha": true,
+    "median_negative": true,
+    "significant": true,
+    "branch": "A"
+  },
+  "alpha_primary": 0.025,
+  "holm_floor": 0.00390625
+}
