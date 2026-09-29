@@ -278,3 +278,63 @@ def test_the_confirmatory_family_is_six_paired_contrasts() -> None:
     assert len(set(family)) == 6
     # The floor computation in §H depends on this size and this n together.
     assert len(family) * 2 / 2 ** len(PENALTY_REEVALUATION_SEEDS) < 0.05
+
+
+def test_pass1_measures_every_anchored_step() -> None:
+    """§E, emendado: a taxa é 1/1 e não é ajustável por conveniência.
+
+    A 1/50 o `E` de uma seed vinha de 3 amostras, com IC95% de largura 0,171
+    sobre um efeito de 0,012 — e o veredito G8 do MAS invertia entre a série
+    amostrada e a medição exata. A taxa faz parte do pré-registro.
+    """
+
+    from scripts.run_penalty_pass1 import DECLARED_INTERVAL
+
+    assert DECLARED_INTERVAL == 1
+
+
+def test_pass1_refuses_a_grid_that_misses_declared_steps() -> None:
+    """Uma grade que não contém a declarada perderia passos silenciosamente."""
+
+    from scripts.run_penalty_pass1 import validate_intervals
+
+    validate_intervals(dense_interval=1)
+    for bad in (0, -1, 2, 5, 50):
+        with pytest.raises(ValueError):
+            validate_intervals(dense_interval=bad)
+
+
+def test_pass1_resume_rejects_artifacts_from_another_configuration() -> None:
+    """Chavear o resume em "o arquivo existe" mistura proveniências.
+
+    Os 12 artefatos gravados a 1/5 antes da emenda do §E seriam reaproveitados
+    por um guarda ingênuo, e o agregado misturaria duas taxas de amostragem sem
+    nada falhar. O guarda compara o que o artefato declara ter usado.
+    """
+
+    from experiments.penalty_reevaluation import PUBLISHED_PENALTY_STRENGTHS
+    from scripts.run_penalty_pass1 import should_reuse
+
+    good = {
+        "dense_interval": 1,
+        "declared_interval": 1,
+        "penalty_strengths": dict(PUBLISHED_PENALTY_STRENGTHS),
+    }
+    assert should_reuse(good, dense_interval=1)
+
+    # O artefato da run descartada: medido a 1/5 sob a taxa declarada antiga.
+    stale = {
+        "dense_interval": 5,
+        "declared_interval": 50,
+        "penalty_strengths": dict(PUBLISHED_PENALTY_STRENGTHS),
+    }
+    assert not should_reuse(stale, dense_interval=1)
+
+    # Forças de penalidade diferentes: outro experimento.
+    other_strengths = dict(good)
+    other_strengths["penalty_strengths"] = {"ewc_lambda": 1.0}
+    assert not should_reuse(other_strengths, dense_interval=1)
+
+    # Artefato sem os campos de proveniência: não é reaproveitável.
+    assert not should_reuse({"seed": 1}, dense_interval=1)
+    assert not should_reuse(None, dense_interval=1)

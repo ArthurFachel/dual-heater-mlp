@@ -103,25 +103,49 @@ Ver `docs/audits/baseline_inventory.md` para a tabela host × baseline.
 | `plasticity_ratio` | diagnóstica D1 (era a primária até a emenda de 29/09) |
 | `direction_cosine` | diagnóstica D2 |
 
-**Taxa de amostragem: 1 a cada 50 passos de treino**, declarada aqui e gravada
-no manifest (G7 do instrumento). Custo: 3 passos em vez de 1 nos passos medidos,
-ou seja ≈ +4% de passos no total.
+**Taxa de amostragem: TODOS os passos com âncora (1/1).** Emendado em
+2026-09-29; ver §K linha 3 e a ressalva abaixo. `E_M` deixa de ser uma
+estimativa amostral e passa a ser a **média exata** sobre os passos em que a
+penalidade esteve ativa. Custo: 3 passos em vez de 1 em cada passo medido.
 
-> **Ressalva de potência, registrada na calibração.** A 1/50, o Split-MNIST na
-> configuração deste protocolo produz apenas **3 medições por arm por seed**
-> (160 passos de treino). Três amostras é pouco para estimar `E_M` com
-> estabilidade, e `E_M` é o que define o `lr_scale` do controle. A taxa
-> **não foi alterada** porque mudá-la depois de ver os números seria a mesma
-> seleção pós-hoc que a emenda G1' tomou o cuidado de evitar; em vez disso, a
-> passada 1 deve **reportar o desvio-padrão de `E_M` entre as amostras e entre
-> as seeds**, e se ele for grande em relação à diferença entre métodos, o
-> pareamento é declarado impreciso no artigo em vez de ser apresentado como
-> exato. Com 12 seeds são 36 medições por arm, o que é a base real da
-> estimativa.
+> **A taxa original era 1/50 e foi revogada por insuficiência de potência,
+> medida exaustivamente e sem ler acurácia.** A justificativa de 1/50 no texto
+> congelado era custo (3× por passo medido); a medição mostrou que esse custo
+> não existe nesta escala — 12 seeds × 4 arms custam ~10 min de CPU a 1/5 e
+> ~20 min a 1/1.
+>
+> A medição de TODOS os 128 passos com âncora de uma seed (`7000003`, MAS) deu:
+>
+> | quantidade | valor |
+> |---|---:|
+> | `E` exato (128 passos) | 1,0124 |
+> | desvio-padrão ENTRE passos | 0,0772 |
+> | faixa observada | 0,804 a 1,213 |
+> | IC95% da média com n=3 | [0,923, 1,095], largura 0,171 |
+> | IC95% da média com n=36 | [0,991, 1,034], largura 0,043 |
+> | efeito a medir, `abs(1 − E)` | **0,012** |
+>
+> Ou seja: a 1/50 o ruído da estimativa é ~14× o efeito, e mesmo agregando as
+> 12 seeds (36 amostras) o intervalo continua ~3× mais largo que o efeito. A
+> série a 1/50 reportou `E_mas = 0,957` (pareável por G8) enquanto o valor
+> exato é 1,015 (**não** pareável) — a classificação G8 dependia do ruído.
+> Congelar `lr_scale = 0,957` seria construir o controle sobre uma flutuação
+> amostral.
+>
+> **Por que isto não é seleção pós-hoc:** a evidência é a variância do próprio
+> instrumento sobre um único arm, medida exaustivamente, sem nenhum contraste
+> entre métodos e sem nenhum endpoint de acurácia. A alternativa — manter 1/50
+> — não produziria um resultado diferente a nosso favor; produziria um `E`
+> cujo intervalo de confiança contém tanto "pareável" quanto "não pareável",
+> ou seja nenhuma conclusão. Amostrar exaustivamente remove a estimativa do
+> caminho, não escolhe o seu valor.
+>
+> **As runs feitas a 1/50 e a 1/5 são descartadas**, não reinterpretadas, e
+> ficam arquivadas em `results/_abandoned_penalty_pass1_sampling_1_50/`.
 
-`E_M` de um método é a **média das razões de normas amostradas ao longo de
-todas as tarefas daquela seed**, e entra no manifest com o número de amostras e
-o desvio-padrão.
+`E_M` de um método é a **média das razões de normas sobre todos os passos com
+âncora daquela seed**, e entra no manifest com o número de passos e o
+desvio-padrão entre passos.
 
 ### E.1 O portão de comensurabilidade
 
@@ -234,3 +258,4 @@ Uma run já morreu por SIGTERM aos 34 minutos por não estar destacada. Verifica
 |---|---|
 | 2026-09-29 | documento congelado, antes de qualquer seed e de qualquer GPU |
 | 2026-09-29 | **`E_M` passa a ser a razão de normas** (§C, §E), alinhado à emenda G1' de `protocol_plasticity_generalization.md`. Motivo: razão por elemento `> 1` em `ewc` e `mas` na calibração tornaria `lr_scale > 1`. Acrescentada a regra do método **não-pareável** (G8) e a ressalva de potência do §E (3 amostras/arm/seed a 1/50). Evidência mecanismo-only, `n=1`, seed fora da banda, nenhuma acurácia lida. Nenhuma seed confirmatória gasta até aqui. |
+| 2026-09-29 | **Taxa de amostragem 1/50 → 1/1** (§E). Motivo: a medição exaustiva dos 128 passos com âncora de uma seed deu dp entre passos de 0,0772 contra um efeito `abs(1−E)` de 0,0124 — o ruído da estimativa a 1/50 é ~14× o efeito, e a 36 amostras ainda é ~3×. A classificação G8 do MAS invertia entre a série a 1/50 (`E = 0,957`, pareável) e o valor exato (`E = 1,015`, não pareável). A justificativa original de 1/50 era custo, e o custo medido é ~20 min de CPU para as 12 seeds. Evidência mecanismo-only: variância de um único arm, sem contraste entre métodos e sem nenhuma acurácia lida. **As runs a 1/50 e 1/5 foram descartadas e arquivadas**, não reinterpretadas. Nenhuma seed confirmatória de acurácia gasta até aqui; a passada 2 não havia começado. |
