@@ -19,6 +19,11 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from dual_heater import FastHeatConfig, FastHeatGate, SlowHeatAdamW, compute_cl_metrics
+from dual_heater.ewc import (
+    accumulate_empirical_fisher,
+    consolidate_importance,
+    ewc_penalty,
+)
 from experiments.artifacts import (
     atomic_text_writer,
     build_run_identity,
@@ -1265,12 +1270,23 @@ def _parameter_penalty(
     importance: dict[str, Tensor],
     anchors: dict[str, Tensor],
 ) -> Tensor:
-    penalty = torch.zeros((), device=next(model.parameters()).device)
-    for name, parameter in model.named_parameters():
-        if name in importance:
-            penalty = penalty + (
-                importance[name] * (parameter - anchors[name]).square()
-            ).sum()
+    """Quadrática `Σ Ω_i (θ_i − θ*_i)²`, SEM o fator 1/2.
+
+    Delega para `dual_heater.ewc.ewc_penalty`, que é a mesma fórmula
+    compartilhada com os hosts BERT e Qwen. `strength=2.0` cancela o `1/2` que
+    aquela função aplica, preservando exatamente a convenção histórica daqui:
+    os chamadores deste runner somam o próprio fator (`0.5 * ewc_lambda` para
+    EWC, `si_lambda` sem o meio para SI).
+    """
+
+    penalty = ewc_penalty(
+        params=dict(model.named_parameters()),
+        anchors=anchors,
+        importance=importance,
+        strength=2.0,
+    )
+    if not isinstance(penalty, Tensor):
+        return torch.zeros((), device=next(model.parameters()).device)
     return penalty
 
 
@@ -1306,26 +1322,18 @@ def _accumulate_empirical_fisher(
     targets: Tensor,
     accumulator: dict[str, Tensor],
 ) -> int:
-    """Accumulate sum_i grad(log p(y_i|x_i))**2 for one batch."""
+    """Acumula `Σ_i grad(log p(y_i|x_i))²` por exemplo.
 
-    named_parameters = tuple(model.named_parameters())
-    parameters = tuple(parameter for _, parameter in named_parameters)
-    for sample_index in range(len(targets)):
-        sample_loss = F.cross_entropy(
-            logits[sample_index : sample_index + 1],
-            targets[sample_index : sample_index + 1],
-            reduction="sum",
-        )
-        gradients = torch.autograd.grad(
-            sample_loss,
-            parameters,
-            retain_graph=True,
-            allow_unused=True,
-        )
-        for (name, _), gradient in zip(named_parameters, gradients, strict=True):
-            if gradient is not None:
-                accumulator[name].add_(gradient.detach().square())
-    return len(targets)
+    Delega para `dual_heater.ewc.accumulate_empirical_fisher`. A assinatura
+    posicional é mantida porque `tests/test_split_mnist.py` a importa.
+    """
+
+    return accumulate_empirical_fisher(
+        logits=logits,
+        targets=targets,
+        named_parameters=tuple(model.named_parameters()),
+        accumulator=accumulator,
+    )
 
 
 def _consolidate_ewc_importance(
@@ -1337,15 +1345,23 @@ def _consolidate_ewc_importance(
     anchors: dict[str, Tensor],
     decay: float,
 ) -> None:
-    """Turn the accumulated per-example Fisher into an EWC importance estimate."""
+    """Fecha a tarefa: normaliza o Fisher, soma à memória, reancora.
 
-    divisor = max(1, fisher_examples)
-    for name, parameter in model.named_parameters():
-        estimate = fisher_sum[name] / divisor
-        if name in importance:
-            estimate = decay * importance[name] + estimate
-        importance[name] = estimate.detach().clone()
-        anchors[name] = parameter.detach().clone()
+    Delega para `dual_heater.ewc.consolidate_importance`. Diferença de
+    comportamento assumida na extração: o módulo **recusa** `fisher_examples
+    <= 0` em vez de aplicar o antigo `max(1, n)`. Zero exemplos significa que a
+    passada de estimação nunca rodou, que é bug de wiring — o `max(1, n)`
+    silenciava isso e produzia importância nula com aparência normal.
+    """
+
+    consolidate_importance(
+        named_parameters=model.named_parameters(),
+        accumulator=fisher_sum,
+        examples=fisher_examples,
+        importance=importance,
+        anchors=anchors,
+        decay=decay,
+    )
 
 
 def _gradient_vector(model: nn.Module) -> Tensor:
