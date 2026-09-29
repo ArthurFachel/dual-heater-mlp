@@ -21,6 +21,7 @@ from torch import Tensor, nn
 from dual_heater import FastHeatConfig, FastHeatGate, SlowHeatAdamW, compute_cl_metrics
 from dual_heater.ewc import (
     accumulate_empirical_fisher,
+    accumulate_mas_omega,
     consolidate_importance,
     ewc_penalty,
 )
@@ -187,6 +188,10 @@ _METHOD_SPECS = {
     "agem": MethodSpec(replay=True),
     "ewc": MethodSpec(),
     "si": MethodSpec(),
+    # MAS (Aljundi et al., ECCV 2018). Mesma quadrática de EWC/SI; o que muda
+    # é Ω, estimado pela sensibilidade da SAÍDA e portanto sem rótulo. Ver
+    # docs/audits/baseline_inventory.md para por que faltava.
+    "mas": MethodSpec(),
     "lwf_calibrated": MethodSpec(distillation=True),
     "replay_balanced": MethodSpec(replay=True),
     "replay_more_epochs": MethodSpec(
@@ -386,6 +391,11 @@ class SplitMNISTConfig:
     scroll_replay_epochs: int = 1
     ewc_lambda: float = 100.0
     ewc_decay: float = 1.0
+    #: MAS (Aljundi et al., 2018). Escala separada da do EWC de propósito: Ω do
+    #: MAS é a sensibilidade da saída e tem magnitude diferente do Fisher, logo
+    #: compartilhar `ewc_lambda` compararia os métodos a forças diferentes.
+    mas_lambda: float = 1.0
+    mas_decay: float = 1.0
     si_lambda: float = 1.0
     si_epsilon: float = 0.1
     lwf_old_class_weight: float = 1.0
@@ -602,6 +612,7 @@ class SplitMNISTConfig:
             "derpp_alpha": self.derpp_alpha,
             "derpp_beta": self.derpp_beta,
             "ewc_lambda": self.ewc_lambda,
+            "mas_lambda": self.mas_lambda,
             "si_lambda": self.si_lambda,
             "lwf_old_class_weight": self.lwf_old_class_weight,
             "early_stopping_min_delta": self.early_stopping_min_delta,
@@ -624,6 +635,8 @@ class SplitMNISTConfig:
             raise ValueError("classifier_expander_classifier_lr deve ser > 0")
         if not 0.0 <= self.ewc_decay <= 1.0:
             raise ValueError("ewc_decay deve estar em [0, 1]")
+        if not 0.0 <= self.mas_decay <= 1.0:
+            raise ValueError("mas_decay deve estar em [0, 1]")
         if self.si_epsilon <= 0.0 or not 0.0 < self.global_lr_reduction <= 1.0:
             raise ValueError("si_epsilon deve ser > 0 e global_lr_reduction em (0, 1]")
         if self.max_train_examples_per_task is not None and self.max_train_examples_per_task < 1:
@@ -674,6 +687,16 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
     """Serialize configs without perturbing legacy uniform-task protocols."""
 
     payload = asdict(config)
+    # MAS foi adicionado depois que protocolos como
+    # `experiments/confirmatory_split_mnist.py` já estavam congelados. Seus
+    # hiperparâmetros só entram no payload quando o método é de fato usado —
+    # mesma convenção aplicada abaixo a fastheat/backbone. Sem isso, adicionar
+    # um baseline mudaria o sha256 de um pré-registro fechado, que é
+    # exatamente o que a guarda em `tests/test_confirmatory_statistics.py`
+    # existe para impedir.
+    if "mas" not in config.methods:
+        payload.pop("mas_lambda")
+        payload.pop("mas_decay")
     if not any(_is_fastheat(method) for method in config.methods):
         for field in (
             "fast_decay",
@@ -1768,6 +1791,8 @@ def run_split_mnist(
         replay_buffer = ReplayBuffer()
         ewc_importance: dict[str, Tensor] = {}
         ewc_anchors: dict[str, Tensor] = {}
+        mas_importance: dict[str, Tensor] = {}
+        mas_anchors: dict[str, Tensor] = {}
         si_importance: dict[str, Tensor] = {}
         si_anchors: dict[str, Tensor] = {
             name: parameter.detach().clone()
@@ -1874,6 +1899,11 @@ def run_split_mnist(
                 for name, parameter in model.named_parameters()
             }
             fisher_examples = 0
+            mas_omega_sum: dict[str, Tensor] = {
+                name: torch.zeros_like(parameter)
+                for name, parameter in model.named_parameters()
+            }
+            mas_examples = 0
 
             epoch_budget = method_epoch_budget(
                 method_spec,
@@ -2031,6 +2061,11 @@ def run_split_mnist(
                             model, si_importance, si_anchors
                         )
                         cost["regularizer_flops"] += 4 * int(cost["model_parameters"])
+                    if method == "mas" and mas_importance:
+                        loss = loss + config.mas_lambda * _parameter_penalty(
+                            model, mas_importance, mas_anchors
+                        )
+                        cost["regularizer_flops"] += 4 * int(cost["model_parameters"])
 
                     parameter_before = None
                     if method == "si":
@@ -2047,6 +2082,17 @@ def run_split_mnist(
                             current_logits,
                             current_y,
                             fisher_sum,
+                        )
+                        cost["learner_backward_examples"] += current_count
+
+                    if method == "mas":
+                        # MAS mede a sensibilidade da SAÍDA, não da likelihood:
+                        # não usa `current_y`. É o que torna o método aplicável
+                        # a dados não rotulados, e o que o distingue do Fisher.
+                        mas_examples += accumulate_mas_omega(
+                            outputs=current_logits,
+                            named_parameters=tuple(model.named_parameters()),
+                            accumulator=mas_omega_sum,
                         )
                         cost["learner_backward_examples"] += current_count
 
@@ -2267,6 +2313,16 @@ def run_split_mnist(
                     importance=ewc_importance,
                     anchors=ewc_anchors,
                     decay=config.ewc_decay,
+                )
+                cost["consolidation_flops"] += int(cost["model_parameters"])
+            if method == "mas":
+                consolidate_importance(
+                    named_parameters=model.named_parameters(),
+                    accumulator=mas_omega_sum,
+                    examples=mas_examples,
+                    importance=mas_importance,
+                    anchors=mas_anchors,
+                    decay=config.mas_decay,
                 )
                 cost["consolidation_flops"] += int(cost["model_parameters"])
             if method == "si":

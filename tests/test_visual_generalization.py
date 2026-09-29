@@ -69,9 +69,18 @@ def test_generalization_configs_preserve_scenario_semantics():
     # adding it does not change what the existing all-method sweeps run.
     from experiments.hard_vs_soft import PAIRED_METHODS as HARD_VS_SOFT_METHODS
 
-    assert SUPPORTED_METHODS <= set(ALL_VISUAL_METHODS) | set(
-        visual.CNN_VISUAL_METHODS
-    ) | set(HARD_VS_SOFT_METHODS)
+    # `mas` is held out for the same reason, and the reason is load-bearing:
+    # the visual sweeps above already ran with exactly 33 methods, and adding a
+    # 34th would silently change what a re-run of a published sweep executes.
+    # MAS enters a suite only through the Phase 2.4 pilot, whose protocol must
+    # be pre-registered before its first seed. Until that document exists, MAS
+    # is reachable from `_METHOD_SPECS` and from its own tests, not from a
+    # historical registry. See docs/audits/baseline_inventory.md.
+    DEFERRED_UNTIL_PREREGISTERED = {"mas"}
+
+    assert SUPPORTED_METHODS - DEFERRED_UNTIL_PREREGISTERED <= set(
+        ALL_VISUAL_METHODS
+    ) | set(visual.CNN_VISUAL_METHODS) | set(HARD_VS_SOFT_METHODS)
     for config in configs.values():
         config.validate()
 
