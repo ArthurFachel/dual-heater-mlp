@@ -33,6 +33,9 @@ from experiments.confirmatory_split_mnist import (  # noqa: E402
     PENALTY_REEVALUATION_CALIBRATION_SEED,
     PENALTY_REEVALUATION_SEEDS,
 )
+from experiments.penalty_reevaluation import (  # noqa: E402
+    PUBLISHED_PENALTY_STRENGTHS,
+)
 from experiments.split_mnist import (  # noqa: E402
     SplitMNISTConfig,
     load_split_mnist,
@@ -61,6 +64,9 @@ def build_config() -> SplitMNISTConfig:
         methods=ARMS,
         plasticity_sampling_interval=SAMPLING_INTERVAL,
         device="cpu",
+        # §C.2: forças de penalidade publicadas (Hsu et al. 2018, class-IL).
+        # Não são escolha nossa, e por isso não são ajustáveis aqui.
+        **PUBLISHED_PENALTY_STRENGTHS,
     )
 
 
@@ -90,6 +96,10 @@ def main() -> int:
         "sampling_interval": SAMPLING_INTERVAL,
         "arms": list(ARMS),
         "elapsed_seconds": elapsed,
+        "penalty_strengths": dict(PUBLISHED_PENALTY_STRENGTHS),
+        "penalty_strengths_source": (
+            "Hsu et al. 2018 (arXiv:1810.12488), split_MNIST_incremental_class.sh"
+        ),
         "per_arm": {},
     }
 

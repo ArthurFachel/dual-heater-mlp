@@ -171,6 +171,92 @@ def test_the_calibration_seed_produced_a_recorded_measurement() -> None:
         assert "norm_ratio_mean" in record, f"{method} sem a métrica primária nova"
 
 
+def test_the_published_penalty_strengths_match_hsu_2018_class_il() -> None:
+    """§C.2. Os λ vêm de Hsu et al. 2018, não de escolha nossa.
+
+    Fonte: `scripts/split_MNIST_incremental_class.sh` do repositório
+    GT-RIPL/Continual-Learning-Benchmark, que acompanha *Re-evaluating
+    Continual Learning Scenarios* (NeurIPS CL Workshop 2018). Split-MNIST
+    class-incremental, MLP400, Adam lr=1e-3, batch 128 — o mesmo cenário deste
+    piloto.
+
+    **Convenção de fator, e é por isso que os números aqui não batem de olho
+    com os do script.** Hsu soma `reg_coef * Σ Ω (θ−θ*)²`, sem o meio. Este
+    repo passa por `ewc_penalty`, que já aplica `1/2`, e o runner soma
+    `0.5 * ewc_lambda` para EWC e `si_lambda`/`mas_lambda` sem o meio para SI e
+    MAS. Logo o fator efetivo `k` na loss é o que precisa bater, não o λ.
+    """
+
+    from experiments.penalty_reevaluation import PUBLISHED_PENALTY_STRENGTHS
+    from experiments.split_mnist import SplitMNISTConfig, _penalty_scale
+
+    # reg_coef publicado por Hsu et al. para Split-MNIST class-incremental.
+    hsu_class_il = {"ewc": 100.0, "si": 600.0, "mas": 1.0}
+
+    config = SplitMNISTConfig(**PUBLISHED_PENALTY_STRENGTHS)
+    for method, published in hsu_class_il.items():
+        assert _penalty_scale(method, config) == pytest.approx(published), (
+            f"{method}: fator efetivo não bate com o publicado"
+        )
+
+
+def test_the_published_strengths_use_the_online_ewc_variant() -> None:
+    """Hsu publica DOIS números para EWC; a escolha não é arbitrária.
+
+    `EWC_mnist` (reg_coef 600) recomputa o Fisher por tarefa e guarda um termo
+    por tarefa (`online_reg = False`). `EWC_online_mnist` (reg_coef 100) mantém
+    UM Fisher acumulado (`online_reg = True`).
+
+    `consolidate_importance` deste repo faz `decay * importance + estimate`
+    sobre um único dicionário — é a variante ONLINE. Logo o número comparável é
+    100, não 600, e `ewc_decay = 1.0` é a soma acumulada clássica.
+    """
+
+    from experiments.penalty_reevaluation import PUBLISHED_PENALTY_STRENGTHS
+
+    # decay=1.0 é o EWC online sem esquecimento, que é o que o runner faz.
+    assert PUBLISHED_PENALTY_STRENGTHS["ewc_decay"] == 1.0
+    assert PUBLISHED_PENALTY_STRENGTHS["mas_decay"] == 1.0
+    # 0.5 * 200 = 100 = reg_coef do EWC_online_mnist.
+    assert PUBLISHED_PENALTY_STRENGTHS["ewc_lambda"] == pytest.approx(200.0)
+
+
+def test_the_published_strengths_do_not_touch_the_dataclass_defaults() -> None:
+    """Mexer nos defaults moveria o sha256 de um pré-registro congelado.
+
+    `ewc_lambda` e `si_lambda` entram em `config_payload` mesmo quando o método
+    não é usado, então alterar o default de `SplitMNISTConfig` mudaria o hash
+    de `experiments/confirmatory_split_mnist.py`. Os valores publicados vivem
+    numa constante consumida só por este piloto.
+    """
+
+    from experiments.split_mnist import SplitMNISTConfig
+
+    default = SplitMNISTConfig()
+    assert default.ewc_lambda == 100.0, "default alterado: o hash congelado se move"
+    assert default.si_lambda == 1.0, "default alterado: o hash congelado se move"
+    assert default.mas_lambda == 1.0, "default alterado: o hash congelado se move"
+
+
+def test_si_was_three_hundred_times_weaker_than_published() -> None:
+    """O achado que motivou a adoção: SI estava funcionalmente inerte.
+
+    Com `si_lambda = 1.0` o fator efetivo é 1 contra os 600 publicados para
+    class-IL. A calibração mediu `E = 0,9997` para SI — ou seja, o método
+    removia 0,03% da plasticidade e entraria no piloto como vanilla com outro
+    nome. Este teste fixa a razão para que o motivo da mudança fique legível.
+    """
+
+    from experiments.penalty_reevaluation import PUBLISHED_PENALTY_STRENGTHS
+    from experiments.split_mnist import SplitMNISTConfig, _penalty_scale
+
+    stale = _penalty_scale("si", SplitMNISTConfig())
+    published = _penalty_scale("si", SplitMNISTConfig(**PUBLISHED_PENALTY_STRENGTHS))
+
+    assert stale == pytest.approx(1.0)
+    assert published / stale == pytest.approx(600.0)
+
+
 def test_the_confirmatory_family_is_six_paired_contrasts() -> None:
     """§F. The family is fixed here so it cannot be narrowed after the run.
 
