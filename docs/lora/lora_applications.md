@@ -45,6 +45,10 @@ de formas diferentes.
   aplicação 2 **aumentou** sob o controle mais rigoroso.
 - O `lr_control` é o pior braço de todos, pior que o vanilla: reduzir learning
   rate uniformemente atrapalha. Isso o valida como falsificador não-trivial.
+  **Correção de 29/09/2026:** não replicou. Nas 10 seeds confirmatórias o sinal
+  inverte e nada é significativo (FAA `lr_control − vanilla` = +0,0084, p = 0,754;
+  forgetting −0,0096, p = 0,344). Leitura correta: **nula** — o controle empata
+  com o vanilla, que é a posição neutra esperada de um falsificador.
 
 ## Referências
 

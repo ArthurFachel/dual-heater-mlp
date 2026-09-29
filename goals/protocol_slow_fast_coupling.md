@@ -5,6 +5,37 @@
 
 **Estado:** congelado em 28/09/2026. Nada implementado, nenhuma seed executada.
 
+> ## ARQUIVADO EM 29/09/2026 — DESCARTADO SEM EXECUTAR
+>
+> **A pré-condição §E11 disparou exatamente como escrita.** Ela dizia para não
+> disparar antes de a decomposição do `exact` fechar, e para reconsiderar o
+> protocolo se o ganho fosse todo de LoRA-FA. Foi o que aconteceu:
+> `exact − frozen_a_control` deu **5+/5, p = 1,00**
+> ([registro](../docs/results/exact_decomposition_results.md)).
+>
+> **Decisão: descartar, não reformular.** Quatro razões, nenhuma delas "deu
+> errado":
+>
+> 1. **A linha de base morreu.** O braço `exact` deixou de ser referência
+>    significativa, como §E11 previu. Trocá-lo por `frozen_a_control` mantém o
+>    desenho de pé mas não muda a resposta esperada.
+> 2. **A própria §E9 previu desfecho (a) ou (b).** O nulo era a expectativa
+>    registrada, e três resultados independentes a reforçaram desde então.
+> 3. **É a mesma família de mecanismo.** Escalonamento diagonal derivado de
+>    importância por unidade, num quarto ponto de inserção. As evidências
+>    acumuladas são quatro amostras de uma família, não quatro falhas
+>    independentes — um quinto ponto de inserção muito provavelmente pousa igual.
+> 4. **A âncora do artigo mudou.** Sob eixo de protocolo, um mecanismo novo não
+>    é contribuição; o que é contribuição é o instrumento e o que ele rejeita.
+>
+> **O documento fica no repositório, congelado e não executado.** Ele é
+> evidência de que a pré-condição funcionou: um protocolo que declarou de
+> antemão a condição sob a qual não deveria ser rodado, e que foi descartado por
+> essa condição em vez de ser rodado por inércia. Num artigo de protocolo isso é
+> conteúdo.
+>
+> Custo evitado: ~10 seeds × 5 braços de GPU, mais implementação do acoplamento.
+
 ---
 
 ## E1. Motivação

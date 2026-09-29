@@ -123,6 +123,11 @@ Se empatar, a alocação não está fazendo trabalho nenhum.
   `lr_control` não está fazendo nada que um escalar não faça. Medido: ele é o
   **pior** braço de todos (FAA 0,5684), ou seja, reduzir LR uniformemente
   atrapalha — o que o torna um teste não-trivial, e não um alvo fácil.
+  **Correção de 29/09/2026:** a frase "ele é o pior braço de todos" é
+  exploratória e **não replicou**. Nas 10 seeds confirmatórias o sinal inverte e
+  nada é significativo (FAA `lr_control − vanilla` = +0,0084, p = 0,754;
+  forgetting −0,0096, p = 0,344). Leitura correta: **nula**. A primeira frase
+  (por que o falsificador é obrigatório) continua válida: é sobre o desenho.
 
 ## 3. Resultados
 
@@ -140,6 +145,13 @@ via learning rate. É o teste que isola o mecanismo:
 Nenhum é significativo, e **os três ficam abaixo do vanilla** em FAA (0,5875,
 0,5865 e 0,5808 contra 0,6016). Superar por pouco um controle que é pior que
 não fazer nada não é evidência de mecanismo.
+
+> **Correção de 29/09/2026.** A cláusula "um controle que é pior que não fazer
+> nada" repousa no achado exploratório que não replicou (ver correção na seção 2).
+> A conclusão **não muda**: os três mecanismos ficam abaixo do vanilla em FAA e
+> nenhum supera o `lr_control` significativamente. Com o controle empatado com o
+> vanilla em vez de pior que ele, a leitura fica mais simples — os três
+> mecanismos perdem para não fazer nada.
 
 ### Primeira run, sem pareamento (mantida por contraste)
 

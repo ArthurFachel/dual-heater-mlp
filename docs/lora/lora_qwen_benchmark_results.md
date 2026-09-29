@@ -99,6 +99,14 @@ contribuição.
 
 ## 6. O `lr_control` é pior que o vanilla
 
+> **Correção de 29/09/2026 — o título desta seção não replicou.** Ela descreve a
+> run exploratória. Nas 10 seeds confirmatórias (banda 700001+) o sinal inverte
+> nos dois endpoints e nenhum é significativo: FAA `lr_control − vanilla` =
+> **+0,0084** (6+/4−, p = 0,754); forgetting **−0,0096** (3+/7−, p = 0,344).
+> **O resultado correto é nulo:** reduzir o lr uniformemente em 15% não muda
+> nada detectável em n=10. O conteúdo abaixo é mantido como registro
+> exploratório e **não deve ser citado como achado**.
+
 FAA 0,5684 contra 0,6016; forgetting +0,4350 contra +0,3967, o pior de todos os
 braços. Reduzir o learning rate uniformemente em 15% não ajuda em continual
 learning — atrapalha.

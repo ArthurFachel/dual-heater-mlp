@@ -100,6 +100,44 @@ Resolver isso é [QB-2](../../goals/proximo_passo_qwen.md): `exact r=32` contra
 `vanilla r=16`, que iguala parâmetros treináveis. Até lá, o resultado acima é
 reportável **com esta ressalva anexada**, nunca sem ela.
 
+### R3 — O pareamento por plasticidade efetiva não valia (registrado em 29/09/2026)
+
+R2 acima trata capacidade do adaptador e plasticidade efetiva como dois
+problemas distintos. **São o mesmo**, e a verificação H1 mediu só metade dele.
+
+`effective_plasticity()` promedia a máscara **sobre os parâmetros que carregam
+binding de máscara**. No `exact` o único binding é `lora_b.weight`; os 2.555.904
+parâmetros de `A` têm fator de update exatamente zero e **não entram na média**.
+H1 verificou `E = 0,8500` e passou — sobre a superfície errada.
+
+Medido sobre a superfície treinável do braço de referência:
+
+| braço | `E` reportado | `E` de superfície |
+|---|---:|---:|
+| `vanilla` | 1,000 | 1,000 |
+| `lr_control` | 1,000 | 0,850 |
+| `exact` | **0,850** | **0,532** |
+
+**O endpoint primário comparou 0,532 contra 0,850.** O contraste
+`exact − lr_control` não era pareado em plasticidade, e a diferença de 32 pontos
+está na direção que favorece o braço tratado.
+
+Isto **não** anula o que foi medido; muda a descrição das condições. A
+afirmação "sob plasticidade efetiva pareada", que aparece neste documento e em
+`proximo_passo_qwen.md` B.1, **não pode ser reportada** até que a run pareada
+sobre a superfície feche.
+
+Combinado com a [decomposição](../results/exact_decomposition_results.md) — que
+mostrou que todo o efeito vem de congelar `A` e nada da máscara —, o quadro é
+coerente: a máscara, que é o que `E` media, não faz nada; o congelamento, que
+`E` não via, faz tudo.
+
+Instrumento da correção: `surface_plasticity()` em
+`src/dual_heater/lora_slowheat.py`, com o lema `E_superfície <= E_bindings`
+travado em `tests/test_surface_plasticity.py`. A run que re-testa o contraste
+sob pareamento correto está pré-registrada em
+[`goals/protocol_plasticity_matched.md`](../../goals/protocol_plasticity_matched.md).
+
 ---
 
 ## O que este resultado sustenta e o que não sustenta
@@ -112,6 +150,26 @@ reportável **com esta ressalva anexada**, nunca sem ela.
 - O `lr_control` **não** é um alvo fácil: ele é pior que o vanilla nos dois
   endpoints (FAA 0,5790 contra 0,5706; forgetting +0,4200 contra +0,4296),
   replicando o achado exploratório de que reduzir LR uniformemente atrapalha.
+
+> **Correção de 29/09/2026 — esta afirmação estava errada neste documento.**
+>
+> As médias citadas acima estão certas, mas a leitura não: **a diferença não é
+> significativa e o sinal é o oposto do que o texto diz.** Recomputado dos dez
+> manifestos desta própria run:
+>
+> | contraste | diferença pareada | sinais | p |
+> |---|---:|---:|---:|
+> | FAA `lr_control − vanilla` | **+0,0084** | 6+/4− | 0,754 |
+> | forgetting `lr_control − vanilla` | **−0,0096** | 3+/7− | 0,344 |
+>
+> FAA maior e forgetting menor significam `lr_control` **melhor** que vanilla na
+> média, não pior — e nenhum dos dois passa longe da significância. A frase
+> "replicando o achado exploratório" é falsa: o achado exploratório **não
+> replicou**.
+>
+> Leitura correta: **nula.** Isso não afeta o endpoint primário, que é
+> `exact − lr_control` e foi pré-registrado. Fortalece o controle, removendo a
+> objeção de que o falsificador foi escolhido por ser ruim.
 
 **Não sustenta:**
 

@@ -198,6 +198,13 @@ esquecimento. Isso torna o falsificador um teste não trivial, e mostra que
 comparar só contra vanilla confunde "frear ajuda" com "frear seletivamente
 ajuda".
 
+> **Correção de 29/09/2026 — não replicou.** O parágrafo acima é exploratório.
+> Nas 10 seeds confirmatórias o sinal inverte e nada é significativo: FAA
+> `lr_control − vanilla` = **+0,0084** (6+/4−, p = 0,754); forgetting
+> **−0,0096** (3+/7−, p = 0,344). Leitura correta: **nula**. A segunda frase
+> ("comparar só contra vanilla confunde...") **continua válida** — ela é sobre o
+> desenho, não sobre onde o controle pousa.
+
 **O efeito do `exact` cresce sob controle mais rigoroso:**
 
 | contraste | sem pareamento | `E = 0,85` |

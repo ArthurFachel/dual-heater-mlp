@@ -114,6 +114,11 @@ Evidência transversal que sustenta a tese:
 - O **crescimento do efeito do `exact`** sob controle mais rigoroso demonstra que
   o protocolo não é apenas conservador.
 - O **`lr_control` pior que vanilla** justifica a existência do controle.
+  **Correção de 29/09/2026:** não replicou (confirmatório: FAA +0,0084, p = 0,754;
+  forgetting −0,0096, p = 0,344 — **nulo**). A justificativa do controle não
+  depende disso: ela é estrutural (separar quantidade de distribuição), e um
+  falsificador empatado com o vanilla é a posição neutra correta. Esta linha
+  **sai** da lista de evidências da tese.
 - A **morte de `iso − permutado` entre 2 e 10 tarefas** demonstra que conclusões
   de sequências curtas não transferem.
 

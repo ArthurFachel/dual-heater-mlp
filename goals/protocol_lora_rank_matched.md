@@ -6,6 +6,38 @@
 
 **Estado: CONGELADO em 28/09/2026**, antes da primeira seed.
 
+> ## ARQUIVADO EM 29/09/2026 — SUPERADO, NÃO EXECUTADO
+>
+> Este protocolo (QB-2) existe para decidir se o efeito confirmado do `exact` é
+> mecanismo ou capacidade do adaptador, parcando contagem de parâmetros
+> treináveis. **A decomposição do `exact` respondeu antes, e melhor.**
+>
+> Três razões para não gastar as ~2h de GPU:
+>
+> 1. **O braço de tratamento morreu.** `exact − frozen_a_control` deu 5+/5,
+>    p = 1,00 ([registro](../docs/results/exact_decomposition_results.md)): a
+>    máscara SlowHeat não contribui nada. O que resta do `exact` é LoRA-FA, e
+>    testá-lo com rank elevado mede LoRA-FA sob capacidade pareada, não o
+>    mecanismo da casa.
+> 2. **A pergunta foi reformulada, não abandonada.** Capacidade do adaptador e
+>    plasticidade efetiva são a **mesma grandeza** medida sobre escopos
+>    diferentes (ver R3 em
+>    [`docs/lora/lora_confirmation_results.md`](../docs/lora/lora_confirmation_results.md)).
+>    O experimento que a responde agora é
+>    [`protocol_plasticity_matched.md`](protocol_plasticity_matched.md), que
+>    pareia por **plasticidade de superfície** em vez de por contagem de
+>    parâmetros — mais geral, e ~1h10 em vez de ~2h.
+> 3. **A limitação declarada em §J tornou-se decisiva.** `exact_r26` teria 26
+>    direções aleatórias fixas contra 16 aprendíveis, então mesmo um resultado
+>    positivo deixaria a explicação "mais direções, ainda que fixas, ajudam" em
+>    aberto. O pareamento por superfície não tem esse problema porque não mexe
+>    no rank.
+>
+> **Nada aqui foi desperdiçado.** A aritmética da seção F (rank pareado é 26,
+> não 32) e o bug de `scaling = alpha/r` corrigido na seção G continuam válidos e
+> estão no código, com teste. O documento permanece como registro de uma decisão
+> tomada por aritmética antes de qualquer seed.
+
 ---
 
 ## A. O que motiva

@@ -118,6 +118,28 @@ Medido na run exploratória: `lr_control` é o **pior** braço de todos, pior qu
 o vanilla (FAA 0,5684 contra 0,6016). Isso o torna um teste não-trivial e não
 um alvo fácil posicionado abaixo de todos.
 
+> **Correção de 29/09/2026 — o parágrafo acima não replicou.**
+>
+> A frase "`lr_control` é o **pior** braço de todos, pior que o vanilla" vem da
+> run exploratória. As 10 seeds confirmatórias (banda 700001+), recomputadas dos
+> manifestos, contradizem em **sinal** e não são significativas:
+>
+> | contraste | exploratório | **confirmatório (10 seeds)** |
+> |---|---|---|
+> | FAA `lr_control − vanilla` | −0,0332 (pior) | **+0,0084**, 6+/4−, p = 0,754 |
+> | forgetting `lr_control − vanilla` | +0,0383 (pior) | **−0,0096**, 3+/7−, p = 0,344 |
+>
+> Leitura correta: **nula.** Reduzir o lr uniformemente em 15% não muda
+> forgetting nem FAA de forma detectável em n=10.
+>
+> Isso **não enfraquece** o controle — fortalece. A objeção que a frase original
+> convidava ("o falsificador foi escolhido por ser ruim") deixa de existir: o
+> controle está empatado com o vanilla, que é a posição neutra que um
+> falsificador deve ocupar.
+>
+> O número exploratório fica registrado acima, não apagado: regressão à média
+> num endpoint secundário é o achado, não um erro a esconder.
+
 ## G. Endpoints
 
 Reportados por braço e por seed, com diferenças **pareadas por seed** (nunca
