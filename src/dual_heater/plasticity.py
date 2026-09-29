@@ -16,12 +16,17 @@ exatamente à média da máscara.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 import torch
 from torch import Tensor
 
-__all__ = ["direction_cosine", "norm_ratio", "plasticity_ratio"]
+__all__ = [
+    "direction_cosine",
+    "measure_shadow_step",
+    "norm_ratio",
+    "plasticity_ratio",
+]
 
 
 def _validate(
@@ -111,3 +116,61 @@ def direction_cosine(
         torch.dot(flat_native, flat_unpenalized)
         / (flat_native.norm() * flat_unpenalized.norm())
     )
+
+
+def measure_shadow_step(
+    *,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    penalized_loss: Callable[[], Tensor],
+    unpenalized_loss: Callable[[], Tensor],
+) -> dict[str, float | None]:
+    """Mede a plasticidade de UM passo sem perturbar o treino.
+
+    Executa o passo duas vezes a partir do mesmo estado (parâmetros e estado do
+    otimizador), uma com a penalidade e outra sem, e restaura tudo ao final.
+    Custa 3× um passo normal, por isso deve ser amostrado (G7).
+
+    Sob AdamW o resultado é um contrafactual LOCAL: responde "dado este estado,
+    qual seria este passo sem a penalidade", não "qual teria sido a trajetória".
+    É a ressalva D.2 do pré-registro e vai no artigo.
+    """
+
+    import copy
+
+    params_0 = {name: p.detach().clone() for name, p in model.named_parameters()}
+    state_0 = copy.deepcopy(optimizer.state_dict())
+    grads_0 = {
+        name: (None if p.grad is None else p.grad.detach().clone())
+        for name, p in model.named_parameters()
+    }
+
+    def run(loss_fn: Callable[[], Tensor]) -> dict[str, Tensor]:
+        optimizer.zero_grad(set_to_none=True)
+        loss_fn().backward()
+        optimizer.step()
+        delta = {
+            name: (p.detach() - params_0[name]).clone()
+            for name, p in model.named_parameters()
+        }
+        with torch.no_grad():
+            for name, p in model.named_parameters():
+                p.copy_(params_0[name])
+        optimizer.load_state_dict(copy.deepcopy(state_0))
+        return delta
+
+    try:
+        native = run(penalized_loss)
+        unpenalized = run(unpenalized_loss)
+    finally:
+        # Restaura também os gradientes: o chamador pode estar no meio de uma
+        # acumulação, e consumi-la aqui mudaria a run que estamos medindo.
+        for name, parameter in model.named_parameters():
+            saved = grads_0[name]
+            parameter.grad = None if saved is None else saved.clone()
+
+    return {
+        "plasticity_ratio": plasticity_ratio(native=native, unpenalized=unpenalized),
+        "norm_ratio": norm_ratio(native=native, unpenalized=unpenalized),
+        "direction_cosine": direction_cosine(native=native, unpenalized=unpenalized),
+    }

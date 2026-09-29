@@ -134,3 +134,171 @@ def test_direction_cosine_detects_rotation() -> None:
     unpenalized = {"w": torch.tensor([1.0, 0.0])}
     native = {"w": torch.tensor([0.0, 1.0])}
     assert direction_cosine(native=native, unpenalized=unpenalized) == pytest.approx(0.0)
+
+
+def test_shadow_step_measures_a_diagonal_mask_exactly() -> None:
+    """Caso de resposta conhecida: sem penalidade -> ratio == 1.
+
+    É o guarda-chuva do risco R5 do roadmap: antes de acreditar num varrido que
+    diz que nenhum método sobrevive ao pareamento, o instrumento tem de acertar
+    o caso em que a resposta é sabida.
+    """
+
+    import torch.nn as nn
+
+    from dual_heater.plasticity import measure_shadow_step
+
+    torch.manual_seed(0)
+    model = nn.Linear(4, 3, bias=False)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    inputs = torch.randn(8, 4)
+    targets = torch.randint(0, 3, (8,))
+
+    def base_loss() -> torch.Tensor:
+        return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+    report = measure_shadow_step(
+        model=model,
+        optimizer=optimizer,
+        penalized_loss=base_loss,
+        unpenalized_loss=base_loss,
+    )
+    # Sem penalidade os dois fluxos coincidem: ratio exatamente 1.
+    assert report["plasticity_ratio"] == pytest.approx(1.0)
+    assert report["direction_cosine"] == pytest.approx(1.0)
+    assert report["norm_ratio"] == pytest.approx(1.0)
+
+
+def test_shadow_step_detects_a_penalty_that_shrinks_the_update() -> None:
+    """Uma penalidade quadrática ativa tem de baixar o ratio abaixo de 1."""
+
+    import torch.nn as nn
+
+    from dual_heater.ewc import ewc_penalty
+    from dual_heater.plasticity import measure_shadow_step
+
+    torch.manual_seed(1)
+    model = nn.Linear(4, 3, bias=False)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    inputs = torch.randn(8, 4)
+    targets = torch.randint(0, 3, (8,))
+
+    anchors = {n: torch.zeros_like(p) for n, p in model.named_parameters()}
+    importance = {n: torch.ones_like(p) for n, p in model.named_parameters()}
+
+    def unpenalized() -> torch.Tensor:
+        return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+    def penalized() -> torch.Tensor:
+        return unpenalized() + ewc_penalty(
+            params=dict(model.named_parameters()),
+            anchors=anchors,
+            importance=importance,
+            strength=10.0,
+        )
+
+    report = measure_shadow_step(
+        model=model,
+        optimizer=optimizer,
+        penalized_loss=penalized,
+        unpenalized_loss=unpenalized,
+    )
+    assert report["plasticity_ratio"] is not None
+    assert report["plasticity_ratio"] != pytest.approx(1.0)
+
+
+def test_shadow_step_leaves_training_state_untouched() -> None:
+    """A medição não pode alterar a trajetória que está sendo medida.
+
+    Se o passo-sombra consumir o estado do otimizador ou deixar os parâmetros
+    deslocados, o piloto mede uma run diferente da que reporta.
+    """
+
+    import copy
+
+    import torch.nn as nn
+
+    from dual_heater.plasticity import measure_shadow_step
+
+    torch.manual_seed(2)
+    model = nn.Linear(4, 3, bias=False)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
+    inputs = torch.randn(8, 4)
+    targets = torch.randint(0, 3, (8,))
+
+    def loss() -> torch.Tensor:
+        return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+    # Um passo real para que o otimizador tenha estado não trivial.
+    optimizer.zero_grad()
+    loss().backward()
+    optimizer.step()
+
+    params_before = {n: p.detach().clone() for n, p in model.named_parameters()}
+    state_before = copy.deepcopy(optimizer.state_dict())
+
+    measure_shadow_step(
+        model=model, optimizer=optimizer, penalized_loss=loss, unpenalized_loss=loss
+    )
+
+    for name, parameter in model.named_parameters():
+        assert torch.equal(parameter.detach(), params_before[name]), (
+            f"{name} foi deslocado pela medição"
+        )
+    state_after = optimizer.state_dict()
+    for group_index, entries in state_before["state"].items():
+        for key, value in entries.items():
+            if isinstance(value, torch.Tensor):
+                assert torch.equal(value, state_after["state"][group_index][key]), (
+                    f"estado do otimizador ({key}) mudou durante a medição"
+                )
+
+
+def test_shadow_step_restores_pending_gradients() -> None:
+    """A medição não pode consumir o `.grad` acumulado pelo chamador.
+
+    Divergência deliberada do plano: `optimizer.zero_grad(set_to_none=True)`
+    dentro do passo-sombra apaga uma acumulação em andamento, e o passo real
+    seguinte aplicaria um gradiente diferente do que teria aplicado. Restaurar
+    parâmetros e estado do otimizador não basta — o buffer de gradiente é um
+    terceiro pedaço de estado de treino.
+
+    O fixture usa batches DIFERENTES para o gradiente pendente e para a
+    medição. Com o mesmo batch nos dois, o passo-sombra recomputaria por acaso
+    o mesmo gradiente e o teste passaria mesmo sem restauração alguma — foi
+    assim que a primeira versão deste teste sobreviveu à mutação M6.
+    """
+
+    import torch.nn as nn
+
+    from dual_heater.plasticity import measure_shadow_step
+
+    torch.manual_seed(3)
+    model = nn.Linear(4, 3, bias=False)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+
+    pending_inputs = torch.randn(8, 4)
+    pending_targets = torch.randint(0, 3, (8,))
+    shadow_inputs = torch.randn(8, 4) + 5.0
+    shadow_targets = torch.randint(0, 3, (8,))
+
+    def shadow_loss() -> torch.Tensor:
+        return torch.nn.functional.cross_entropy(model(shadow_inputs), shadow_targets)
+
+    # Gradiente pendente de OUTRO batch, como no meio de uma acumulação.
+    optimizer.zero_grad()
+    torch.nn.functional.cross_entropy(model(pending_inputs), pending_targets).backward()
+    grads_before = {n: p.grad.detach().clone() for n, p in model.named_parameters()}
+
+    measure_shadow_step(
+        model=model,
+        optimizer=optimizer,
+        penalized_loss=shadow_loss,
+        unpenalized_loss=shadow_loss,
+    )
+
+    for name, parameter in model.named_parameters():
+        assert parameter.grad is not None, f"{name}: gradiente pendente foi descartado"
+        assert torch.equal(parameter.grad, grads_before[name]), (
+            f"{name}: gradiente pendente foi alterado pela medição"
+        )
