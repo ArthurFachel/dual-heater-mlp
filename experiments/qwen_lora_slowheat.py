@@ -41,6 +41,7 @@ from torch import Tensor
 from dual_heater.lora_slowheat import (
     LoRASlowHeatConfig,
     QwenLoRASlowHeat,
+    attach_surface_plasticity,
     build_lora_slowheat,
 )
 from dual_heater.metrics import compute_cl_metrics
@@ -57,6 +58,24 @@ ARMS: tuple[str, ...] = (
     # Decomposes `exact` into LoRA-FA (frozen A) and SlowHeat (masked B).
     # See FROZEN_A_METHODS in dual_heater.lora_slowheat.
     "frozen_a_control",
+)
+
+#: Seeds frozen for the plasticity-matched protocol
+#: (goals/protocol_plasticity_matched.md, P2).
+#:
+#: Disjoint from every band already spent on the project, verified by
+#: tests/test_plasticity_matched_seeds.py.
+PLASTICITY_MATCHED_SEEDS: tuple[int, ...] = (
+    6_000_003,
+    6_025_019,
+    6_050_029,
+    6_075_041,
+    6_100_057,
+    6_125_069,
+    6_150_077,
+    6_175_091,
+    6_200_107,
+    6_225_119,
 )
 
 #: Seeds frozen for the `exact` decomposition
@@ -102,6 +121,13 @@ class RunConfig:
     #: value at every task boundary, making arms cost-matched in retained
     #: plasticity instead of in nominal protection strength.
     target_plasticity: float | None = None
+    #: Explicit uniform learning-rate scale for the ``lr_control`` arm.
+    #:
+    #: ``target_plasticity`` only reaches ``lr_control`` because masked arms
+    #: solve their knob to the same number. A protocol whose treatment arm
+    #: removes plasticity by FREEZING has no masked arm, so the falsifier needs
+    #: its own scale or it silently runs untreated at lr x 1.0.
+    learning_rate_scale: float | None = None
     device: str = "cuda:0"
 
     def validate(self) -> None:
@@ -204,6 +230,51 @@ def _build_model(config: RunConfig, num_labels: int, method: str):
     return build_lora_slowheat(model, lora_config)
 
 
+def resolve_effective_lr(method: str, config: RunConfig) -> float:
+    """Learning rate the ``method`` arm actually trains at.
+
+    Only ``lr_control`` is ever scaled: it is the falsifier that removes the
+    same MEAN plasticity as the treatment arm, but uniformly through the
+    learning rate instead of selectively. Scaling any other arm would remove
+    the contrast rather than pair it.
+
+    ``learning_rate_scale`` takes precedence over ``target_plasticity`` because
+    a protocol whose treatment arm freezes parameters has no masked arm whose
+    knob ``target_plasticity`` could solve.
+    """
+
+    if method != "lr_control":
+        return config.learning_rate
+    if config.learning_rate_scale is not None:
+        return config.learning_rate * config.learning_rate_scale
+    if config.target_plasticity is not None:
+        return config.learning_rate * config.target_plasticity
+    return config.learning_rate
+
+
+def plasticity_record(
+    *,
+    masked_mean: float,
+    masked_parameters: int,
+    effective_lr: float,
+    learning_rate: float,
+) -> dict[str, Any]:
+    """The three fields :func:`surface_plasticity` needs, for the manifest.
+
+    A pure seam so the wiring is testable without a GPU: without these fields
+    a reader cannot recompute an arm's plasticity offline, which is exactly how
+    an arm sitting at 0.532 was reported as 0.850.
+    """
+
+    if learning_rate <= 0.0:
+        raise ValueError("learning_rate deve ser > 0")
+    return {
+        "masked_mean": masked_mean,
+        "masked_parameters": masked_parameters,
+        "learning_rate_scale": effective_lr / learning_rate,
+    }
+
+
 def run_arm(
     method: str,
     tasks: list[CLINC150Task],
@@ -237,9 +308,7 @@ def run_arm(
     # The lr_control arm removes plasticity uniformly through the learning
     # rate instead of selectively through a mask. Scaling lr by the same
     # target E makes it the cost-matched falsifier for every masked arm.
-    effective_lr = config.learning_rate
-    if method == "lr_control" and config.target_plasticity is not None:
-        effective_lr = config.learning_rate * config.target_plasticity
+    effective_lr = resolve_effective_lr(method, config)
 
     optimizer = SlowHeatAdamW(
         trainable,
@@ -319,6 +388,7 @@ def run_arm(
     elapsed = time.perf_counter() - started
     memory = tracker.stop()
     metrics = compute_cl_metrics(matrix)
+    masked_mean, masked_parameters = instrumentation.mask_coverage()
     instrumentation.remove_hooks()
 
     result = {
@@ -345,6 +415,14 @@ def run_arm(
         ),
         "trainable_parameters": trainable_count,
         "effective_learning_rate": effective_lr,
+        # The three fields surface_plasticity() needs, so the pairing of a run
+        # can be verified offline from the manifest alone.
+        **plasticity_record(
+            masked_mean=masked_mean,
+            masked_parameters=masked_parameters,
+            effective_lr=effective_lr,
+            learning_rate=config.learning_rate,
+        ),
         "target_plasticity": config.target_plasticity,
         "calibration": calibration,
         "stages": per_stage,
@@ -429,16 +507,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Solve each arm's knob so measured plasticity equals this value.",
     )
+    parser.add_argument(
+        "--learning-rate-scale",
+        type=float,
+        default=None,
+        help=(
+            "Uniform learning-rate scale for the lr_control arm, overriding "
+            "--target-plasticity. Required when the treatment arm removes "
+            "plasticity by freezing parameters rather than by masking them, "
+            "because no mask knob then exists for --target-plasticity to solve."
+        ),
+    )
     parser.add_argument("--leak-combination", default="min", choices=["min", "weighted"])
     parser.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(ARMS))
     return parser
 
 
-def main() -> None:
-    parser = build_parser()
-    arguments = parser.parse_args()
+def build_run_config(arguments: argparse.Namespace) -> RunConfig:
+    """Build the :class:`RunConfig` the run executes from parsed CLI arguments.
 
-    config = RunConfig(
+    Extracted from ``main`` so a test can assert the last hop: a flag that
+    parses correctly but is never copied into the config leaves every arm at
+    the default, which for ``lr_control`` means the falsifier runs UNTREATED
+    while the manifest still looks entirely normal.
+    """
+
+    return RunConfig(
         seed=arguments.seed,
         tasks=arguments.tasks,
         train_per_class=arguments.train_per_class,
@@ -453,8 +547,16 @@ def main() -> None:
         hard=arguments.hard,
         leak_combination=arguments.leak_combination,
         target_plasticity=arguments.target_plasticity,
+        learning_rate_scale=arguments.learning_rate_scale,
         device=arguments.device,
     )
+
+
+def main() -> None:
+    parser = build_parser()
+    arguments = parser.parse_args()
+
+    config = build_run_config(arguments)
     config.validate()
 
     data_config = SplitCLINC150Config(
@@ -490,6 +592,10 @@ def main() -> None:
         run_arm(method, tasks, config, pad_token_id=pad_token_id)
         for method in arguments.arms
     ]
+    # Surface plasticity is only defined relative to a reference arm, so it is
+    # attached here (where every arm is known) rather than inside run_arm.
+    if any(row["method"] == "vanilla" for row in results):
+        attach_surface_plasticity(results, reference_arm="vanilla")
 
     manifest = {
         "status": "exploratory_single_seed",

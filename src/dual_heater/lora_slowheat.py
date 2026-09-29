@@ -91,6 +91,93 @@ UNMASKED_METHODS: frozenset[str] = frozenset(
 #: Only the second is ours to claim.
 FROZEN_A_METHODS: frozenset[str] = frozenset({"exact", "frozen_a_control"})
 
+#: Fraction of the reference arm's trainable surface that survives freezing
+#: ``A`` at ``r = 16``: 4_214_016 / 6_769_920. It is the learning-rate scale
+#: that makes ``lr_control`` plasticity-matched to ``frozen_a_control``.
+#:
+#: Derived from the two parameter counts measured in every confirmatory
+#: manifest, with no accuracy consulted.
+FROZEN_A_LR_SCALE: float = 4_214_016 / 6_769_920
+
+
+def surface_plasticity(
+    *,
+    masked_mean: float,
+    masked_parameters: int,
+    trainable_parameters: int,
+    reference_parameters: int,
+    lr_scale: float = 1.0,
+) -> float:
+    """Mean update factor over the REFERENCE arm's trainable surface.
+
+    :meth:`QwenLoRASlowHeat.effective_plasticity` averages the mask over the
+    parameters that carry a mask binding. Parameters an arm FREEZES carry no
+    binding and have an update factor of exactly zero, so that average cannot
+    see them: ``exact`` reported 0.85 while its mean factor over the reference
+    surface was 0.532.
+
+    This function measures the quantity a pairing protocol must control:
+
+    .. code-block:: text
+
+        E_surface = lr_scale * (masked_mean * masked + 1.0 * unmasked) / reference
+
+    where ``unmasked = trainable - masked`` are trainable-but-unmasked
+    parameters (the classification head) and the ``reference - trainable``
+    frozen parameters contribute exactly zero.
+
+    ``E_surface <= E_bindings`` always, with equality iff nothing outside the
+    bindings was frozen or rescaled.
+    """
+
+    if reference_parameters <= 0:
+        raise ValueError("reference_parameters deve ser > 0")
+    if trainable_parameters < 0 or trainable_parameters > reference_parameters:
+        raise ValueError(
+            "trainable_parameters deve estar em [0, reference_parameters]"
+        )
+    if masked_parameters < 0 or masked_parameters > trainable_parameters:
+        raise ValueError("masked_parameters deve estar em [0, trainable_parameters]")
+    if not 0.0 <= masked_mean <= 1.0:
+        raise ValueError("masked_mean deve estar em [0, 1]")
+    if not 0.0 <= lr_scale <= 1.0:
+        raise ValueError("lr_scale deve estar em [0, 1]")
+
+    unmasked = trainable_parameters - masked_parameters
+    total = masked_mean * masked_parameters + unmasked
+    return lr_scale * total / reference_parameters
+
+
+def attach_surface_plasticity(
+    results: list[dict[str, Any]],
+    *,
+    reference_arm: str = "vanilla",
+) -> None:
+    """Add ``surface_plasticity`` to each arm's result dict, in place.
+
+    The reference arm defines the surface every other arm is measured against,
+    so it must be present. Falling back to another arm would silently change
+    the denominator and reintroduce exactly the defect this measures.
+    """
+
+    reference = next(
+        (row for row in results if row.get("method") == reference_arm), None
+    )
+    if reference is None:
+        raise ValueError(
+            f"braço de referência '{reference_arm}' ausente: a plasticidade de "
+            "superfície não é definível sem ele"
+        )
+    denominator = int(reference["trainable_parameters"])
+    for row in results:
+        row["surface_plasticity"] = surface_plasticity(
+            masked_mean=float(row.get("masked_mean", 1.0)),
+            masked_parameters=int(row.get("masked_parameters", 0)),
+            trainable_parameters=int(row["trainable_parameters"]),
+            reference_parameters=denominator,
+            lr_scale=float(row.get("learning_rate_scale", 1.0)),
+        )
+
 
 @dataclass(frozen=True)
 class LoRASlowHeatConfig:
@@ -635,17 +722,20 @@ class QwenLoRASlowHeat:
     # diagnostics
     # ------------------------------------------------------------------
 
-    def effective_plasticity(self) -> float:
-        """Mean mask value over every masked element.
+    def mask_coverage(self) -> tuple[float, int]:
+        """Return ``(mean mask value, number of masked parameters)``.
 
-        This is the measured quantity the iso-plasticity protocol controls, so
-        arms can be compared at matched retained plasticity instead of at
-        matched ``slow_strength``.
+        :meth:`effective_plasticity` is the first element of this pair. The
+        second is what makes the measurement auditable from a manifest: a mean
+        of 0.85 over 4.1M masked parameters and the same mean over 40 of them
+        describe very different interventions, and only the pair distinguishes
+        them. Both are needed to recompute
+        :func:`surface_plasticity` offline.
         """
 
         bindings = self.mask_bindings()
         if not bindings:
-            return 1.0
+            return 1.0, 0
         total = 0.0
         count = 0
         for binding in bindings:
@@ -655,7 +745,26 @@ class QwenLoRASlowHeat:
             )
             total += float(expanded.sum().item())
             count += expanded.numel()
-        return total / count if count else 1.0
+        return (total / count if count else 1.0), count
+
+    def effective_plasticity(self) -> float:
+        """Mean mask value over every masked element.
+
+        .. warning::
+
+           This average is scoped to the parameters that carry a mask binding.
+           Parameters an arm FREEZES carry no binding and have an update factor
+           of exactly zero, so they are invisible here: the ``exact`` arm
+           reported 0.85 while its mean factor over the reference arm's
+           trainable surface was 0.532.
+
+           For pairing arms across a protocol use
+           :func:`surface_plasticity`, which is the quantity that is comparable
+           between an arm that masks and an arm that freezes.
+        """
+
+        mean, _ = self.mask_coverage()
+        return mean
 
     def leak_collapse_fraction(self, threshold: float = 0.1) -> float | None:
         """Fraction of ``A`` rows driven below ``threshold`` by the leak bound.
