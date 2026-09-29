@@ -2079,6 +2079,14 @@ def run_split_mnist(
                                     unpenalized_loss=shadow_unpenalized,
                                 )
                                 sample["stage"] = int(stage)
+                                # O índice do passo medido. Sem ele duas runs
+                                # com taxas de amostragem diferentes não são
+                                # alinháveis: no estágio 0 o contador anda sem
+                                # gravar amostra (ainda não há âncora), o que
+                                # desloca as POSIÇÕES na lista sem deslocar os
+                                # índices. Também é o eixo x de qualquer curva
+                                # de plasticidade ao longo do treino.
+                                sample["step"] = int(plasticity_step_index)
                                 plasticity_samples.append(sample)
                         plasticity_step_index += 1
 

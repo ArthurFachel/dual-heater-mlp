@@ -83,7 +83,37 @@ def test_the_runner_records_plasticity_samples_for_every_penalty_method(
             "norm_ratio",
             "direction_cosine",
             "stage",
+            "step",
         }
+
+
+def test_samples_carry_the_step_index_so_runs_can_be_aligned() -> None:
+    """Duas taxas de amostragem têm de ser alinháveis pelo índice do passo.
+
+    A amostragem a 1/k mede os passos cujo índice é múltiplo de k, e 1/50 é
+    portanto um SUBCONJUNTO de 1/5 — mas não nas mesmas posições da lista,
+    porque no estágio 0 o contador anda sem gravar (ainda não há âncora). Sem
+    o índice gravado, comparar por posição alinha amostras de estágios
+    diferentes, que foi exatamente o erro que este teste passou a impedir.
+
+    Consequência prática: uma run densa entrega de graça a série esparsa
+    pré-registrada, sem emendar a taxa declarada.
+    """
+
+    dense = _run(_tiny_config("ewc", 1))["ewc"]["plasticity_samples"]
+    sparse = _run(_tiny_config("ewc", 3))["ewc"]["plasticity_samples"]
+
+    assert dense and sparse
+    dense_by_step = {s["step"]: s for s in dense}
+
+    for sample in sparse:
+        assert sample["step"] % 3 == 0, "amostra fora da grade declarada"
+        twin = dense_by_step.get(sample["step"])
+        assert twin is not None, f"passo {sample['step']} ausente da run densa"
+        assert twin["stage"] == sample["stage"]
+        assert twin["norm_ratio"] == pytest.approx(sample["norm_ratio"], abs=1e-12), (
+            f"passo {sample['step']}: a mesma medição diverge entre as runs"
+        )
 
 
 @pytest.mark.parametrize("method", ["ewc", "si", "mas"])
