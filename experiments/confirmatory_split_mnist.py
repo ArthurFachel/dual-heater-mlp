@@ -73,6 +73,16 @@ PENALTY_REEVALUATION_SEEDS: tuple[int, ...] = (
     7_250_101, 7_275_103,
 )
 
+#: Banda do protocolo L2 (`goals/protocol_sgd_plasticity.md` §D.1): mede se
+#: `E > 1` persiste sob SGD puro, ou se é artefato de otimizador adaptativo.
+#: Disjunta de todas as bandas acima, verificado em
+#: `tests/test_sgd_plasticity.py`.
+SGD_PLASTICITY_SEEDS: tuple[int, ...] = (
+    8_000_011, 8_025_013, 8_050_021, 8_075_027, 8_100_037,
+    8_125_043, 8_150_053, 8_175_059, 8_200_063, 8_225_069,
+    8_250_077, 8_275_081,
+)
+
 #: Calibration seed for section I: cost and wiring only, deliberately OUTSIDE
 #: the band above so its endpoints can never be pooled with the confirmatory
 #: ones. Its n=1 endpoints carry no statistical standing.

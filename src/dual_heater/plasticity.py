@@ -25,7 +25,10 @@ __all__ = [
     "direction_cosine",
     "measure_shadow_step",
     "norm_ratio",
+    "penalty_alignment",
+    "penalty_scale",
     "plasticity_ratio",
+    "predicts_above_one",
 ]
 
 
@@ -42,6 +45,69 @@ def _validate(
     for name, tensor in native.items():
         if tensor.shape != unpenalized[name].shape:
             raise ValueError(f"{name}: formas incompatíveis")
+
+
+def _flatten(grads: Mapping[str, Tensor]) -> Tensor:
+    return torch.cat([grads[name].detach().flatten() for name in sorted(grads)])
+
+
+def penalty_alignment(
+    *, loss_grad: Mapping[str, Tensor], penalty_grad: Mapping[str, Tensor]
+) -> float | None:
+    """`g·p / ‖g‖²` — a projeção do gradiente da penalidade sobre o da loss.
+
+    É o termo que decide o sinal de `E − 1` sob SGD, pela derivação do §B de
+    `goals/protocol_sgd_plasticity.md`:
+
+        E² = 1 + (2 g·p + ‖p‖²) / ‖g‖²
+
+    Retorna ``None`` quando ``‖g‖ = 0``: sem gradiente de loss não há nada
+    sobre o que projetar, e 0.0 seria a leitura errada.
+    """
+
+    _validate(loss_grad, penalty_grad)
+    flat_loss = _flatten(loss_grad)
+    squared = float(flat_loss.pow(2).sum())
+    if squared == 0.0:
+        return None
+    return float(torch.dot(_flatten(penalty_grad), flat_loss) / squared)
+
+
+def penalty_scale(
+    *, loss_grad: Mapping[str, Tensor], penalty_grad: Mapping[str, Tensor]
+) -> float | None:
+    """`‖p‖ / ‖g‖` — o tamanho do termo de penalidade relativo ao da loss.
+
+    Um valor acima de 1 significa que a penalidade domina o gradiente, o que
+    torna o update mais uma consequência do termo de consolidação do que da
+    tarefa sendo aprendida.
+    """
+
+    _validate(loss_grad, penalty_grad)
+    loss_norm = float(_flatten(loss_grad).norm())
+    if loss_norm == 0.0:
+        return None
+    return float(_flatten(penalty_grad).norm() / loss_norm)
+
+
+def predicts_above_one(
+    *, loss_grad: Mapping[str, Tensor], penalty_grad: Mapping[str, Tensor]
+) -> bool:
+    """Prediz `E > 1` a partir dos gradientes, sem calcular o update.
+
+    Sob SGD vale exatamente `E > 1 ⟺ 2 g·p + ‖p‖² > 0`. Comparar esta predição
+    com o `norm_ratio` medido é o teste C3 do protocolo L2: um desacordo
+    significa que o update não é `−lr(g+p)`, ou seja que o otimizador está
+    fazendo algo além de somar os dois gradientes.
+    """
+
+    _validate(loss_grad, penalty_grad)
+    flat_loss = _flatten(loss_grad)
+    flat_penalty = _flatten(penalty_grad)
+    return bool(
+        2.0 * float(torch.dot(flat_loss, flat_penalty)) + float(flat_penalty.pow(2).sum())
+        > 0.0
+    )
 
 
 def plasticity_ratio(
