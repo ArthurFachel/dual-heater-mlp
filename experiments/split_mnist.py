@@ -404,6 +404,11 @@ class SplitMNISTConfig:
     #: `0` desliga a medição, que é o default: medir custa 3 passos em vez de
     #: 1 e só o piloto de re-avaliação precisa do número.
     plasticity_sampling_interval: int = 0
+    #: Otimizador do runner. `"adamw"` é o default histórico e não pode mudar:
+    #: protocolos congelados dependem dele. `"sgd"` é SGD PURO — sem momentum e
+    #: sem weight decay — exigido pelo §D/S1 de `goals/protocol_sgd_plasticity.md`
+    #: para medir se `E > 1` sobrevive fora de um otimizador adaptativo.
+    optimizer: str = "adamw"
     lwf_old_class_weight: float = 1.0
     replay_more_epochs: int = 20
     early_stopping_max_epochs: int = 30
@@ -643,6 +648,8 @@ class SplitMNISTConfig:
             raise ValueError("ewc_decay deve estar em [0, 1]")
         if not 0.0 <= self.mas_decay <= 1.0:
             raise ValueError("mas_decay deve estar em [0, 1]")
+        if self.optimizer not in ("adamw", "sgd"):
+            raise ValueError("optimizer deve ser 'adamw' ou 'sgd'")
         if self.si_epsilon <= 0.0 or not 0.0 < self.global_lr_reduction <= 1.0:
             raise ValueError("si_epsilon deve ser > 0 e global_lr_reduction em (0, 1]")
         if self.max_train_examples_per_task is not None and self.max_train_examples_per_task < 1:
@@ -703,6 +710,11 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
     if "mas" not in config.methods:
         payload.pop("mas_lambda")
         payload.pop("mas_decay")
+    # Mesma convenção: o seletor de otimizador só entra no payload quando sai
+    # do default, para que acrescentá-lo não mova o sha256 de nenhum protocolo
+    # já congelado.
+    if config.optimizer == "adamw":
+        payload.pop("optimizer")
     # Mesma convenção: a medição de plasticidade foi adicionada depois que
     # protocolos como `confirmatory_split_mnist.py` já estavam congelados.
     # Desligada (o default), o campo não entra no payload e o sha256 daqueles
@@ -1097,6 +1109,22 @@ def _build_optimizer(
     learning_rate = config.learning_rate
     if method == "replay_global_lr_reduction":
         learning_rate *= config.global_lr_reduction
+    if config.optimizer == "sgd":
+        # SGD PURO (§D/S1 de `goals/protocol_sgd_plasticity.md`): sem momentum,
+        # que reintroduziria o estado de otimizador que este regime existe para
+        # remover, e sem weight decay, que somaria um terceiro termo ao update
+        # e confundiria a decomposição `Δ = −lr (g + p)`.
+        if _is_slowheat(method):
+            raise ValueError(
+                "optimizer='sgd' não suporta métodos SlowHeat, que exigem "
+                "SlowHeatAdamW; use um método de penalidade ou vanilla"
+            )
+        return torch.optim.SGD(
+            model.parameters(),
+            lr=learning_rate,
+            momentum=0.0,
+            weight_decay=0.0,
+        )
     if not _is_slowheat(method):
         return torch.optim.AdamW(
             model.parameters(),

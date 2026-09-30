@@ -211,9 +211,19 @@ def measure_shadow_step(
         for name, p in model.named_parameters()
     }
 
-    def run(loss_fn: Callable[[], Tensor]) -> dict[str, Tensor]:
+    def run(loss_fn: Callable[[], Tensor]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
         optimizer.zero_grad(set_to_none=True)
         loss_fn().backward()
+        # O gradiente é capturado ANTES do passo: é `g` (ou `g + p`) no ponto
+        # atual, que é o que a derivação do §B de
+        # `goals/protocol_sgd_plasticity.md` usa. Capturá-lo depois leria o
+        # gradiente de um ponto que o passo já moveu.
+        gradients = {
+            name: (
+                torch.zeros_like(p) if p.grad is None else p.grad.detach().clone()
+            )
+            for name, p in model.named_parameters()
+        }
         optimizer.step()
         delta = {
             name: (p.detach() - params_0[name]).clone()
@@ -223,11 +233,11 @@ def measure_shadow_step(
             for name, p in model.named_parameters():
                 p.copy_(params_0[name])
         optimizer.load_state_dict(copy.deepcopy(state_0))
-        return delta
+        return delta, gradients
 
     try:
-        native = run(penalized_loss)
-        unpenalized = run(unpenalized_loss)
+        native, penalized_gradients = run(penalized_loss)
+        unpenalized, loss_gradients = run(unpenalized_loss)
     finally:
         # Restaura também os gradientes: o chamador pode estar no meio de uma
         # acumulação, e consumi-la aqui mudaria a run que estamos medindo.
@@ -235,8 +245,26 @@ def measure_shadow_step(
             saved = grads_0[name]
             parameter.grad = None if saved is None else saved.clone()
 
+    # `p = g_penalizado − g`: o gradiente do termo de penalidade sozinho, no
+    # mesmo ponto. Não custa passo extra — os dois já foram computados.
+    penalty_gradients = {
+        name: penalized_gradients[name] - loss_gradients[name]
+        for name in loss_gradients
+    }
+
     return {
         "plasticity_ratio": plasticity_ratio(native=native, unpenalized=unpenalized),
         "norm_ratio": norm_ratio(native=native, unpenalized=unpenalized),
         "direction_cosine": direction_cosine(native=native, unpenalized=unpenalized),
+        # S8 do protocolo L2: testam as predições C2–C4 offline, a partir do
+        # manifest, sem re-rodar nada.
+        "penalty_alignment": penalty_alignment(
+            loss_grad=loss_gradients, penalty_grad=penalty_gradients
+        ),
+        "penalty_scale": penalty_scale(
+            loss_grad=loss_gradients, penalty_grad=penalty_gradients
+        ),
+        "predicted_above_one": predicts_above_one(
+            loss_grad=loss_gradients, penalty_grad=penalty_gradients
+        ),
     }

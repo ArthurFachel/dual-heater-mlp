@@ -258,3 +258,255 @@ def test_metrics_reject_a_zero_loss_gradient() -> None:
     some = {"w": torch.ones(4)}
     assert penalty_alignment(loss_grad=zero, penalty_grad=some) is None
     assert penalty_scale(loss_grad=zero, penalty_grad=some) is None
+
+
+def test_config_accepts_a_pure_sgd_optimizer() -> None:
+    """S1: sem esse seletor o L2 não é executável — tudo roda AdamW."""
+
+    from experiments.split_mnist import SplitMNISTConfig
+
+    config = SplitMNISTConfig(optimizer="sgd")
+    config.validate()
+    assert config.optimizer == "sgd"
+
+
+def test_config_defaults_to_adamw() -> None:
+    """O default não pode mudar: protocolos congelados dependem dele."""
+
+    from experiments.split_mnist import SplitMNISTConfig
+
+    assert SplitMNISTConfig().optimizer == "adamw"
+
+
+def test_config_rejects_an_unknown_optimizer() -> None:
+    from experiments.split_mnist import SplitMNISTConfig
+
+    with pytest.raises(ValueError):
+        SplitMNISTConfig(optimizer="rmsprop").validate()
+
+
+def test_optimizer_field_stays_out_of_frozen_payloads() -> None:
+    """Adicionar o campo não pode mover o sha256 de um pré-registro fechado.
+
+    Mesma convenção do `mas_lambda`: o campo só entra no payload quando sai do
+    default. Sem isso, `tests/test_confirmatory_statistics.py` fica vermelho e
+    a tentação é atualizar o hash esperado — o que reescreveria um
+    pré-registro.
+    """
+
+    from experiments.split_mnist import SplitMNISTConfig, config_payload
+
+    assert "optimizer" not in config_payload(SplitMNISTConfig())
+    assert config_payload(SplitMNISTConfig(optimizer="sgd"))["optimizer"] == "sgd"
+
+
+def test_sgd_optimizer_is_actually_sgd_and_has_no_momentum() -> None:
+    """S1 exige SGD puro: momentum reintroduz o estado que o L2 quer remover."""
+
+    import torch.nn as nn
+
+    from experiments.split_mnist import SplitMNISTConfig, _build_optimizer
+
+    model = nn.Linear(4, 2)
+    optimizer = _build_optimizer("ewc", model, SplitMNISTConfig(optimizer="sgd"))
+
+    assert isinstance(optimizer, torch.optim.SGD)
+    for group in optimizer.param_groups:
+        assert group["momentum"] == 0.0, "momentum reintroduz estado do otimizador"
+        assert group["weight_decay"] == 0.0, (
+            "weight decay soma outro termo ao update e confunde `p`"
+        )
+
+
+def test_adamw_remains_the_optimizer_when_not_requested() -> None:
+    import torch.nn as nn
+
+    from experiments.split_mnist import SplitMNISTConfig, _build_optimizer
+
+    optimizer = _build_optimizer("ewc", nn.Linear(4, 2), SplitMNISTConfig())
+    assert isinstance(optimizer, torch.optim.AdamW)
+
+
+# --- o passo-sombra tem de EMITIR as métricas novas (S8) ------------------
+
+
+def test_shadow_step_emits_the_gradient_metrics() -> None:
+    """S8: sem estes campos no manifest, C2–C4 não são testáveis offline.
+
+    O passo-sombra já computa os dois gradientes; não emiti-los obriga a
+    re-rodar a experiência inteira para responder uma pergunta que os dados
+    já continham.
+    """
+
+    import torch.nn as nn
+
+    from dual_heater.plasticity import measure_shadow_step
+
+    torch.manual_seed(3)
+    model = nn.Linear(5, 3, bias=False)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
+    inputs = torch.randn(8, 5)
+    targets = torch.randint(0, 3, (8,))
+    anchors = {n: torch.zeros_like(p) for n, p in model.named_parameters()}
+    importance = {n: torch.ones_like(p) for n, p in model.named_parameters()}
+
+    def unpenalized() -> torch.Tensor:
+        return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+    def penalized() -> torch.Tensor:
+        from dual_heater.ewc import ewc_penalty
+
+        return unpenalized() + ewc_penalty(
+            params=dict(model.named_parameters()),
+            anchors=anchors,
+            importance=importance,
+            strength=5.0,
+        )
+
+    sample = measure_shadow_step(
+        model=model,
+        optimizer=optimizer,
+        penalized_loss=penalized,
+        unpenalized_loss=unpenalized,
+    )
+
+    for field in ("penalty_alignment", "penalty_scale", "predicted_above_one"):
+        assert field in sample, f"campo {field} ausente do passo-sombra"
+    assert isinstance(sample["predicted_above_one"], bool)
+    assert sample["penalty_scale"] > 0.0
+
+
+def test_shadow_step_prediction_agrees_with_its_own_measurement_under_sgd() -> None:
+    """C3 medido de ponta a ponta pelo próprio instrumento, sob SGD.
+
+    É o teste que fecha o laço: o passo-sombra prevê o sinal de `E − 1` a
+    partir dos gradientes e mede `E` a partir dos updates, e os dois têm de
+    concordar. Um desacordo sob SGD significa que o update não é `−lr(g+p)` —
+    o que invalidaria a derivação do §B antes de a run começar.
+    """
+
+    import torch.nn as nn
+
+    from dual_heater.ewc import ewc_penalty
+    from dual_heater.plasticity import measure_shadow_step
+
+    for seed in range(6):
+        torch.manual_seed(seed)
+        model = nn.Linear(6, 4, bias=False)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.02)
+        inputs = torch.randn(10, 6)
+        targets = torch.randint(0, 4, (10,))
+        anchors = {n: torch.randn_like(p) for n, p in model.named_parameters()}
+        importance = {n: torch.rand_like(p) for n, p in model.named_parameters()}
+
+        def unpenalized() -> torch.Tensor:
+            return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+        def penalized() -> torch.Tensor:
+            return unpenalized() + ewc_penalty(
+                params=dict(model.named_parameters()),
+                anchors=anchors,
+                importance=importance,
+                strength=20.0,
+            )
+
+        sample = measure_shadow_step(
+            model=model,
+            optimizer=optimizer,
+            penalized_loss=penalized,
+            unpenalized_loss=unpenalized,
+        )
+        measured_above = sample["norm_ratio"] > 1.0
+        assert measured_above is sample["predicted_above_one"], (
+            f"seed {seed}: E={sample['norm_ratio']:.6f} mas "
+            f"predição={sample['predicted_above_one']}"
+        )
+
+
+def test_shadow_step_identity_holds_under_sgd() -> None:
+    """C2 de ponta a ponta: `E · cos = 1 + alignment`, sob SGD."""
+
+    import torch.nn as nn
+
+    from dual_heater.ewc import ewc_penalty
+    from dual_heater.plasticity import measure_shadow_step
+
+    torch.manual_seed(42)
+    model = nn.Linear(8, 5, bias=False)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    inputs = torch.randn(12, 8)
+    targets = torch.randint(0, 5, (12,))
+    anchors = {n: torch.randn_like(p) for n, p in model.named_parameters()}
+    importance = {n: torch.rand_like(p) for n, p in model.named_parameters()}
+
+    def unpenalized() -> torch.Tensor:
+        return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+    def penalized() -> torch.Tensor:
+        return unpenalized() + ewc_penalty(
+            params=dict(model.named_parameters()),
+            anchors=anchors,
+            importance=importance,
+            strength=15.0,
+        )
+
+    sample = measure_shadow_step(
+        model=model,
+        optimizer=optimizer,
+        penalized_loss=penalized,
+        unpenalized_loss=unpenalized,
+    )
+    left = sample["norm_ratio"] * sample["direction_cosine"]
+    right = 1.0 + sample["penalty_alignment"]
+    assert left == pytest.approx(right, abs=1e-4)
+
+
+def test_shadow_step_identity_is_violated_under_adamw() -> None:
+    """A ressalva do §D.2, como teste: sob AdamW a identidade NÃO vale.
+
+    Isto não é um defeito — é o motivo de o protocolo declarar o contrafactual
+    como local. Se este teste um dia passar a valer sob AdamW, a leitura do §B
+    precisa ser revista, e é melhor descobrir por um teste vermelho do que por
+    uma interpretação errada de uma run.
+    """
+
+    import torch.nn as nn
+
+    from dual_heater.ewc import ewc_penalty
+    from dual_heater.plasticity import measure_shadow_step
+
+    torch.manual_seed(7)
+    model = nn.Linear(8, 5, bias=False)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
+    inputs = torch.randn(12, 8)
+    targets = torch.randint(0, 5, (12,))
+    anchors = {n: torch.randn_like(p) for n, p in model.named_parameters()}
+    importance = {n: torch.rand_like(p) for n, p in model.named_parameters()}
+
+    def unpenalized() -> torch.Tensor:
+        return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+    def penalized() -> torch.Tensor:
+        return unpenalized() + ewc_penalty(
+            params=dict(model.named_parameters()),
+            anchors=anchors,
+            importance=importance,
+            strength=15.0,
+        )
+
+    # Um passo real para o AdamW ter estado não trivial.
+    optimizer.zero_grad()
+    penalized().backward()
+    optimizer.step()
+
+    sample = measure_shadow_step(
+        model=model,
+        optimizer=optimizer,
+        penalized_loss=penalized,
+        unpenalized_loss=unpenalized,
+    )
+    left = sample["norm_ratio"] * sample["direction_cosine"]
+    right = 1.0 + sample["penalty_alignment"]
+    assert left != pytest.approx(right, abs=1e-4), (
+        "a identidade do SGD passou a valer sob AdamW — reler o §B/§D.2"
+    )
