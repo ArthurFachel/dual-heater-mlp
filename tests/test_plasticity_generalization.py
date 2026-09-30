@@ -452,3 +452,65 @@ def test_norm_ratio_can_exceed_one_when_the_penalty_amplifies() -> None:
     native = {"w": torch.tensor([2.0, 2.0])}
 
     assert norm_ratio(native=native, unpenalized=unpenalized) == pytest.approx(2.0)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="precisa de CUDA")
+def test_shadow_step_gives_the_same_answer_on_cuda_as_on_cpu() -> None:
+    """Testes só-CPU não veem bug de colocação de device.
+
+    O passo-sombra clona parâmetros, faz `deepcopy` do `state_dict` do
+    otimizador e restaura os dois. Um tensor de estado que volte para o device
+    errado passa despercebido na CPU e quebra (ou pior, silenciosamente muda o
+    resultado) na primeira run de GPU. Este teste exige IGUALDADE numérica
+    entre os dois devices, não apenas ausência de exceção.
+    """
+
+    import torch.nn as nn
+
+    from dual_heater.ewc import ewc_penalty
+    from dual_heater.plasticity import measure_shadow_step
+
+    def run(device: str) -> dict[str, float | None]:
+        torch.manual_seed(7)
+        model = nn.Linear(16, 8, bias=True).to(device)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+        inputs = torch.randn(32, 16, generator=torch.Generator().manual_seed(1)).to(
+            device
+        )
+        targets = torch.randint(
+            0, 8, (32,), generator=torch.Generator().manual_seed(2)
+        ).to(device)
+
+        anchors = {n: torch.zeros_like(p) for n, p in model.named_parameters()}
+        importance = {n: torch.ones_like(p) for n, p in model.named_parameters()}
+
+        def unpenalized() -> torch.Tensor:
+            return torch.nn.functional.cross_entropy(model(inputs), targets)
+
+        def penalized() -> torch.Tensor:
+            return unpenalized() + ewc_penalty(
+                params=dict(model.named_parameters()),
+                anchors=anchors,
+                importance=importance,
+                strength=100.0,
+            )
+
+        # Um passo real primeiro, para o otimizador ter estado não trivial.
+        optimizer.zero_grad()
+        penalized().backward()
+        optimizer.step()
+
+        return measure_shadow_step(
+            model=model,
+            optimizer=optimizer,
+            penalized_loss=penalized,
+            unpenalized_loss=unpenalized,
+        )
+
+    on_cpu = run("cpu")
+    on_cuda = run("cuda")
+
+    for key in ("plasticity_ratio", "norm_ratio", "direction_cosine"):
+        assert on_cuda[key] == pytest.approx(on_cpu[key], rel=1e-4), (
+            f"{key}: CUDA={on_cuda[key]} difere de CPU={on_cpu[key]}"
+        )

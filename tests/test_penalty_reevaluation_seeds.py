@@ -338,3 +338,78 @@ def test_pass1_resume_rejects_artifacts_from_another_configuration() -> None:
     # Artefato sem os campos de proveniência: não é reaproveitável.
     assert not should_reuse({"seed": 1}, dense_interval=1)
     assert not should_reuse(None, dense_interval=1)
+
+
+def test_cifar_sharding_covers_every_seed_exactly_once() -> None:
+    """Uma seed perdida ou duplicada entre shards invalida a banda.
+
+    O sharding roda em 3 GPUs em paralelo; se a partição não for exata, a
+    passada 1 do CIFAR mede um conjunto de seeds diferente do declarado no §G
+    e nada falha em tempo de execução.
+    """
+
+    from experiments.confirmatory_split_mnist import PENALTY_REEVALUATION_SEEDS
+    from scripts.run_penalty_pass1_cifar import shard_seeds
+
+    seeds = list(PENALTY_REEVALUATION_SEEDS)
+    for shards in (1, 2, 3, 4, 5):
+        covered: list[int] = []
+        for shard in range(shards):
+            covered.extend(shard_seeds(seeds, shard=shard, shards=shards))
+        assert sorted(covered) == sorted(seeds), f"{shards} shards: cobertura errada"
+        assert len(covered) == len(set(covered)), f"{shards} shards: seed duplicada"
+
+
+def test_cifar_sharding_keeps_a_whole_seed_on_one_device() -> None:
+    """Partir as arms de uma seed entre devices quebraria o pareamento.
+
+    As arms compartilham inicialização e fluxo de dados dentro de uma seed, e é
+    isso que valida a diferença pareada. O sharding é por seed, nunca por arm.
+    """
+
+    from experiments.confirmatory_split_mnist import PENALTY_REEVALUATION_SEEDS
+    from scripts.run_penalty_pass1_cifar import ARMS, shard_seeds
+
+    seeds = list(PENALTY_REEVALUATION_SEEDS)
+    sizes = [len(shard_seeds(seeds, shard=i, shards=3)) for i in range(3)]
+    assert sum(sizes) == 12
+    assert sorted(sizes) == [4, 4, 4], "12 seeds em 3 shards devem dar 4/4/4"
+    # As arms nunca entram no cálculo do shard.
+    assert ARMS == ("vanilla", "ewc", "si", "mas")
+
+
+def test_cifar_sharding_rejects_an_out_of_range_shard() -> None:
+    from scripts.run_penalty_pass1_cifar import shard_seeds
+
+    with pytest.raises(ValueError):
+        shard_seeds([1, 2, 3], shard=3, shards=3)
+    with pytest.raises(ValueError):
+        shard_seeds([1, 2, 3], shard=0, shards=0)
+    with pytest.raises(ValueError):
+        shard_seeds([1, 2, 3], shard=-1, shards=3)
+
+
+def test_cifar_resume_rejects_artifacts_from_another_host_or_config() -> None:
+    """O agregado não pode misturar hosts nem configurações."""
+
+    from experiments.penalty_reevaluation import PUBLISHED_PENALTY_STRENGTHS
+    from scripts.run_penalty_pass1_cifar import should_reuse
+
+    good = {
+        "host": "split_cifar100",
+        "declared_interval": 1,
+        "penalty_strengths": dict(PUBLISHED_PENALTY_STRENGTHS),
+    }
+    assert should_reuse(good)
+
+    wrong_host = dict(good, host="split_mnist")
+    assert not should_reuse(wrong_host)
+
+    wrong_interval = dict(good, declared_interval=50)
+    assert not should_reuse(wrong_interval)
+
+    wrong_strengths = dict(good, penalty_strengths={"ewc_lambda": 1.0})
+    assert not should_reuse(wrong_strengths)
+
+    assert not should_reuse({"seed": 1})
+    assert not should_reuse(None)
