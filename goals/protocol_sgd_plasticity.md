@@ -98,11 +98,22 @@ nenhum.
 | **C2** | Sob SGD, a identidade `E·cos = 1 + g·p/‖g‖²` vale numericamente, erro < 1e-4 | o instrumento, se falhar |
 | **C3** | O sinal de `E − 1` casa com o sinal de `2 g·p + ‖p‖²` em **todos** os passos medidos | a derivação do §B |
 | **C4** | `‖p‖/‖g‖` do `mas` no CIFAR é > 0,5 sob SGD | a leitura do §B.2 de que a penalidade domina ali |
+| **C5** | `E` é **monótono** no learning rate dentro de cada arm | a leitura de que o tamanho do passo modula a anti-relação entre `g` e `p` |
+
+> **C5 foi acrescentada junto com o eixo de learning rate** (emenda do §I), antes
+> de qualquer seed da banda. Ela só é enunciável porque o lr deixou de ser
+> constante; com um ponto só não havia o que ser monótono.
 
 **O desfecho que falsificaria a derivação:** `E < 1` unânime sob SGD. Isso
 mostraria que o `E > 1` é de fato criado pelo otimizador adaptativo, a hipótese
 original dos relatórios sobreviveria, e o §B estaria errado sobre o regime real
 (ainda que correto como álgebra).
+
+> **A calibração já aponta nessa direção** (§I, terceira linha): `E ≤ 1` nos
+> três arms, com máximo exatamente 1,0000. Isso é `n=1` e não decide nada, mas
+> significa que **o desfecho mais provável desta run é a falsificação de C1** —
+> e que a consequência abaixo é a que provavelmente valerá. Dizer isso antes de
+> gastar as seeds é o oposto de escolher o resultado depois.
 
 **Os dois desfechos são publicáveis e ambos já têm consequência escrita:**
 
@@ -121,7 +132,7 @@ original dos relatórios sobreviveria, e o §B estaria errado sobre o regime rea
 | S1 | Otimizador | `torch.optim.SGD`, sem momentum, sem weight decay | momentum reintroduz estado; weight decay soma outro termo ao update e confunde `p` |
 | S2 | Arms | `vanilla`, `ewc`, `si`, `mas` — os mesmos quatro | pareamento com as passadas 1 |
 | S3 | Forças | **idênticas às das passadas 1**: `ewc_lambda=200`, `si_lambda=600`, `mas_lambda=1` | mudar força junto com otimizador confundiria os dois eixos |
-| S4 | Learning rate | `1e-2`, declarado aqui | o `1e-3` do AdamW não transfere para SGD; valor típico, escolhido sem consultar acurácia |
+| S4 | Learning rate | **EIXO DECLARADO: `1e-2`, `3e-3`, `1e-3`** (emendado, ver §I) | o `1e-3` do AdamW não transfere para SGD; a calibração mostrou que o efeito depende do tamanho do passo, então o lr vira variável do experimento em vez de constante |
 | S5 | Hosts | Split-MNIST primeiro; CIFAR-100 **apenas se** o MNIST não falsificar C1 | o MNIST é CPU e responde a pergunta central; o CIFAR custa GPU |
 | S6 | Seeds | banda nova **8.000.011+**, 12 seeds, disjunta de todas as gastas | verificado por teste antes da run |
 | S7 | Amostragem | exaustiva (1/1), como emendado nas passadas 1 | a série amostrada já inverteu uma classificação G8 |
@@ -192,3 +203,5 @@ lançamento.
 | data | alteração |
 |---|---|
 | 2026-09-29 | documento congelado, antes de qualquer seed. Inclui a derivação do §B, feita durante o desenho e antes de qualquer medição sob SGD. |
+| 2026-09-29 | **S4: learning rate deixa de ser constante e passa a ser EIXO declarado — `1e-2`, `3e-3`, `1e-3`.** Motivo, medido na seed de calibração `8.999.993` (fora da banda): sob `lr = 1e-2` o arm `si` **diverge numericamente**, com `norm_ratio` chegando a `5,5e18` e 26 de 128 amostras não-finitas. Não é propriedade do método: em `3e-3` e `1e-3` o mesmo arm fica são (0 amostras não-finitas, `E = 0,9733` e `0,9932`). Um `E` de `5,5e18` não mede plasticidade, mede um otimizador explodindo. Manter o valor congelado entregaria um arm morto por escolha de hiperparâmetro corrigível; trocá-lo em silêncio por um valor são esconderia que a fronteira existe. Declarar os três como eixo preserva o valor original, expõe a divergência como dado, e responde de quebra se o efeito depende do tamanho do passo. **Evidência mecanismo-only:** uma seed fora da banda, nenhum endpoint de acurácia lido, nenhuma seed confirmatória gasta. **Custo medido:** ~12 min de CPU por ponto do eixo para as 12 seeds, ~36 min no total. Emenda commitada ANTES da run que ela governa. |
+| 2026-09-29 | **Registro da calibração, que já contradiz C1.** Na seed `8.999.993`, sob SGD, os três arms deram `E ≤ 1` com máximo **exatamente** 1,0000 e `g·p ≤ 0` em toda amostra: `ewc` 0,9508, `si` 0,9733, `mas` 0,9912 (em `lr = 3e-3`). C2 confirmada (resíduo da identidade ~1,3e-5), C3 confirmada (**100%** de acerto da predição pelo sinal de `2 g·p + ‖p‖²`), C4 falsificada para o `mas` (`‖p‖/‖g‖ = 0,0165`, muito abaixo de 0,5). Isto é `n=1` e **não tem valor inferencial**; está registrado aqui porque a emenda acima foi decidida com estes números à vista, e omitir isso tornaria a emenda menos auditável, não mais. A leitura provável — a ser confirmada nas 12 seeds — é que o gradiente da penalidade é sistematicamente anti-alinhado ao da loss, e portanto o argumento genérico do §B.1 (perturbação aleatória aumenta a norma) **não descreve o regime real**. |
