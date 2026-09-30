@@ -238,6 +238,22 @@ def run_one_seed(*, seed: int, learning_rate: float) -> dict[str, Any]:
     return record
 
 
+def _fmt(value: float | None, digits: int = 4) -> str:
+    """Formata um float que pode ser `None` ou ter ordem de grandeza absurda.
+
+    A calibração produziu `cos = 0.6598868169855` e `|p|/|g| = 0.5905` na mesma
+    linha de um `E` divergente, e o `{:9.4f}` cru concatenou os dois campos
+    ilegivelmente. Colunas de diagnóstico precisam sobreviver a um arm que
+    explodiu.
+    """
+
+    if value is None:
+        return "—"
+    if abs(value) >= 1e4:
+        return f"{value:.2e}"
+    return f"{value:.{digits}f}"
+
+
 def render(records: Sequence[dict[str, Any]], learning_rate: float) -> str:
     lines: list[str] = []
     lines.append(f"\n=== lr = {learning_rate:g}")
@@ -280,11 +296,18 @@ def render(records: Sequence[dict[str, Any]], learning_rate: float) -> str:
             continue
         spread = statistics.stdev(per_seed) if len(per_seed) > 1 else 0.0
         residual = mean_of("identity_residual", "max")
+        mean_e = statistics.fmean(per_seed)
+        # Um `E` divergente não cabe em `{:9.4f}` — ele estoura a coluna e
+        # desalinha a tabela inteira, que foi como a divergência do `si`
+        # apareceu na calibração. Notação científica preserva a legibilidade e
+        # deixa a ordem de grandeza visível, que é o que importa aqui.
+        wide = abs(mean_e) >= 1e4
         lines.append(
-            f"{arm:<6}{statistics.fmean(per_seed):>9.4f}{spread:>9.4f}"
-            f"{non_finite:>9}{mean_of('direction_cosine'):>9.4f}"
-            f"{mean_of('penalty_scale'):>10.4f}"
-            f"{mean_of('penalty_alignment'):>11.4f}"
+            f"{arm:<6}{(f'{mean_e:.2e}' if wide else f'{mean_e:.4f}'):>9}"
+            f"{(f'{spread:.1e}' if wide else f'{spread:.4f}'):>9}"
+            f"{non_finite:>9}{_fmt(mean_of('direction_cosine')):>9}"
+            f"{_fmt(mean_of('penalty_scale')):>10}"
+            f"{_fmt(mean_of('penalty_alignment')):>11}"
             f"{(statistics.fmean(rates) if rates else 0.0):>6.0%}"
             f"{(residual if residual is not None else float('nan')):>11.2e}"
         )
