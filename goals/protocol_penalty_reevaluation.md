@@ -167,14 +167,32 @@ uma diagnóstica é seleção pós-hoc, mesmo que a diagnóstica não seja acur�
 
 **Família confirmatória — exatamente 6 comparações:**
 
-| # | contraste | host |
-|---|---|---|
-| 1 | `ewc − lr_control_ewc` | Split-MNIST |
-| 2 | `si − lr_control_si` | Split-MNIST |
-| 3 | `mas − lr_control_mas` | Split-MNIST |
-| 4 | `ewc − lr_control_ewc` | Split-CIFAR100 |
-| 5 | `si − lr_control_si` | Split-CIFAR100 |
-| 6 | `mas − lr_control_mas` | Split-CIFAR100 |
+| # | contraste | host | estado após a passada 1 |
+|---|---|---|---|
+| 1 | `ewc − lr_control_ewc` | Split-MNIST | **único sobrevivente** (`E = 0,9958`) |
+| 2 | `si − lr_control_si` | Split-MNIST | removido por G8 (`E = 1,0116`) |
+| 3 | `mas − lr_control_mas` | Split-MNIST | removido por G8 (`E = 1,0103`) |
+| 4 | `ewc − lr_control_ewc` | Split-CIFAR100 | removido por G8 (`E = 1,0013`) |
+| 5 | `si − lr_control_si` | Split-CIFAR100 | removido por G8 (`E = 1,0124`) |
+| 6 | `mas − lr_control_mas` | Split-CIFAR100 | removido por G8 (`E = 1,0194`) |
+
+> **Estado em 2026-09-29, após as duas passadas 1.** Cinco das seis comparações
+> foram eliminadas pela regra G8 (§C), que foi escrita antes de qualquer seed e
+> cuja consequência estava declarada. **Nenhuma acurácia foi lida em nenhum dos
+> dois hosts.** A redução da família não é seleção pós-hoc: é a regra
+> pré-registrada disparando.
+>
+> A única comparação construível é a nº 1, com `lr_scale = 0,9958494613` — uma
+> redução de learning rate de **0,42%**, que é operacionalmente indistinguível
+> do `vanilla`. **A passada 2, como desenhada, perdeu o objeto**, e executá-la
+> gastaria GPU para produzir um controle vazio.
+>
+> Resultados: `docs/results/penalty_pass1_plasticity.md` (MNIST) e
+> `docs/results/penalty_pass1_cifar_plasticity.md` (CIFAR-100).
+> Agregador: `scripts/analyze_penalty_pass1.py`.
+>
+> **A decisão sobre o que fazer no lugar da passada 2 está aberta e é do
+> Fachel** — ver §L.
 
 **Teste:** sinal bilateral sobre diferenças pareadas por seed.
 **Correção:** Holm sobre os 6.
@@ -252,6 +270,37 @@ ps -eo pid,ppid,sess,cmd | grep <padrao> | grep -v grep   # exige PPID=1
 Uma run já morreu por SIGTERM aos 34 minutos por não estar destacada. Verificar
 `PPID=1` **é** parte do lançamento, não uma conferência opcional.
 
+## L. A passada 2 perdeu o objeto — decisão pendente
+
+**Estado:** as duas passadas 1 terminaram. G8 eliminou 5 das 6 comparações, e a
+sobrevivente tem `lr_scale = 0,9958` (0,42% de redução). A passada 2, como
+desenhada no §C.1, construiria um único controle indistinguível do `vanilla`.
+
+**Este protocolo NÃO autoriza executar a passada 2 nesse estado.** Gastar GPU
+para medir um contraste contra um controle vazio produziria um número sem
+interpretação.
+
+As opções abaixo estão listadas para decisão; **nenhuma está autorizada**, e
+qualquer uma delas exige seu próprio pré-registro antes da primeira seed.
+
+| # | opção | o que responde | custo estimado |
+|---|---|---|---|
+| L1 | **Parar aqui.** A passada 1 já é um resultado completo de instrumentação: o pareamento é inconstruível para 5 de 6 combinações. | Nada a mais; publica o que há. | zero |
+| L2 | **Arm com SGD puro**, mesmas forças e seeds. | Se `E > 1` é fenômeno de otimizador adaptativo — a hipótese do §"Limites" que nunca foi testada. É o teste direto do mecanismo. | ~1 h CPU (MNIST); GPU no CIFAR |
+| L3 | **Sweep de λ × `E`**, sem acurácia. | Se `E > 1` persiste em outras forças, ou se existe λ onde o pareamento volta a ser construível. | ~1 min por ponto, CPU |
+| L4 | **Passada 2 só com `ewc` no MNIST**, aceitando o controle a 0,42%. | Quase nada: o contraste degenera em `ewc − vanilla`, que já é secundário. | GPU, e o resultado é previsivelmente nulo |
+
+L2 e L3 são mecanismo-only (nenhuma acurácia lida), logo não gastam o
+pré-registro da passada 2 e podem ser decididos sem contaminar nada. L4 lê
+acurácia e tem o pior retorno.
+
+**Recomendação de quem escreveu esta seção:** L2 primeiro. Ele transforma a
+frase do artigo de *"medimos `E > 1` e não sabemos por quê"* em *"`E > 1` é uma
+propriedade da interação entre penalidade e otimizador adaptativo, e aqui está
+o controle que mostra isso"* — que é exatamente o tipo de afirmação que um
+artigo de instrumentação precisa sustentar. Custo baixo, e responde o limite
+nº 1 e nº 3 dos dois relatórios.
+
 ## K. Registro de alterações
 
 | data | alteração |
@@ -259,3 +308,4 @@ Uma run já morreu por SIGTERM aos 34 minutos por não estar destacada. Verifica
 | 2026-09-29 | documento congelado, antes de qualquer seed e de qualquer GPU |
 | 2026-09-29 | **`E_M` passa a ser a razão de normas** (§C, §E), alinhado à emenda G1' de `protocol_plasticity_generalization.md`. Motivo: razão por elemento `> 1` em `ewc` e `mas` na calibração tornaria `lr_scale > 1`. Acrescentada a regra do método **não-pareável** (G8) e a ressalva de potência do §E (3 amostras/arm/seed a 1/50). Evidência mecanismo-only, `n=1`, seed fora da banda, nenhuma acurácia lida. Nenhuma seed confirmatória gasta até aqui. |
 | 2026-09-29 | **Taxa de amostragem 1/50 → 1/1** (§E). Motivo: a medição exaustiva dos 128 passos com âncora de uma seed deu dp entre passos de 0,0772 contra um efeito `abs(1−E)` de 0,0124 — o ruído da estimativa a 1/50 é ~14× o efeito, e a 36 amostras ainda é ~3×. A classificação G8 do MAS invertia entre a série a 1/50 (`E = 0,957`, pareável) e o valor exato (`E = 1,015`, não pareável). A justificativa original de 1/50 era custo, e o custo medido é ~20 min de CPU para as 12 seeds. Evidência mecanismo-only: variância de um único arm, sem contraste entre métodos e sem nenhuma acurácia lida. **As runs a 1/50 e 1/5 foram descartadas e arquivadas**, não reinterpretadas. Nenhuma seed confirmatória de acurácia gasta até aqui; a passada 2 não havia começado. |
+| 2026-09-29 | **Passada 1 concluída nos dois hosts; G8 eliminou 5 das 6 comparações da família do §F.** MNIST: `ewc` 0,9958 (pareável), `si` 1,0116, `mas` 1,0103. CIFAR-100: `ewc` 1,0013, `si` 1,0124, `mas` 1,0194 — nenhum pareável. Unânime 12/12 seeds em todos os arms dos dois hosts, `p` exato 0,00049. Sobra a comparação nº 1 com `lr_scale = 0,9958`, redução de 0,42%, operacionalmente vazia. Acrescentado o §L com as opções e a recomendação. **Nenhuma acurácia lida em nenhum host; nenhuma seed da passada 2 gasta.** Forças idênticas nos dois hosts (`ewc_lambda=200` = `k=100` de Hsu), logo a inversão de sinal do `ewc` entre hosts é efeito de host, não de força. |
