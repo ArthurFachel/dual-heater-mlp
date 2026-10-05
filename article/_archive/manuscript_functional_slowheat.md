@@ -1,3 +1,42 @@
+# ARQUIVADO — não é o manuscrito ativo
+
+> **Arquivado em 05/10/2026** pelo item 5.2 de `goals/roadmap_icml_ijcnn.md`.
+> Movido de `article/manuscript.md` com `git mv`, histórico preservado.
+>
+> **Este documento não é submetido a lugar nenhum e não deve ser citado como
+> estado atual do projeto.** Ele descreve o Functional SlowHeat como mecanismo;
+> os dois artigos em preparação têm outro eixo:
+>
+> - **ICML** (`article/icml/`) — o instrumento de plasticidade efetiva e a
+>   re-avaliação de métodos de penalidade contra controles pareados.
+> - **IJCNN** — `|z|` iguala `|z·dL/dz|` sob capacidade pareada.
+>
+> **O que foi aproveitado** está em `article/icml/salvaged_from_manuscript.md`:
+> a Seção 3 (por que escalar gradiente bruto não é escalar o update do AdamW) e
+> a Seção 4.4 (correção da restauração do modo de avaliação). Aquele arquivo
+> também lista, com motivo, o que **não** foi aproveitado.
+>
+> **Por que não foi apagado.** Três razões, nesta ordem:
+>
+> 1. Ele é o registro do que o projeto afirmava antes da Fase 2. Partes foram
+>    contraditadas por evidência posterior — notadamente a Seção 7
+>    (BERT/CLINC150), cuja leitura do critério funcional foi derrubada pela
+>    ablação de 28/09 (`docs/results/criterion_ablation_results.md`: o gradiente
+>    não compra nada), e a Seção 2, escrita antes de o L2 mostrar que `E > 1`
+>    era artefato do AdamW. Apagar isso apagaria a trilha de como as conclusões
+>    mudaram.
+> 2. A §"Status" e a §11 "Safe claims" documentam a disciplina de claim do
+>    projeto num momento específico. São material para a seção de limitações.
+> 3. O item 5.2 do roadmap diz **"Não apagar"**.
+>
+> **Avisos de validade que já constavam no próprio texto e continuam valendo:**
+> a Seção 5 é um piloto *superseded* e não é evidência do método atual; as
+> suítes convolucionais da Seção 6 são exploratórias; as duas runs de
+> confirmação registram árvore Git suja, então não estabelecem reprodução
+> bit-a-bit.
+
+---
+
 # Functional SlowHeat: Scale-Invariant Neuron Utility, Factorized Protection and Capacity-Aware Plasticity
 
 ## Status

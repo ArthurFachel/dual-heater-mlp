@@ -576,7 +576,7 @@ experiments/
 tests/               unit and integration tests
 docs/                method contracts, protocols and experiment records
 notebooks/           interactive experiment entry points
-article/manuscript.md technical manuscript draft
+article/_archive/manuscript_functional_slowheat.md technical manuscript draft
 ```
 
 Documentation entry points:
@@ -763,6 +763,6 @@ ruff check .
 
 The current technical draft is available at:
 
-`article/manuscript.md`
+`article/_archive/manuscript_functional_slowheat.md`
 
 It is intentionally conservative and lists the experiments required before submission.

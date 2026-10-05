@@ -104,7 +104,7 @@ m_i = 1 / (1 + beta * slow_heat_i)
 
 Com `beta=30` e `slow_heat=1`, o update aplicado é aproximadamente `1/31` do update nativo.
 
-**Fonte do método:** Functional SlowHeat é uma contribuição própria documentada no [manuscrito técnico local](../../article/manuscript.md), ainda não uma publicação revisada por pares. O sinal `|z · dL/dz|` tem relação com critérios de saliência por Taylor de primeira ordem, como [Molchanov et al. (ICLR 2017)](https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference), mas a normalização, consolidação, budget, proteção fatorada e semântica do otimizador são definições locais.
+**Fonte do método:** Functional SlowHeat é uma contribuição própria documentada no [manuscrito técnico local](../../article/_archive/manuscript_functional_slowheat.md), ainda não uma publicação revisada por pares. O sinal `|z · dL/dz|` tem relação com critérios de saliência por Taylor de primeira ordem, como [Molchanov et al. (ICLR 2017)](https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference), mas a normalização, consolidação, budget, proteção fatorada e semântica do otimizador são definições locais.
 
 ### 3.3 Proteção fatorada de caminhos
 
@@ -299,7 +299,7 @@ slowheat_replay_hidden_beta_30_budget_0.25
 
 A cabeça livre é relevante porque a competição global entre dez classes precisa ser recalibrada à medida que novas classes aparecem.
 
-**Fontes:** [manuscrito local de Functional SlowHeat](../../article/manuscript.md) + [Experience Replay](https://arxiv.org/abs/1902.10486). A combinação é própria deste projeto.
+**Fontes:** [manuscrito local de Functional SlowHeat](../../article/_archive/manuscript_functional_slowheat.md) + [Experience Replay](https://arxiv.org/abs/1902.10486). A combinação é própria deste projeto.
 
 ### 5.13 SlowHeat + DER++, hidden-only
 
@@ -311,7 +311,7 @@ slowheat_derpp_hidden_beta_30_budget_0.25
 
 Usa a loss completa do DER++ para gerar o sinal funcional do SlowHeat. A memória, os rótulos, os logits armazenados e os hiperparâmetros `alpha=0.5` e `beta=0.5` são os mesmos do DER++. O teste é exploratório e o contraste relevante é SlowHeat + DER++ menos DER++.
 
-**Fontes:** [manuscrito local de Functional SlowHeat](../../article/manuscript.md) + [artigo de DER++](https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html). A combinação não é apresentada como método independente no artigo de DER++.
+**Fontes:** [manuscrito local de Functional SlowHeat](../../article/_archive/manuscript_functional_slowheat.md) + [artigo de DER++](https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html). A combinação não é apresentada como método independente no artigo de DER++.
 
 ---
 
@@ -783,33 +783,33 @@ Esta seção evita dois erros comuns: deixar uma variante sem referência e atri
 | `si` | implementação de método publicado | [Continual Learning Through Synaptic Intelligence](https://proceedings.mlr.press/v70/zenke17a.html) |
 | `distillation` | aplicação local de técnica publicada | [Distilling the Knowledge in a Neural Network](https://arxiv.org/abs/1503.02531) |
 | `lwf_calibrated` | LwF com ponderação local | [Learning without Forgetting](https://doi.org/10.1007/978-3-319-46493-0_37) + [distillation](https://arxiv.org/abs/1503.02531); calibração local |
-| `slowheat` | método próprio | [manuscrito técnico local](../../article/manuscript.md); relação conceitual com [Taylor de primeira ordem](https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference) |
-| `slowheat_adaptive` | ablação própria | [manuscrito local](../../article/manuscript.md); controlador de budget específico do projeto |
-| `slowheat_native_state` | ablação própria | [manuscrito local](../../article/manuscript.md) + base [AdamW](https://arxiv.org/abs/1711.05101) |
-| `slowheat_unidirectional` | ablação própria | [manuscrito local](../../article/manuscript.md); remove a fatoração proposta pelo projeto |
-| `slowheat_unbudgeted` | ablação própria | [manuscrito local](../../article/manuscript.md); remove o budget proposto pelo projeto |
-| `slowheat_none` | controle de wiring próprio | [manuscrito local](../../article/manuscript.md); sem consolidação |
-| `hard_freeze` | controle próprio | [manuscrito local](../../article/manuscript.md); binariza a proteção consolidada |
-| `slowheat_replay` | combinação própria | [SlowHeat local](../../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |
-| `slowheat_distillation` | combinação própria | [SlowHeat local](../../article/manuscript.md) + [distillation](https://arxiv.org/abs/1503.02531) |
-| `slowheat_derpp_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../../article/manuscript.md) + [DER++](https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html) |
-| `slowheat_er_ace_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../../article/manuscript.md) + [ER-ACE](https://openreview.net/forum?id=N8MaByOzUfb) |
-| `slowheat_hidden_beta_30_budget_0.25` | configuração própria estruturada | [manuscrito local](../../article/manuscript.md) |
-| `slowheat_replay_hidden_beta_30_budget_0.25` | configuração própria estruturada | [SlowHeat local](../../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |
-| `slowheat_replay_hidden_adaptive_beta_30_budget_0.25` | ablação própria | [SlowHeat local](../../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |
-| `slowheat_replay_partial_output_beta_30_budget_0.25` | ablação própria | [SlowHeat local](../../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486) |
-| `slowheat_replay_hidden_beta_30_budget_0.25_calibrated` | ablação própria | [SlowHeat local](../../article/manuscript.md) + [Replay](https://arxiv.org/abs/1902.10486); offset de logits local |
+| `slowheat` | método próprio | [manuscrito técnico local](../../article/_archive/manuscript_functional_slowheat.md); relação conceitual com [Taylor de primeira ordem](https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference) |
+| `slowheat_adaptive` | ablação própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md); controlador de budget específico do projeto |
+| `slowheat_native_state` | ablação própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md) + base [AdamW](https://arxiv.org/abs/1711.05101) |
+| `slowheat_unidirectional` | ablação própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md); remove a fatoração proposta pelo projeto |
+| `slowheat_unbudgeted` | ablação própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md); remove o budget proposto pelo projeto |
+| `slowheat_none` | controle de wiring próprio | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md); sem consolidação |
+| `hard_freeze` | controle próprio | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md); binariza a proteção consolidada |
+| `slowheat_replay` | combinação própria | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [Replay](https://arxiv.org/abs/1902.10486) |
+| `slowheat_distillation` | combinação própria | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [distillation](https://arxiv.org/abs/1503.02531) |
+| `slowheat_derpp_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [DER++](https://papers.nips.cc/paper/2020/hash/b704ea2c39778f07c617f6b7ce480e9e-Abstract.html) |
+| `slowheat_er_ace_hidden_beta_30_budget_0.25` | combinação própria exploratória | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [ER-ACE](https://openreview.net/forum?id=N8MaByOzUfb) |
+| `slowheat_hidden_beta_30_budget_0.25` | configuração própria estruturada | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md) |
+| `slowheat_replay_hidden_beta_30_budget_0.25` | configuração própria estruturada | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [Replay](https://arxiv.org/abs/1902.10486) |
+| `slowheat_replay_hidden_adaptive_beta_30_budget_0.25` | ablação própria | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [Replay](https://arxiv.org/abs/1902.10486) |
+| `slowheat_replay_partial_output_beta_30_budget_0.25` | ablação própria | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [Replay](https://arxiv.org/abs/1902.10486) |
+| `slowheat_replay_hidden_beta_30_budget_0.25_calibrated` | ablação própria | [SlowHeat local](../../article/_archive/manuscript_functional_slowheat.md) + [Replay](https://arxiv.org/abs/1902.10486); offset de logits local |
 | nomes `slowheat[_replay|_distillation][_hidden]_beta_X_budget_Y` | configurações geradas pelo parser | fontes dos componentes correspondentes; o nome completo não representa um artigo independente |
 | `reduced_lr` | controle sintético local | base do otimizador [AdamW](https://arxiv.org/abs/1711.05101) |
-| `slowheat_max`, `slowheat_mean`, `slowheat_sum` | ablações próprias de consolidação | [manuscrito local](../../article/manuscript.md) |
-| `slowheat_max_sgd` | ablação de otimizador | [manuscrito local](../../article/manuscript.md); referência moderna para momentum: [Sutskever et al. (ICML 2013)](https://proceedings.mlr.press/v28/sutskever13.html) |
-| `slowheat_max_legacy_adamw` | implementação histórica própria | [manuscrito local](../../article/manuscript.md) + [AdamW](https://arxiv.org/abs/1711.05101) |
-| `slowheat_max_native_state` | ablação própria | [manuscrito local](../../article/manuscript.md) + [AdamW](https://arxiv.org/abs/1711.05101) |
-| `slowheat_max_unidirectional` | ablação própria | [manuscrito local](../../article/manuscript.md) |
-| `slowheat_max_unbudgeted` | ablação própria | [manuscrito local](../../article/manuscript.md) |
+| `slowheat_max`, `slowheat_mean`, `slowheat_sum` | ablações próprias de consolidação | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md) |
+| `slowheat_max_sgd` | ablação de otimizador | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md); referência moderna para momentum: [Sutskever et al. (ICML 2013)](https://proceedings.mlr.press/v28/sutskever13.html) |
+| `slowheat_max_legacy_adamw` | implementação histórica própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md) + [AdamW](https://arxiv.org/abs/1711.05101) |
+| `slowheat_max_native_state` | ablação própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md) + [AdamW](https://arxiv.org/abs/1711.05101) |
+| `slowheat_max_unidirectional` | ablação própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md) |
+| `slowheat_max_unbudgeted` | ablação própria | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md) |
 | `DualHeatLinear`, `DualHeatMLP` | protótipos próprios legados | sem artigo próprio; ver [código](../../src/dual_heater/dual_heat.py), [Taylor de primeira ordem](https://research.nvidia.com/publication/2017-04_pruning-convolutional-neural-networks-resource-efficient-inference), [EWC](https://doi.org/10.1073/pnas.1611835114) e [SI](https://proceedings.mlr.press/v70/zenke17a.html) apenas como contexto |
 | `DualHeatLoRALinear` | adaptação própria de método publicado | [LoRA](https://arxiv.org/abs/2106.09685) + [código local](../../src/dual_heater/lora.py); DualHeat-LoRA não aparece no artigo original de LoRA |
-| `SlowHeatAdamW`, `SlowHeatSGD` | wrappers próprios | [manuscrito local](../../article/manuscript.md), [AdamW](https://arxiv.org/abs/1711.05101) e [momentum/SGD](https://proceedings.mlr.press/v28/sutskever13.html) |
+| `SlowHeatAdamW`, `SlowHeatSGD` | wrappers próprios | [manuscrito local](../../article/_archive/manuscript_functional_slowheat.md), [AdamW](https://arxiv.org/abs/1711.05101) e [momentum/SGD](https://proceedings.mlr.press/v28/sutskever13.html) |
 
 ### 18.1 Referências bibliográficas principais
 
@@ -830,4 +830,4 @@ Esta seção evita dois erros comuns: deixar uma variante sem referência e atri
 15. **Sutskever, I. et al. (2013).** [On the importance of initialization and momentum in deep learning](https://proceedings.mlr.press/v28/sutskever13.html). ICML 2013.
 16. **van de Ven, G. M. e Tolias, A. S. (2019).** [Three scenarios for continual learning](https://arxiv.org/abs/1904.07734).
 17. **Zenke, F., Poole, B. e Ganguli, S. (2017).** [Continual Learning Through Synaptic Intelligence](https://proceedings.mlr.press/v70/zenke17a.html). ICML 2017.
-18. **Projeto DualHeat (2026).** [Functional SlowHeat: manuscrito técnico local](../../article/manuscript.md). Documento de pesquisa ainda não revisado por pares.
+18. **Projeto DualHeat (2026).** [Functional SlowHeat: manuscrito técnico local](../../article/_archive/manuscript_functional_slowheat.md). Documento de pesquisa ainda não revisado por pares.

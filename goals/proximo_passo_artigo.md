@@ -268,7 +268,7 @@ fraqueza.
 ## Referências
 
 - [Opções de novidade](opcoes_novidade_e_proximos_passos.md)
-- [Manuscrito](../article/manuscript.md)
+- [Manuscrito](../article/_archive/manuscript_functional_slowheat.md)
 - [Índice de resultados versionados](../docs/results/results_index.md)
 - [Status de proveniência](../docs/audits/results_provenance_status.md)
 - [Versão anterior, monolítica](_arquivo_proximo_passo_artigo_2026-09-25.md)

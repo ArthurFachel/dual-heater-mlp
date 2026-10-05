@@ -117,7 +117,13 @@ def test_results_document_quotes_every_primary_delta() -> None:
         ("docs/results/hard_vs_soft_results.md", "split_cifar10_cnn"),
         ("docs/architectures/arch_mlp.md", "split_cifar100_mlp"),
         ("docs/architectures/arch_cnn.md", "split_cifar10_cnn"),
-        ("article/manuscript.md", "split_cifar100_mlp"),
+        # Archived 2026-10-05 by roadmap item 5.2 (git mv, history preserved).
+        # Still checked: an archived document that misquotes its own artifact is
+        # a document that will be misquoted back into the new manuscripts.
+        (
+            "article/_archive/manuscript_functional_slowheat.md",
+            "split_cifar100_mlp",
+        ),
     ],
 )
 def test_each_document_quotes_the_target_it_covers(document: str, target: str) -> None:

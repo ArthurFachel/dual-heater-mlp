@@ -203,9 +203,17 @@ e já confirmadas.
 - [ ] 5.1 **Escrever a Seção 3 primeiro** (é o coração): um resultado
       confirmatório com Holm, sinal exato e 5 gates descreveu condições que não
       existiam, e nenhum gate podia detectar — todos verificavam a métrica, e era
-      a métrica que estava errada. **Sem suavizar.**
-- [ ] 5.2 Canibalizar `article/manuscript.md` (seções 3 e 4.4 encaixam direto),
-      depois `git mv` para `article/_archive/` com cabeçalho explicando. **Não apagar.**
+      a métrica que estava errada. **Sem suavizar.** ⚠️ Agora há **dois** casos:
+      R-E (métrica calculada errada) e o efeito de piso de 05/10 (métrica
+      calculada certa que não responde nada no regime) ·
+      `docs/results/retention_floor_effect.md`
+- [x] 5.2 Canibalizado. Seções 3 e 4.4 salvas em
+      `article/icml/salvaged_from_manuscript.md` com enquadramento de onde
+      encaixam; `git mv` para `article/_archive/manuscript_functional_slowheat.md`
+      com cabeçalho dizendo o que foi contraditado por evidência posterior.
+      **Não apagado.** 29 referências ao caminho antigo atualizadas em 4 arquivos,
+      e o teste `test_hard_vs_soft_documents.py` — que quebrou com o `git mv` —
+      aponta para o arquivo, não foi removido.
 - [ ] 5.3 Seção 4 com os resultados da Fase 2
 - [ ] 5.4 Seções 1, 2, 5, 6, 7
 - [ ] 5.5 LaTeX 8 pgs

@@ -223,4 +223,4 @@ sobrou é o rigor em si.
 - [Protocolo iso-plasticidade](protocol_iso_plasticity.md)
 - [Resultados do benchmark de LoRA](../docs/lora/lora_qwen_benchmark_results.md)
 - [Os três mecanismos](../docs/lora/lora_slowheat_mechanisms.md)
-- [Manuscrito](../article/manuscript.md)
+- [Manuscrito](../article/_archive/manuscript_functional_slowheat.md)
