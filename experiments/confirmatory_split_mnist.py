@@ -83,6 +83,17 @@ SGD_PLASTICITY_SEEDS: tuple[int, ...] = (
     8_250_077, 8_275_081,
 )
 
+#: Banda do protocolo L3 (`goals/protocol_lambda_sweep.md` §D.1): varre a força
+#: de penalidade procurando um λ onde o controle pareado tenha poder (§D.2:
+#: `E <= 0,90`) sem que o otimizador divirja. Dez seeds, não doze: com sinal
+#: exato unânime o `p` é 2^-9 = 0,00195, abaixo do Holm mais estrito da família
+#: (0,05/5 = 0,01). Disjunta de todas as bandas acima, verificado em
+#: `tests/test_lambda_sweep.py`.
+LAMBDA_SWEEP_SEEDS: tuple[int, ...] = (
+    9_000_011, 9_025_013, 9_050_033, 9_075_041, 9_100_051,
+    9_125_059, 9_150_067, 9_175_073, 9_200_089, 9_225_091,
+)
+
 #: Calibration seed for section I: cost and wiring only, deliberately OUTSIDE
 #: the band above so its endpoints can never be pooled with the confirmatory
 #: ones. Its n=1 endpoints carry no statistical standing.
