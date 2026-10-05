@@ -99,6 +99,22 @@ def test_seed_band_is_disjoint_from_every_other_band_in_the_project() -> None:
         assert not overlap, f"reusa seeds de {name}: {sorted(overlap)}"
 
 
+def test_calibration_seed_is_outside_the_confirmatory_band() -> None:
+    """Section I. The calibration runs the full matrix and writes accuracy.
+
+    Spending a band seed on it would mean reading one confirmatory seed's FAA
+    before the other nine exist, so any later decision about the regime would
+    carry information from the band. Measuring wall-clock does not require a
+    band seed.
+    """
+
+    from experiments.bert_slowheat_diagnostic import LONG_SEQUENCE_CALIBRATION_SEED
+
+    assert LONG_SEQUENCE_CALIBRATION_SEED not in LONG_SEQUENCE_CRITERION_SEEDS
+    assert LONG_SEQUENCE_CALIBRATION_SEED not in IMPORTANCE_CRITERION_ABLATION_SEEDS
+    assert LONG_SEQUENCE_CALIBRATION_SEED == 11_900_003
+
+
 def test_frozen_sequence_length_is_five() -> None:
     """S2. Section F explains why not ten; changing this needs a new document."""
 

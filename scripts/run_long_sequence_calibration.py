@@ -7,9 +7,11 @@ goals/protocol_long_sequence_criterion.md requires a measured cost, not an
 estimate by analogy -- estimating by analogy already failed twice in this
 project (CPU/GPU confusion, 4.7x error).
 
-The seed used here is LONG_SEQUENCE_CRITERION_SEEDS[0]. Its output lives in a
-separate directory so a calibration run is never silently mistaken for
-confirmatory evidence.
+The seed used here is LONG_SEQUENCE_CALIBRATION_SEED, deliberately OUTSIDE the
+confirmatory band: the calibration runs the full matrix and therefore writes
+accuracy, and spending a band seed on it would mean reading one confirmatory
+seed before the other nine exist. Its output lives in a separate directory so a
+calibration run is never silently mistaken for confirmatory evidence.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import time
 from pathlib import Path
 
 from experiments.bert_slowheat_diagnostic import (
+    LONG_SEQUENCE_CALIBRATION_SEED,
     LONG_SEQUENCE_CRITERION_SEEDS,
     LONG_SEQUENCE_TASK_LIMIT,
     criterion_ablation_conditions,
@@ -36,7 +39,11 @@ TWO_TASK_SECONDS_PER_SEED = 66.4
 
 def main() -> None:
     conditions = criterion_ablation_conditions()
-    seed = LONG_SEQUENCE_CRITERION_SEEDS[0]
+    seed = LONG_SEQUENCE_CALIBRATION_SEED
+    if seed in LONG_SEQUENCE_CRITERION_SEEDS:
+        raise RuntimeError(
+            "a seed de calibração não pode pertencer à banda confirmatória"
+        )
 
     config = SplitCLINC150Config(device="cuda", evaluate_test=False)
     tasks, metadata = load_clinc150_tasks(config, include_test=False)

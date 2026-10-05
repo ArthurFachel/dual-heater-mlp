@@ -73,6 +73,21 @@ LONG_SEQUENCE_CRITERION_SEEDS = (
     12_225_149,
 )
 
+#: Calibration seed for the long-sequence pass (Section I), deliberately OUTSIDE
+#: the confirmatory band.
+#:
+#: The calibration runs the full four-arm diagnostic, so it writes a
+#: diagnostic_summary.json carrying FAA. Calibrating on a band member would mean
+#: reading one confirmatory seed's accuracy before the other nine exist, and any
+#: later decision about the regime (more epochs, higher lr) would have been
+#: taken with information from the band. Measuring cost does not require a band
+#: seed: wall-clock is the same.
+#:
+#: This departs from scripts/run_criterion_calibration.py, which calibrated on
+#: IMPORTANCE_CRITERION_ABLATION_SEEDS[0] -- a seed that then ran again among
+#: the ten confirmatory ones.
+LONG_SEQUENCE_CALIBRATION_SEED = 11_900_003
+
 #: Sequence length frozen by goals/protocol_long_sequence_criterion.md (S2).
 #: Five, not ten: Section F records the measured cost and the near-chance risk
 #: that a 150-way class-incremental head runs into as the sequence grows.

@@ -116,6 +116,27 @@ Disjunta de 4.000.003+ (a ablação `T = 2`), de `[2, 9, 10, 28, 30, 32, 57, 67,
 2005, 2012]` e `[11, 22, 33]` (BERT anterior), e de todas as outras bandas do
 repositório. **Verificado por teste, não por inspeção.**
 
+### E.1.1 A seed de calibração fica FORA da banda
+
+```
+11900003
+```
+
+A calibração do §I roda a matriz completa de 4 braços e portanto **escreve
+acurácia**. Gastar nela uma seed da banda significaria ler a FAA de uma seed
+confirmatória antes das outras nove existirem, e qualquer decisão posterior
+sobre o regime (mais épocas, lr maior) teria sido tomada com informação vinda da
+banda. Medir custo de parede não exige seed da banda.
+
+**Isto diverge de `scripts/run_criterion_calibration.py`**, que calibrou em
+`IMPORTANCE_CRITERION_ABLATION_SEEDS[0]` e depois rodou a mesma seed entre as
+dez confirmatórias. Aquela run está publicada e não é reinterpretada aqui; a
+divergência é declarada porque é uma mudança de prática, não um detalhe.
+
+Pinado em `tests/test_long_sequence_criterion_seeds.py` e verificado em tempo de
+execução por `scripts/run_long_sequence_calibration.py`, que se recusa a rodar
+com uma seed da banda.
+
 ### E.2 Por que não reusar as seeds de 28/09
 
 Seria tentador parear `T = 2` contra `T = 5` nas mesmas seeds para um contraste
