@@ -52,6 +52,32 @@ IMPORTANCE_CRITERION_ABLATION_SEEDS = (
     4_225_097,
 )
 
+#: Seeds frozen for the long-sequence extension of the criterion ablation
+#: (goals/protocol_long_sequence_criterion.md, S4).
+#:
+#: Own band. The T=2 ablation's seeds (4_000_003+) are NOT reused: they already
+#: produced a published result, and pairing the new pass against them would
+#: couple it to that run's particular noise. The comparison across sequence
+#: lengths is between bands and is descriptive, not confirmatory (Section G).
+#: Disjointness is verified by tests/test_long_sequence_criterion_seeds.py.
+LONG_SEQUENCE_CRITERION_SEEDS = (
+    12_000_017,
+    12_025_031,
+    12_050_033,
+    12_075_059,
+    12_100_063,
+    12_125_083,
+    12_150_107,
+    12_175_117,
+    12_200_129,
+    12_225_149,
+)
+
+#: Sequence length frozen by goals/protocol_long_sequence_criterion.md (S2).
+#: Five, not ten: Section F records the measured cost and the near-chance risk
+#: that a 150-way class-incremental head runs into as the sequence grows.
+LONG_SEQUENCE_TASK_LIMIT = 5
+
 
 def diagnostic_conditions() -> tuple[DiagnosticCondition, ...]:
     return (
@@ -137,6 +163,19 @@ def summarize_diagnostic(
         }
         for seed in seeds
     }
+    # Section 3.1 of goals/roadmap_icml_ijcnn.md: sequence length is now a run
+    # parameter, so it must be read from the artefacts instead of assumed. Arms
+    # of different length are not comparable and must not be paired silently.
+    task_counts = {
+        int(float(endpoints[seed][name]["task_count"] or 0))
+        for seed in seeds
+        for name in names
+    }
+    if len(task_counts) != 1:
+        raise ValueError(
+            f"braços com comprimentos de sequência diferentes: {sorted(task_counts)}"
+        )
+    task_count = task_counts.pop()
     metric_names = tuple(endpoints[seeds[0]][names[0]])
     conditions = {
         name: {
@@ -211,7 +250,7 @@ def summarize_diagnostic(
     return {
         "schema_version": 1,
         "endpoint_source": "validation",
-        "task_count": 2,
+        "task_count": task_count,
         "seeds": seeds,
         "conditions": conditions,
         "raw_by_seed": {str(seed): endpoints[seed] for seed in seeds},
@@ -319,11 +358,23 @@ def run_diagnostic(
     telemetry: bool = False,
     telemetry_every: int = 10,
     conditions: tuple[DiagnosticCondition, ...] | None = None,
+    task_limit: int = 2,
 ) -> dict[int, dict[str, dict[str, Any]]]:
     if not seeds or len(seeds) != len(set(seeds)):
         raise ValueError("seeds deve ser não vazio e sem duplicatas")
     if base_config.evaluate_test:
         raise ValueError("diagnóstico deve permanecer validation-only")
+    # Section 3.1 of goals/roadmap_icml_ijcnn.md: the two-task limit is now a
+    # parameter. Truncating a stream shorter than the request would run a
+    # different protocol than the one asked for, silently.
+    if not isinstance(task_limit, int) or isinstance(task_limit, bool):
+        raise TypeError("task_limit deve ser inteiro")
+    if task_limit < 2:
+        raise ValueError("task_limit deve ser >= 2")
+    if task_limit > len(tasks):
+        raise ValueError(
+            f"task_limit={task_limit} excede as {len(tasks)} tarefas carregadas"
+        )
 
     matrix = diagnostic_conditions() if conditions is None else tuple(conditions)
 
@@ -344,7 +395,7 @@ def run_diagnostic(
                 slow_strength=condition.slow_strength,
                 plasticity_mask_mode=condition.mask_mode,
                 importance_criterion=condition.importance_criterion,
-                task_limit=2,
+                task_limit=task_limit,
                 evaluate_test=False,
             )
             result = run_split_clinc150(
@@ -373,7 +424,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--epochs-per-task", type=int, default=4)
     parser.add_argument("--max-length", type=int, default=128)
-    parser.add_argument("--task-limit", type=int, choices=[2], default=2)
+    parser.add_argument(
+        "--task-limit",
+        type=int,
+        choices=range(2, 11),
+        default=2,
+        metavar="{2..10}",
+        help=(
+            "tarefas por sequência; 2 é o diagnóstico publicado, "
+            "valores maiores são a extensão da §3.1 do roadmap"
+        ),
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--telemetry", action="store_true")
     parser.add_argument("--telemetry-every", type=int, default=10)
@@ -409,6 +470,7 @@ def main() -> None:
         resume=args.resume,
         telemetry=args.telemetry,
         telemetry_every=args.telemetry_every,
+        task_limit=args.task_limit,
     )
 
 

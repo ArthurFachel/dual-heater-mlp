@@ -19,7 +19,17 @@ def summarize_values(
 
 def condition_endpoints(result: dict[str, Any]) -> dict[str, float | None]:
     matrix = result["validation_accuracy_matrix"]
-    drift = result["parameter_drift_history"][1]
+    # Section 3.1 of goals/roadmap_icml_ijcnn.md lifts the two-task limit, so
+    # "retention" must mean "after the LAST task", not "after stage 1". Reading
+    # index 1 on a five-task run would report a plausible, wrong number with
+    # nothing in the artefact to flag it.
+    task_count = len(matrix)
+    if task_count < 2:
+        raise ValueError("diagnóstico requer ao menos duas tarefas por sequência")
+    if any(len(row) != task_count for row in matrix):
+        raise ValueError("matriz de acurácia deve ser quadrada [T, T]")
+    final = task_count - 1
+    drift = result["parameter_drift_history"][final]
     peak_reserved = result["peak_memory"]["peak_cuda_reserved_bytes"]
     validation_metrics = result["validation_metrics"]
     elapsed_seconds = float(result["elapsed_seconds"])
@@ -34,11 +44,13 @@ def condition_endpoints(result: dict[str, Any]) -> dict[str, float | None]:
         float(degeneracy[-1]["mean_ranking_variance"]) if degeneracy else None
     )
     return {
+        "task_count": float(task_count),
         "ranking_variance": ranking_variance,
         "task1_acquisition": float(matrix[0][0]),
-        "task1_retention": float(matrix[1][0]),
-        "task1_forgetting": float(matrix[0][0] - matrix[1][0]),
+        "task1_retention": float(matrix[final][0]),
+        "task1_forgetting": float(matrix[0][0] - matrix[final][0]),
         "task2_acquisition": float(matrix[1][1]),
+        "last_task_acquisition": float(matrix[final][final]),
         "final_average_accuracy": float(
             validation_metrics["final_average_accuracy"]
         ),
