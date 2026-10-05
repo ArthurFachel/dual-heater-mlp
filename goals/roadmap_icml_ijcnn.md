@@ -151,13 +151,23 @@ Limite declarado de R-A/R-B: um host, um benchmark, **duas tarefas por sequênci
       `docs/results/criterion_degeneracy_overlap.md`. Agora é checagem
       obrigatória pré-endpoint (`scripts/verify_long_sequence_criterion.py`, V6),
       ao lado do gate de quase-chance (V7). **16 mutações mortas.**
-- [ ] 3.4 **Calibração de 1 seed em GPU** (§I) — *aguarda autorização do Fachel*.
-      `scripts/launch_long_sequence_calibration.sh`. Só depois as 10 seeds.
+- [x] 3.4 **Calibração em GPU executada** (seed `11_900_003`, fora da banda,
+      167 s). Custo OK: 0,46 h projetadas contra teto de 4 h. **E ela matou o
+      endpoint primário:** `task1_retention` = 0,0000 nos quatro braços em
+      `T = 5`. A família do S7 daria `p = 1,00` por construção. Não é ruído (em
+      `T = 2` a amplitude entre braços é 0,354) nem regime degenerado (o gate
+      passou com 14× a chance). É **efeito de piso** · `docs/results/retention_floor_effect.md`
+- [ ] 3.5 **CONGELADA.** As 10 seeds da banda 12.000.017+ **não foram gastas** —
+      rodá-las queimaria a banda num resultado vazio. Retomável em 28 min de GPU
+      se o endpoint for re-registrado. **O endpoint não foi trocado de propósito:**
+      `average_forgetting` ordena os braços, e promovê-lo depois de ver isso
+      seria pesca de endpoint.
 
-> ⚠️ **Risco declarado antes:** o smoke de 1 época em `T = 5` deu FAA 2,4–2,7× a
-> chance, **abaixo do limiar de 4×** do gate. As 4 épocas de S10 devem resolver
-> (em `T = 2` a margem foi 17×), mas pode não resolver. Se o gate disparar, o
-> resultado é inconclusivo e **o limiar não será afrouxado**.
+> ⚠️ **Nenhum gate pegou.** O §G.1 vigia FAA contra a chance (passou com 14×);
+> V5–V7 vigiam ranking, sobreposição e regime. **Nenhum vigia se o primário tem
+> dispersão.** Segunda ocorrência do padrão do item 5.1, e de espécie diferente:
+> em R-E a métrica estava calculada *errada*; aqui está calculada *certa* e não
+> responde nada neste regime.
 
 ---
 

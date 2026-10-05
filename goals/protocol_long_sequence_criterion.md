@@ -294,3 +294,48 @@ Referência conhecida: `T = 2`, 4 braços, 10 seeds, 1080 Ti = **10,9 min**
 | data | alteração | antes da run? |
 |---|---|---|
 | 05/10/2026 | criação e congelamento. S1–S12 fechados, gate de quase-chance do §G.1 declarado, banda de seeds fixada. Correções de instrumento das §B e §C aplicadas antes e mecanismo-only. | sim — nenhuma seed executada |
+| 05/10/2026 | §E.1.1: seed de calibração movida para **fora** da banda (`11_900_003`). A calibração roda a matriz completa e escreve acurácia; gastar nela uma seed da banda seria ler uma confirmatória antes das outras nove. | sim — nenhuma seed executada |
+
+## L. Resultado da calibração, e por que a passada parou aqui
+
+**Executada em 05/10/2026**, seed `11_900_003`, GTX 1080 Ti, 167 s.
+
+**Custo:** dentro do orçamento. 0,46 h projetadas para as dez seeds, contra o
+teto de 4 h do §I. O §I está cumprido.
+
+**E a calibração matou o endpoint primário.** `task1_retention` vale **0,0000
+nos quatro braços**. A família confirmatória do S7 são dois contrastes pareados
+sobre ele; ambos dariam diferença identicamente zero em todas as seeds, e o
+teste de sinal do S8 retornaria `p = 1,00` por construção.
+
+Não é ruído (em `T = 2`, 10 seeds, a amplitude entre braços é 0,354 e o sd entre
+seeds é 0,045–0,082) e não é regime degenerado (o gate do §G.1 passou com 14× a
+chance; os modelos aprendem, 0,80–0,91 na última tarefa). É **efeito de piso**:
+a tarefa 1 sofre quatro tarefas de interferência e satura no teto do
+esquecimento antes do fim do stream.
+
+Análise completa, com o decaimento estágio a estágio e os limites do que uma
+seed exploratória autoriza: [`docs/results/retention_floor_effect.md`](../docs/results/retention_floor_effect.md).
+
+### L.1 As dez seeds não foram gastas
+
+Rodá-las produziria um resultado vazio e queimaria a banda. A passada está
+**congelada**, não cancelada: protocolo commitado, scripts prontos, custo
+medido. Retomável em 28 min de GPU.
+
+### L.2 O que NÃO foi feito, de propósito
+
+**O endpoint não foi trocado.** `average_forgetting` ordena os braços na
+calibração (0,6750 / 0,6792 / 0,7200 / 0,7925), e é exatamente por isso que
+promovê-lo agora seria pesca de endpoint — escolher a métrica depois de ver qual
+funciona. Qualquer emenda exige documento novo, commitado antes de tocar seed,
+declarando que veio de uma calibração que leu acurácia. **Este protocolo não
+autoriza essa emenda.**
+
+### L.3 O gate que faltava
+
+Nem o §G.1 nem as checagens V5–V7 de `scripts/verify_long_sequence_criterion.py`
+podiam detectar isto: todas vigiam o regime, o ranking ou a capacidade, e
+**nenhuma vigia se o endpoint primário tem dispersão**. Um protocolo futuro
+sobre este host deve declarar, antes das seeds, uma checagem de que o primário
+varia entre braços no comprimento de sequência alvo.
