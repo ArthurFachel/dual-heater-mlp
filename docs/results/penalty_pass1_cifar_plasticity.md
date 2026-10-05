@@ -27,7 +27,7 @@ quais contrastes sobrevivem na família confirmatória.
 
 | item | valor |
 |---|---|
-| host | Split-CIFAR100 class-IL, CNN, 10 tarefas de 10 classes |
+| host | Split-CIFAR100 class-IL, MLP (1024, 512) sobre vetor achatado de 3072, 10 tarefas de 10 classes |
 | device | CUDA, 3 GPUs, sharding por seed |
 | seeds | 12, banda 7.000.003+ (§G), as **mesmas** do MNIST |
 | arms | `vanilla`, `ewc`, `si`, `mas` |
@@ -67,7 +67,7 @@ entre seeds é uma a duas ordens de grandeza menor que o efeito.
 
 **EWC inverte de sinal entre os hosts.** No MNIST mediu `E = 0,9958` (abaixo de
 1, pareável); aqui mede `E = 1,0013` (acima, não pareável). Como as forças são
-idênticas, a diferença é do host — arquitetura CNN, 10 tarefas de 10 classes em
+idênticas, a diferença é do host — 10 tarefas de 10 classes em
 vez de 5 de 2, e escala de gradiente diferente. O efeito é pequeno (0,13%) mas
 tem dp entre seeds de 0,0001, ou seja treze vezes menor que o efeito.
 
@@ -115,8 +115,11 @@ decisão sobre o que fazer no lugar é do Fachel e está aberta abaixo.
 
 ## Limites
 
-1. **Dois hosts, uma família de otimizador.** MNIST/MLP e CIFAR-100/CNN, ambos
-   AdamW. O §D do protocolo do instrumento já declara que sob otimizador
+1. **Dois hosts, uma família de otimizador, uma arquitetura.** MNIST e CIFAR-100,
+   ambos AdamW e **ambos MLP** — o loader entrega vetores achatados e
+   `generalization_configs()['split_cifar100'].backbone == 'mlp'`. O §D do
+   protocolo diz "(CNN)" e está errado; nenhuma convolução foi treinada. O §D do
+   protocolo do instrumento já declara que sob otimizador
    adaptativo o contrafactual é local. **`E > 1` pode ser um fenômeno de
    otimizador adaptativo, e isso não foi testado.** Um arm com SGD puro é o
    teste direto e continua não feito.
@@ -135,11 +138,12 @@ decisão sobre o que fazer no lugar é do Fachel e está aberta abaixo.
 ## O que isto significa para o artigo
 
 O resultado do CIFAR fortalece a frase do MNIST em vez de complicá-la, porque
-estende o fenômeno a um segundo host e a uma segunda arquitetura:
+estende o fenômeno a um segundo benchmark — **não** a uma segunda arquitetura,
+já que os dois hosts rodam MLP:
 
 > *Métodos de consolidação por penalidade não removem plasticidade de forma
-> monotônica sob otimizadores adaptativos. Em Split-MNIST (MLP) e Split-CIFAR100
-> (CNN), ambos com AdamW, EWC, SI e MAS aumentam a norma do update em relação ao
+> monotônica sob otimizadores adaptativos. Em Split-MNIST e Split-CIFAR100, ambos
+> com MLP e AdamW, EWC, SI e MAS aumentam a norma do update em relação ao
 > treino não penalizado — unânime em 12 seeds por host. Para o MAS no CIFAR-100
 > o update chega a inverter de direção (cosseno mínimo −0,88), de modo que
 > nenhum escalar de plasticidade o descreve. Um controle pareado em plasticidade,
@@ -160,3 +164,4 @@ desses números foi medido.
 | data | alteração |
 |---|---|
 | 2026-09-29 | resultado da passada 1 no CIFAR-100, 12 seeds, medição exaustiva, 3,44 h de GPU |
+| 2026-10-05 | **Correção factual: o host é MLP, não CNN.** Cinco ocorrências de "CNN" descreviam uma arquitetura que não foi treinada — `generalization_configs()['split_cifar100'].backbone == 'mlp'`, sobre vetor achatado de 3072. O §D do protocolo e o "Fora de escopo" do roadmap já registravam isso; este relatório não. **Nenhum número muda**: as medições são do que de fato rodou, só a descrição estava errada. A frase destinada ao artigo foi enfraquecida de "segunda arquitetura" para "segundo benchmark". |
