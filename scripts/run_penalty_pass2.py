@@ -133,6 +133,20 @@ def should_reuse(record: object) -> bool:
     )
 
 
+def extract_metrics(arm_result: dict[str, Any]) -> dict[str, float]:
+    """Lê os endpoints de `result["metrics"]`, não da raiz.
+
+    `run_split_mnist` aninha as métricas sob `"metrics"` (ver `AGGREGATE_METRICS`
+    em `experiments/split_mnist.py`). Ler da raiz levanta `KeyError`, que é o
+    modo de falha barulhento e bom; o modo silencioso seria um `.get(metric, 0.0)`
+    gravando zeros plausíveis em todos os manifests.
+    """
+
+    return {
+        metric: float(arm_result["metrics"][metric]) for metric in REPORTED_METRICS
+    }
+
+
 def run_one_seed(*, seed: int, tasks: Any) -> dict[str, Any]:
     config = build_config(seed=seed)
     started = time.perf_counter()
@@ -141,9 +155,7 @@ def run_one_seed(*, seed: int, tasks: Any) -> dict[str, Any]:
 
     record = build_record_header(seed=seed, elapsed=elapsed)
     for arm in ARMS:
-        record["arms"][arm] = {
-            metric: float(results[arm][metric]) for metric in REPORTED_METRICS
-        }
+        record["arms"][arm] = extract_metrics(results[arm])
     return record
 
 

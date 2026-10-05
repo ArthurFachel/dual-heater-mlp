@@ -32,13 +32,13 @@ são corpo do ICML e **não** aparecem no IJCNN. Citar uma na outra como
       Decidir agora, não em abril.
 - [ ] **D4. Âncora do EWC sob LoRA** (só se D1 = sim): adaptador ou peso base?
       É decisão de método, exige pré-registro, não deve ser inferida.
-- [ ] **D5. A passada 2 vale a pena agora que o L3 respondeu?** Ela só é
-      construível para o `mas` a 30× a força publicada. Mede acurácia de um ponto
-      de operação que ninguém propôs, em um host, sob SGD — e um nulo ali não
-      diz nada sobre o MAS publicado. **A alternativa é parar aqui**: a Seção 4
-      do ICML já tem passada 1 (dois hosts), L2 (mecanismo) e L3 (a janela
-      inexistente), que é um argumento de instrumentação completo. ~1 h de CPU
-      para rodar, mas o custo real é de escopo, não de máquina.
+- [ ] **D5. A passada 2 rodou e deu positivo num regime degenerado — replicar
+      num regime são?** `mas − lr_control` foi significativo 12/12, mas os três
+      arms ficaram perto do nível de chance (melhor arm 0,198 contra chance
+      0,10). Separar "consolidação" de "mudou menos" exige um regime onde o
+      `vanilla` de fato aprenda: mais épocas, lr maior, ou replay. **Isso é um
+      experimento novo, com pré-registro novo.** A alternativa é reportar o
+      resultado com a ressalva, que é o que o relatório já faz.
 
 ---
 
@@ -94,12 +94,13 @@ são corpo do ICML e **não** aparecem no IJCNN. Citar uma na outra como
       `ewc` e `si` passam de "fraco demais" (E > 0,91 a 3×) para "divergente"
       (10/10 seeds a 10×) **sem janela utilizável entre os dois regimes** ·
       `docs/results/lambda_sweep_results.md`
-- [ ] 2.13 **Passada 2 sob SGD** — autorizada a existir, mas só para o `mas` a
-      **30×** a força publicada. **Exige pré-registro novo** e banda de seeds
-      nova. As três ressalvas do §E.2 do L3 vão junto, obrigatoriamente: mudar λ
-      muda o método, o ponto de operação não é o publicado, e a passada mede
-      acurácia de algo que ninguém propôs. **Decisão do Fachel antes de rodar** —
-      ver D5.
+- [x] 2.13 **Passada 2 sob SGD** — 12 seeds, ~8 min de CPU. **Q1 FALSIFICADA**:
+      `mas − lr_control` = −0,0400, 12/12 seeds, `p = 0,00049`. Q2 confirmada (o
+      controle é um controle). Q3 falsificada na direção oposta (o `mas` ficou
+      **acima** do vanilla em acurácia). ⚠️ **Mas os três arms terminaram em
+      quase-chance** (0,149/0,198/0,160 contra chance 0,10): o contraste não
+      separa consolidação de simples redução de mudança ·
+      `docs/results/penalty_pass2_results.md`
 
 > ⚠️ **G8 disparou sob AdamW, e o L2 explicou por quê.** SI e MAS tinham `E > 1`
 > no MNIST, e os três no CIFAR-100: `lr_scale > 1` é aumento de LR, não controle

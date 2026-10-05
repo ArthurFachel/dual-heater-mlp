@@ -330,3 +330,39 @@ def test_accuracy_is_reported_for_every_arm() -> None:
 
     assert "average_forgetting" in REPORTED_METRICS
     assert "final_average_accuracy" in REPORTED_METRICS
+
+
+def test_metrics_are_read_from_the_nested_metrics_dict() -> None:
+    """`run_split_mnist` aninha os endpoints sob `"metrics"`, não na raiz.
+
+    O smoke de 1 seed pegou isto como `KeyError`, que é a falha barulhenta e
+    desejável. O teste existe para que a correção não regrida silenciosamente
+    para um `.get(metric, 0.0)`, que gravaria zeros plausíveis em 12 manifests
+    e só seria notado na hora de interpretar o contraste.
+    """
+
+    from scripts.run_penalty_pass2 import extract_metrics
+
+    arm_result = {
+        "metrics": {
+            "average_forgetting": 0.25,
+            "final_average_accuracy": 0.61,
+            "backward_transfer": -0.1,
+        },
+        # Chaves homônimas na raiz: se o runner ler daqui, os números saem
+        # errados sem levantar exceção nenhuma.
+        "average_forgetting": 999.0,
+        "final_average_accuracy": 999.0,
+    }
+    extracted = extract_metrics(arm_result)
+    assert extracted["average_forgetting"] == pytest.approx(0.25)
+    assert extracted["final_average_accuracy"] == pytest.approx(0.61)
+
+
+def test_a_missing_endpoint_raises_instead_of_defaulting() -> None:
+    """Um endpoint ausente tem de explodir, não virar zero."""
+
+    from scripts.run_penalty_pass2 import extract_metrics
+
+    with pytest.raises(KeyError):
+        extract_metrics({"metrics": {"final_average_accuracy": 0.61}})
