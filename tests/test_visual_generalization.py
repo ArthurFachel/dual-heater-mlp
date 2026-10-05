@@ -76,7 +76,15 @@ def test_generalization_configs_preserve_scenario_semantics():
     # be pre-registered before its first seed. Until that document exists, MAS
     # is reachable from `_METHOD_SPECS` and from its own tests, not from a
     # historical registry. See docs/audits/baseline_inventory.md.
-    DEFERRED_UNTIL_PREREGISTERED = {"mas"}
+    #
+    # `lr_control` is held out on the same grounds. It is not a continual
+    # learning method at all: it is the plasticity-matched control of
+    # `goals/protocol_penalty_pass2.md`, which removes plasticity through the
+    # learning rate and carries no consolidation mechanism. It is meaningful
+    # only opposite the `mas` arm of that pass, at the frozen scale measured by
+    # the L3 sweep, and sweeping it alongside real methods would compare a
+    # control against methods it was never paired with.
+    DEFERRED_UNTIL_PREREGISTERED = {"mas", "lr_control"}
 
     assert SUPPORTED_METHODS - DEFERRED_UNTIL_PREREGISTERED <= set(
         ALL_VISUAL_METHODS

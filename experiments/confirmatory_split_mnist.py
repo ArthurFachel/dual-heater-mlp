@@ -94,6 +94,17 @@ LAMBDA_SWEEP_SEEDS: tuple[int, ...] = (
     9_125_059, 9_150_067, 9_175_073, 9_200_089, 9_225_091,
 )
 
+#: Banda da passada 2 (`goals/protocol_penalty_pass2.md` §D.1): o contraste
+#: `mas − lr_control` sob SGD, com o MAS a 30× a força publicada. **Primeira
+#: passada da Fase 2 que lê acurácia.** Doze seeds, não dez: o endpoint aqui é
+#: ruidoso, ao contrário do `E`. Disjunta de todas as bandas acima, verificado
+#: em `tests/test_penalty_pass2.py`.
+PENALTY_PASS2_SEEDS: tuple[int, ...] = (
+    9_500_011, 9_525_013, 9_550_037, 9_575_041, 9_600_053,
+    9_625_061, 9_650_069, 9_675_077, 9_700_081, 9_725_089,
+    9_750_097, 9_775_103,
+)
+
 #: Calibration seed for section I: cost and wiring only, deliberately OUTSIDE
 #: the band above so its endpoints can never be pooled with the confirmatory
 #: ones. Its n=1 endpoints carry no statistical standing.

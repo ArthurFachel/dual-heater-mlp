@@ -193,6 +193,12 @@ _METHOD_SPECS = {
     # é Ω, estimado pela sensibilidade da SAÍDA e portanto sem rótulo. Ver
     # docs/audits/baseline_inventory.md para por que faltava.
     "mas": MethodSpec(),
+    #: Controle pareado em plasticidade (`goals/protocol_penalty_pass2.md` §C).
+    #: NENHUMA flag de mecanismo: ele remove plasticidade só pelo tamanho do
+    #: passo (`learning_rate_scale`), sem consolidação, sem replay e sem
+    #: destilação. É isso que torna `mas − lr_control` um contraste que isola o
+    #: que o método faz além de treinar mais devagar.
+    "lr_control": MethodSpec(),
     "lwf_calibrated": MethodSpec(distillation=True),
     "replay_balanced": MethodSpec(replay=True),
     "replay_more_epochs": MethodSpec(
@@ -361,6 +367,12 @@ class SplitMNISTConfig:
     validation_per_class: int = 200
     test_per_class: int | None = 500
     learning_rate: float = 1e-3
+    #: Fator aplicado ao learning rate APENAS do arm `lr_control`
+    #: (`goals/protocol_penalty_pass2.md` §C). O controle remove plasticidade
+    #: pelo tamanho do passo, sem nenhum mecanismo de consolidação, para que o
+    #: contraste `mas − lr_control` isole o que o método faz além de treinar
+    #: mais devagar. Default `1.0` para não mover nenhum protocolo congelado.
+    learning_rate_scale: float = 1.0
     weight_decay: float = 1e-4
     slow_strength: float = 3.0
     plasticity_budget: float = 0.25
@@ -593,6 +605,11 @@ class SplitMNISTConfig:
         require_finite_values(finite_values)
         if self.learning_rate <= 0.0 or self.weight_decay < 0.0:
             raise ValueError("learning_rate deve ser > 0 e weight_decay >= 0")
+        if not 0.0 < self.learning_rate_scale <= 1.0:
+            # Um escalar > 1 seria AUMENTO de learning rate, não remoção de
+            # plasticidade — exatamente o que a regra G8 recusa quando um
+            # método mede `E > 1`.
+            raise ValueError("learning_rate_scale deve estar em (0, 1]")
         if self.slow_strength < 0.0:
             raise ValueError("slow_strength deve ser >= 0")
         FastHeatConfig(
@@ -715,6 +732,11 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
     # já congelado.
     if config.optimizer == "adamw":
         payload.pop("optimizer")
+    # Mesma convenção para o escalar do `lr_control`
+    # (`goals/protocol_penalty_pass2.md` §C): ele só existe nessa passada, e
+    # deixá-lo no payload com o valor default moveria hashes já fechados.
+    if config.learning_rate_scale == 1.0:
+        payload.pop("learning_rate_scale")
     # Mesma convenção: a medição de plasticidade foi adicionada depois que
     # protocolos como `confirmatory_split_mnist.py` já estavam congelados.
     # Desligada (o default), o campo não entra no payload e o sha256 daqueles
@@ -1109,6 +1131,15 @@ def _build_optimizer(
     learning_rate = config.learning_rate
     if method == "replay_global_lr_reduction":
         learning_rate *= config.global_lr_reduction
+    if method == "lr_control":
+        # O tratamento inteiro do arm de controle está nesta linha
+        # (`goals/protocol_penalty_pass2.md` §C). Se ela não existir, o
+        # `lr_control` roda no learning rate base, vira `vanilla` com outro
+        # nome, e o contraste primário compara o método contra si mesmo
+        # produzindo números perfeitamente plausíveis. Esse bug exato já
+        # aconteceu duas vezes neste repo; `tests/test_penalty_pass2.py`
+        # tem a guarda.
+        learning_rate *= config.learning_rate_scale
     if config.optimizer == "sgd":
         # SGD PURO (§D/S1 de `goals/protocol_sgd_plasticity.md`): sem momentum,
         # que reintroduziria o estado de otimizador que este regime existe para
