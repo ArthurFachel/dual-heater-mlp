@@ -32,6 +32,13 @@ são corpo do ICML e **não** aparecem no IJCNN. Citar uma na outra como
       Decidir agora, não em abril.
 - [ ] **D4. Âncora do EWC sob LoRA** (só se D1 = sim): adaptador ou peso base?
       É decisão de método, exige pré-registro, não deve ser inferida.
+- [ ] **D5. A passada 2 vale a pena agora que o L3 respondeu?** Ela só é
+      construível para o `mas` a 30× a força publicada. Mede acurácia de um ponto
+      de operação que ninguém propôs, em um host, sob SGD — e um nulo ali não
+      diz nada sobre o MAS publicado. **A alternativa é parar aqui**: a Seção 4
+      do ICML já tem passada 1 (dois hosts), L2 (mecanismo) e L3 (a janela
+      inexistente), que é um argumento de instrumentação completo. ~1 h de CPU
+      para rodar, mas o custo real é de escopo, não de máquina.
 
 ---
 
@@ -81,14 +88,18 @@ são corpo do ICML e **não** aparecem no IJCNN. Citar uma na outra como
 - [x] 2.11 **Decidido: L2 primeiro** (§L do protocolo), e ele rodou. Resposta:
       `E ≈ 0,996` era artefato do AdamW. Sob SGD, `E` = 0,955 / 0,976 / 0,993
       (lr=3e-3) — os três passam no G8 e **a passada 2 volta a ter objeto**.
-- [ ] 2.12 **L3 — sweep de λ × `E` sob SGD**, mecanismo-only, ~1 min/ponto em CPU.
-      Responde se existe λ onde o `lr_control` fica operacionalmente distinto do
-      vanilla. **Pré-requisito da passada 2**: os `lr_scale` do L2 ficam entre
-      0,7% e 4,5% de redução — pode não haver poder.
-- [ ] 2.13 **Passada 2 sob SGD** — só se o L3 mostrar poder. **Exige pré-registro
-      novo** (o da passada 2 foi escrito para AdamW), banda de seeds nova, e a
-      escolha do ponto do eixo de lr **declarada antes** (a `lr=1e-2` os `E` são
-      mais distantes de 1, mas é onde o `si` diverge).
+- [x] 2.12 **L3 — sweep de λ sob SGD**, 10 seeds × 5 pontos, 84,2 min de CPU.
+      T-P1 a T-P4 **todas confirmadas**. De 15 células, **duas** têm poder, e as
+      duas são do `mas`: 30× (`E` = 0,854) e 100× (`E` = 0,728), unânime 10/10.
+      `ewc` e `si` passam de "fraco demais" (E > 0,91 a 3×) para "divergente"
+      (10/10 seeds a 10×) **sem janela utilizável entre os dois regimes** ·
+      `docs/results/lambda_sweep_results.md`
+- [ ] 2.13 **Passada 2 sob SGD** — autorizada a existir, mas só para o `mas` a
+      **30×** a força publicada. **Exige pré-registro novo** e banda de seeds
+      nova. As três ressalvas do §E.2 do L3 vão junto, obrigatoriamente: mudar λ
+      muda o método, o ponto de operação não é o publicado, e a passada mede
+      acurácia de algo que ninguém propôs. **Decisão do Fachel antes de rodar** —
+      ver D5.
 
 > ⚠️ **G8 disparou sob AdamW, e o L2 explicou por quê.** SI e MAS tinham `E > 1`
 > no MNIST, e os três no CIFAR-100: `lr_scale > 1` é aumento de LR, não controle
