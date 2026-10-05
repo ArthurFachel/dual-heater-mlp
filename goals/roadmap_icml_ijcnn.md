@@ -55,6 +55,10 @@ são corpo do ICML e **não** aparecem no IJCNN. Citar uma na outra como
 - [x] **R-E** `effective_plasticity()` media só sobre parâmetros com binding;
       o endpoint de 28/09 comparou E=0,532 contra E=0,850 · `lora_confirmation_results.md` §R3
 - [x] **R-F** `lr_control < vanilla` **não replicou**; 7 ocorrências corrigidas em `45de59e`
+- [x] **R-G** falsificador da §F da ablação de critério, **recuperado**:
+      sobreposição top-k `magnitude` vs `aleatório` = 0,5748 < 0,80 em 10/10
+      seeds. O braço `magnitude` foi genuinamente exercido; R-B é achado, não
+      artefato · `docs/results/criterion_degeneracy_overlap.md`
 - [x] Pareamento por superfície, 10 seeds, p_Holm = 0,0039 · `plasticity_matched_results.md`
 - [x] EWC/SI/MAS extraídos para `src/dual_heater/ewc.py`, equivalência numérica pinada
 - [x] **Instrumento de plasticidade** (`src/dual_heater/plasticity.py`):
@@ -126,12 +130,34 @@ Runs descartadas ficam em `results/_abandoned_*` com `WHY_ABANDONED.md`.
 
 Limite declarado de R-A/R-B: um host, um benchmark, **duas tarefas por sequência**.
 
-- [ ] 3.1 Subir `task_limit` de 2 para 5 ou 10 em
-      `experiments/bert_slowheat_diagnostic.py:347` — ataca o limite mais
-      citável com o menor risco. Reusa `scripts/run_criterion_ablation.py`.
-- [ ] 3.2 Pré-registrar antes de rodar; banda de seeds nova, disjunta de 4.000.003+
-- [ ] 3.3 Repetir o falsificador de variância do ranking normalizado.
-      **Sem esse número o empate `|z|` vs `|z·dL/dz|` não é reportável.**
+**Pré-registro:** `goals/protocol_long_sequence_criterion.md`, congelado 05/10,
+`T = 5`, banda 12.000.017+, família de 2 com Holm, gate de quase-chance no §G.1.
+
+- [x] 3.1 `task_limit` deixou de ser 2 fixo. Eram **três** pontos, e o terceiro
+      era um bug: `condition_endpoints` lia `matrix[1]` e
+      `parameter_drift_history[1]` — o **estágio 1**, não o último. Com `T = 5`
+      reportaria "retenção" medida após a tarefa 2 enquanto a run foi até a 5,
+      sem nada no artefato denunciando. Corrigido com não-regressão bit-idêntica
+      para `T = 2`, guarda de wiring do CLI e recusa de agregar braços com `T`
+      diferente. **19 mutações mortas.** Smoke em CPU prova `T = 3 / 5 / 10`.
+- [x] 3.2 Pré-registrado antes de rodar; banda de seeds nova, pinada em teste.
+      A escolha `T = 5` contra `T = 10` **leu FAA de smoke** e isso está
+      declarado na §F do protocolo, não escondido.
+- [x] 3.3 Falsificador repetido — e **a §F estava cumprida pela metade**. A
+      sobreposição top-k entre braços nunca foi calculada na run de 28/09:
+      é grandeza *entre runs* e o hook do runner roda dentro de um só.
+      Recuperada dos buffers `slow_heat`: `magnitude` vs `aleatório` = **0,5748**
+      (< 0,80, **o falsificador passa**), `magnitude` vs `funcional` = 0,8814 ·
+      `docs/results/criterion_degeneracy_overlap.md`. Agora é checagem
+      obrigatória pré-endpoint (`scripts/verify_long_sequence_criterion.py`, V6),
+      ao lado do gate de quase-chance (V7). **16 mutações mortas.**
+- [ ] 3.4 **Calibração de 1 seed em GPU** (§I) — *aguarda autorização do Fachel*.
+      `scripts/launch_long_sequence_calibration.sh`. Só depois as 10 seeds.
+
+> ⚠️ **Risco declarado antes:** o smoke de 1 época em `T = 5` deu FAA 2,4–2,7× a
+> chance, **abaixo do limiar de 4×** do gate. As 4 épocas de S10 devem resolver
+> (em `T = 2` a margem foi 17×), mas pode não resolver. Se o gate disparar, o
+> resultado é inconclusivo e **o limiar não será afrouxado**.
 
 ---
 
