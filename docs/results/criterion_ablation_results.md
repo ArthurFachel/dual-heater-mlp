@@ -129,3 +129,24 @@ hipóteses, inclusive as nossas.
    reportava 0,0 para todos os critérios, exatamente quando o falsificador era
    necessário. Corrigida para ler `importance_memory`, o vetor que o top-k de
    fato ranqueia, com teste de não-regressão.
+
+## Lacuna encontrada depois, e fechada (05/10/2026)
+
+**A §F do pré-registro exigia duas diagnósticas; esta run emitiu uma.** A
+sobreposição top-k entre braços nunca foi calculada, porque é uma grandeza
+*entre runs* e o hook do runner roda dentro de um único run. Sem ela, a regra
+congelada da §F — sobreposição(magnitude, aleatório) > 0,8 torna o empate
+inconclusivo — nunca foi avaliada, e a defesa do empate acima apoiava-se só na
+variância.
+
+Recuperada a partir dos buffers `slow_heat` salvos, que são as máscaras que
+estes runs usaram:
+
+| par | média (10 seeds) |
+|---|---:|
+| `magnitude` vs `aleatório` | **0,5748** |
+| `magnitude` vs `funcional` | 0,8814 |
+
+**0,5748 < 0,80: o falsificador passa.** O empate permanece achado, agora com as
+duas métricas que o pré-registro pedia. Detalhes, limites e artefato em
+[`criterion_degeneracy_overlap.md`](criterion_degeneracy_overlap.md).
