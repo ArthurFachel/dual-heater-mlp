@@ -39,6 +39,13 @@ são corpo do ICML e **não** aparecem no IJCNN. Citar uma na outra como
       `vanilla` de fato aprenda: mais épocas, lr maior, ou replay. **Isso é um
       experimento novo, com pré-registro novo.** A alternativa é reportar o
       resultado com a ressalva, que é o que o relatório já faz.
+- [x] **D6. RESOLVIDO 05/10 — opção A.** O ICML passa a ser ancorado em
+      **instruction tuning**, mantendo a tese do instrumento. **Rejeitada** a
+      versão "método que diminui forgetting e aumenta acurácia": R-C dá 5+/5−
+      contra LoRA-FA sob pareamento, nenhum contraste de FAA sobrevive a Holm em
+      Qwen, e a conjunção se parte com significância nos dois sentidos em
+      CIFAR-100. Benchmark: **TRACE**, SuperNI como fallback, **sem juiz LLM**.
+      Fica aberto o que sai do plano — ver R6.
 
 ---
 
@@ -171,6 +178,99 @@ Limite declarado de R-A/R-B: um host, um benchmark, **duas tarefas por sequênci
 
 ---
 
+## 🟣 Fase 3b — instruction tuning como palco do instrumento `[ICML §4, corpo]`
+
+**Decidido com o Fachel em 05/10 (D6 = opção A).** O alvo é instruction tuning,
+pelo motivo certo: não é onde o SlowHeat precisa ganhar, é onde o instrumento
+precisa morder. Ainda **não pré-registrado, não orçado, não autorizado.**
+
+**Claim desta fase:**
+
+> Em instruction tuning, ganhos reportados de métodos de CL não sobrevivem ao
+> pareamento por plasticidade efetiva — inclusive os nossos.
+
+**Por que este enquadramento e não "nosso método ganha":** a evidência do próprio
+repo refuta a versão forte, e ela está nos artefatos, não na minha memória:
+
+| achado | artefato | o que diz |
+|---|---|---|
+| `exact − frozen_a_control` = −0,0092, **5+/5−**, p = 1,000 | `exact_decomposition_results.md` | sob pareamento, nossa máscara não acrescenta nada a **LoRA-FA** (arXiv 2308.03303, 2023), e custa 1,8× mais tempo |
+| nenhum contraste de FAA sobrevive a Holm (2/24 sobrevivem, ambos retenção) | `qwen_confirmation_results.md` §8 | em Qwen com 10 tarefas, acurácia não é resultado |
+| hard: esquecimento **−11,68 pp** (10/10) **e** acurácia **−1,41 pp** (10/10) | compêndio bloco 6, CIFAR-100 MLP | a conjunção "menos forget + mais acurácia" se parte, com significância nos dois lados |
+| `er_ace`: menor esquecimento da tabela (0,0398), FAA 6 pp **abaixo** | compêndio bloco 2, 100 seeds | esquecer pouco por ter aprendido pouco |
+
+**A tese sobrevive sem precisar vencer.** Se o SlowHeat ganhar em instruction
+tuning, entra como linha de tabela. Se não ganhar, o artigo continua inteiro —
+é o mesmo movimento da Seção 3, que já publica o próprio erro.
+
+> ⚠️ **O que porta e o que não porta.** `E` e o pareamento por plasticidade
+> portam para loss de geração **sem mudança de definição** (são razão de normas
+> de update, indiferentes à loss). O endpoint de retenção **não** porta:
+> `task1_retention` em geração não tem piso de chance definido, e o gate de
+> quase-chance (§G.1) é definido contra chance uniforme de classes. Sem endpoint
+> novo pré-registrado isto cai no buraco da Fase 3.5: medição certa, regime sem
+> dispersão, seeds queimadas.
+
+### Evidência que já existe e não precisa de GPU nova
+
+O argumento central já está medido. Esta tabela é o coração da Seção 4:
+
+| braço | posição **sem** pareamento | `E` medido | posição **com** `E` = 0,85 |
+|---|---:|---:|---:|
+| `slice` | **2º** | **0,0625** | **4º** |
+| `exact` | 1º | 0,9234 | 1º |
+| `vanilla` | 3º | 1,000 | 2º |
+
+`results/qwen_lora_iso_10seed/`, compêndio bloco 12. O `slice` aparecia em
+segundo porque tinha removido **94% da plasticidade**. Sem o instrumento isso é
+invisível. **Este par de tabelas é o artigo.**
+
+E o contraste pareado confirmatório (bloco 14, `plasticity_matched/analysis.json`,
+10 seeds, Holm): `frozen_a_control − lr_control` dá esquecimento −0,1260 (0+/10−,
+p_Holm = 0,00391) e FAA +0,0992 (10+/0−), com plasticidade de superfície
+**idêntica** (0,62246) nos dois braços. Isola *como* contra *quanta* — mas o
+vencedor é LoRA-FA, e isso vai dito no texto, não escondido.
+
+### Tarefas
+
+- [ ] 3b.1 **Benchmark: TRACE no corpo, SuperNI como fallback barato.**
+      **Sem juiz LLM** — AlpacaEval/MT-Bench trazem custo de API e ruído que não
+      dá para pré-registrar. LongBench não cabe em 11-12 GB.
+
+| benchmark | o que mede | custo/risco |
+|---|---|---|
+| **TRACE** | CL para LLM alinhado, 8 tarefas, BWT + perda de alinhamento geral | desenhado para a pergunta; tarefas longas, caro em Pascal |
+| **SuperNI** | generalização a instrução não vista, exact-match + ROUGE-L | métrica automática, barata; pode saturar em 0.5B |
+| ~~LongBench/MTL5~~ | contexto longo | **descartado**: inviável em 11-12 GB fp16 |
+| ~~AlpacaEval/MT-Bench~~ | juiz LLM | **descartado**: não pré-registrável |
+
+- [ ] 3b.2 **Medir capacidade antes de prometer tabela.** Qwen2.5-0.5B + SlowHeat
+      mediu 5,447 GiB de pico em CLINC150 (fp16) e 5,52-6,60 GiB na confirmação de
+      10 tarefas (fp32). Instruction tuning tem sequência mais longa: refazer a
+      medida **antes** de dimensionar o sweep. Pascal (CC 6.x): fp16, nunca bf16,
+      uma GPU só, sem DDP (GPUs heterogêneas).
+- [ ] 3b.3 **Endpoint novo, pré-registrado, com gate de regime.** Declarar antes
+      de ver qualquer número: exact-match por tarefa, ROUGE-L, ou delta de
+      perplexidade na tarefa 1. O gate equivalente ao §G.1 tem de ser redefinido
+      junto — em geração, contra o quê se mede "quase-chance"? Sem resposta a
+      isso, não há gate, e a Fase 3.5 provou o que acontece então.
+- [ ] 3b.4 **Replicar a reordenação do bloco 12 em host generativo.** Este é o
+      endpoint primário da fase: *a ordenação dos braços muda quando `E` é
+      pareado?* Não é "o SlowHeat ganha?". Reportar a ordenação nas duas condições,
+      como no bloco 12.
+- [ ] 3b.5 **`lr_control` obrigatório**, e **LoRA-FA/`frozen_a_control` obrigatório**
+      como baseline publicada. O R-C mostrou que ele é o verdadeiro vencedor no
+      host Qwen; omiti-lo aqui seria a mesma pesca que o artigo denuncia.
+- [ ] 3b.6 Rodar só depois de 3b.1-3b.3 fechados e com autorização explícita de GPU.
+
+**Ameaça ao cronograma, não resolvida:** ~16 semanas, dois artigos, um autor, e o
+gargalo declarado é escrita. Isto é experimento novo com protocolo novo. Se
+apertar, a candidata a corte é a **Fase 3 do IJCNN**, que já está congelada por
+endpoint morto (3.5) — não a escrita. E a Seção 4 tem plano B sem GPU nenhuma: o
+bloco 12 e o bloco 14 já sustentam a tese em Qwen, só que em classificação.
+
+---
+
 ## ✍️ Fase 4 — escrita IJCNN (6 pgs) `[31/01]`
 
 **Título:** *Activation Magnitude Is Enough: Gradient-Free Neuron Selection for CL in Transformers*
@@ -195,10 +295,23 @@ máscara aleatória por +12,23 pp. O componente caro não compra nada.
 
 ## ✍️ Fase 5 — escrita ICML (8 pgs) `[~22/01]`
 
-**Título:** *Plasticity-Matched Controls: Re-evaluating CL Methods Against What They Actually Constrain*
+**Título:** *Plasticity-Matched Controls: Re-evaluating Continual Learning for Instruction-Tuned LLMs*
 **Claim:** comparações em CL não controlam quanta plasticidade o método removeu.
-Damos o instrumento, ele muda conclusões — inclusive as nossas, pré-registradas
-e já confirmadas.
+Damos o instrumento, aplicamos a instruction tuning, e ele muda conclusões —
+inclusive as nossas, pré-registradas e já confirmadas.
+
+> **Mudança de enquadramento, 05/10 (D6 = A).** O título anterior era
+> *...Against What They Actually Constrain*, genérico quanto ao domínio. O alvo
+> agora é declarado: **instruction tuning**. A tese não mudou; o palco mudou, e
+> com ele a resposta à objeção "vocês só testam em benchmark dummy".
+>
+> **O que foi rejeitado, e por quê:** a alternativa era vender "método que
+> diminui forgetting e aumenta acurácia, validado em instruction tuning". Três
+> medições do próprio repo matam essa versão — `exact − frozen_a_control` = 5+/5−
+> contra LoRA-FA (R-C); nenhum contraste de FAA sobrevivendo a Holm em Qwen
+> (`qwen_confirmation_results.md` §8); e a conjunção se partindo com
+> significância nos dois sentidos em CIFAR-100 (compêndio bloco 6). Detalhe na
+> Fase 3b.
 
 - [ ] 5.1 **Escrever a Seção 3 primeiro** (é o coração): um resultado
       confirmatório com Holm, sinal exato e 5 gates descreveu condições que não
@@ -220,13 +333,13 @@ e já confirmadas.
 
 | seção | pgs | conteúdo |
 |---|---|---|
-| 1 Introduction | 1,0 | o confundimento de plasticidade |
-| 2 Effective plasticity | 1,5 | definição, lema `E_sup ≤ E_bind`, generalização para penalidade |
+| 1 Introduction | 1,0 | o confundimento de plasticidade, **ancorado em instruction tuning** |
+| 2 Effective plasticity | 1,5 | definição, lema `E_sup ≤ E_bind`, generalização para penalidade e para loss de geração |
 | 3 Case study: nosso próprio resultado | 1,5 | R-E + pareamento. **O caso central.** |
-| 4 Re-evaluation | 2,0 | Fase 2: amplificação, G8, geometria por host |
-| 5 Negative results | 1,0 | R-C, R-F. R-A/R-B só como citação ao companion |
+| 4 Re-evaluation | 2,0 | **bloco 12 (reordenação sob pareamento) + Fase 3b** em host generativo; Fase 2 (amplificação, G8) comprimida |
+| 5 Negative results | 1,0 | R-C (**nosso método não bate LoRA-FA sob pareamento**), R-F. R-A/R-B só como citação ao companion |
 | 6 Limitations | 0,5 | não-unicidade, hosts, benchmarks |
-| 7 Related Work | 0,5 | — |
+| 7 Related Work | 0,5 | LoRA-FA (2308.03303), TRACE, O-LoRA/InfLoRA |
 
 ---
 
@@ -271,6 +384,8 @@ e já confirmadas.
 | R3 | ~~Passada 2 pode dar contraste vazio (`E_ewc ≈ 0,996`)~~ **resolvido pelo L2**: sob SGD os `E` ficam entre 0,955 e 0,993 | decidir com o L3 (2.12) se há poder antes de gastar seeds |
 | R4 | ~~Cosseno do MAS < 0,9 no CIFAR~~ **confirmou-se**, mínimo −0,88: o update inverte de direção | §E.1 manda reportar com ressalva; **proibido remover o arm** (seleção pós-hoc). Vira conteúdo da Seção 4 |
 | R5 | Sobreposição vista como submissão dupla | regra de não-sobreposição; citar como companion |
+| R6 | **Fase 3b não cabe no caminho crítico sem corte** — experimento novo, protocolo novo, e o gargalo é escrita | ordem de corte declarada: **Fase 3 do IJCNN primeiro** (já congelada por endpoint morto), nunca a escrita. Plano B sem GPU: bloco 12 + bloco 14 sustentam a Seção 4 em classificação |
+| R7 | **Reviewer pergunta "e o método de vocês, ganha?"** e a resposta medida é 5+/5− contra LoRA-FA | responder na Seção 5, não evitar. É o mesmo movimento da Seção 3: o artigo ganha credibilidade publicando o próprio negativo. **Proibido omitir o `frozen_a_control` das tabelas** |
 
 ## 🚫 Fora de escopo
 

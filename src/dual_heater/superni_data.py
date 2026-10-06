@@ -1,12 +1,17 @@
 """Sequência de tarefas do SuperNI para continual learning.
 
 **Aviso de escopo, que precisa estar no artigo se isto virar resultado:** o
-SuperNI NÃO é um benchmark de continual learning. É um benchmark de
+SuperNI NÃO é, na origem, um benchmark de continual learning. É um benchmark de
 generalização cross-task — treina num subconjunto e avalia em tarefas não
-vistas. Não existe sequência canônica de tarefas para CL, então qualquer
-sequência usada aqui é **nossa**, não da literatura, e nenhum número publicado
-é diretamente comparável. O CITB (Findings EMNLP 2023) constrói um protocolo de
-CL sobre o SuperNI e seria a âncora correta para comparação externa.
+vistas. A sequência de CL montada AQUI é nossa e nenhum número publicado é
+diretamente comparável a ela.
+
+**Correção (05/10):** uma versão anterior deste aviso dizia que "não existe
+sequência canônica de tarefas para CL" no SuperNI. Está errado. O SAPT (ACL
+2024, ``circle-hit/SAPT``, ``CL_Benchmark/SuperNI/``) fixa 15 tarefas do
+SuperNI com ordens declaradas, e o CITB (Findings EMNLP 2023) fixa os streams
+InstrDialog/InstrDialog++. Comparação externa é possível contra esses
+protocolos, não contra esta sequência.
 
 Consequência prática: esta sequência serve para medir **dispersão e custo**
 (calibração), não para alegar "re-avaliamos ganhos publicados".

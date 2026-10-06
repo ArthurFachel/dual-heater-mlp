@@ -817,12 +817,18 @@ def build_lora_slowheat(
     config: LoRASlowHeatConfig,
     *,
     modules_to_save: list[str] | None = None,
+    task_type: Literal["SEQ_CLS", "CAUSAL_LM"] = "SEQ_CLS",
 ) -> tuple[nn.Module, QwenLoRASlowHeat]:
     """Wrap ``model`` with PEFT LoRA and attach the configured mechanism.
 
     ``modules_to_save`` keeps the randomly-initialized classification head
     trainable. Freezing it would make a Class-IL run structurally unable to
     learn any label, so it stays trainable and unmasked by design.
+
+    ``task_type="CAUSAL_LM"`` is the generative host (TRACE). There is no new
+    head to keep plastic, so ``modules_to_save`` defaults to none and every
+    trainable parameter is a LoRA factor: the reference surface is exactly the
+    adapter.
     """
 
     try:
@@ -830,13 +836,22 @@ def build_lora_slowheat(
     except ImportError as error:  # pragma: no cover - optional dependency path
         raise ImportError("LoRA SlowHeat requer o extra opcional 'nlp' (peft)") from error
 
+    if task_type == "SEQ_CLS":
+        peft_task = TaskType.SEQ_CLS
+        saved = list(modules_to_save or ["score"])
+    elif task_type == "CAUSAL_LM":
+        peft_task = TaskType.CAUSAL_LM
+        saved = list(modules_to_save) if modules_to_save else None
+    else:
+        raise ValueError("task_type deve ser 'SEQ_CLS' ou 'CAUSAL_LM'")
+
     peft_config = LoraConfig(
-        task_type=TaskType.SEQ_CLS,
+        task_type=peft_task,
         r=config.rank,
         lora_alpha=config.alpha,
         lora_dropout=config.dropout,
         target_modules=list(config.target_modules),
-        modules_to_save=list(modules_to_save or ["score"]),
+        modules_to_save=saved,
         bias="none",
     )
     wrapped = get_peft_model(model, peft_config, adapter_name=config.adapter_name)
