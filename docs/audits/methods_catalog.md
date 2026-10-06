@@ -10,8 +10,7 @@ aceitos é o código, especialmente `experiments/split_mnist.py`,
 ### Functional SlowHeat
 
 Implementado em `src/dual_heater/slow_heat.py` para unidades lineares, canais
-convolucionais, MLP, CNN pequena e VGG11; a variante ResNet18 está em
-`src/dual_heater/resnet.py`.
+convolucionais, MLP e CNN pequena.
 
 O sinal instantâneo por unidade é `|z * dL/dz|`. Ele é normalizado, acumulado na
 tarefa e consolidado na fronteira por `max`, `mean` ou `sum`. A importância
@@ -22,12 +21,12 @@ colunas consumidoras.
 APIs principais:
 
 - `SlowHeatLinear`, `SlowHeatConv2d`, `SlowHeatChannelTracker`;
-- `SlowHeatMLP`, `SlowHeatCNN`, `SlowHeatVGG11`, `SlowHeatResNet18`;
+- `SlowHeatMLP`, `SlowHeatCNN`;
 - `consolidate()`, `get_lr_scales()` e `adapt_capacity()`.
 
 `capacity_metrics()` existe nas camadas (`SlowHeatLinear`, `SlowHeatConv2d`) e
-nos hosts BERT e Qwen, **não** nos modelos visuais: chamá-lo em `SlowHeatMLP`,
-`SlowHeatCNN`, `SlowHeatVGG11` ou `SlowHeatResNet18` levanta `AttributeError`.
+nos hosts BERT e Qwen, **não** nos modelos visuais: chamá-lo em `SlowHeatMLP`
+ou `SlowHeatCNN` levanta `AttributeError`.
 
 ### FastHeat
 
@@ -48,9 +47,7 @@ visuais atuais não o ativam isoladamente.
 legado. As classes são:
 
 - `FunctionalDualHeatMLP`;
-- `FunctionalDualHeatCNN`;
-- `FunctionalDualHeatVGG11`;
-- `FunctionalDualHeatResNet18`.
+- `FunctionalDualHeatCNN`.
 
 ### DualHeat legado
 
@@ -227,8 +224,7 @@ completo: [bert_full_coverage_ablation.md](../results/bert_full_coverage_ablatio
 ## 6. Backbones e cenários
 
 - MLP: Split-MNIST, Permuted-MNIST, Split-CIFAR achatado e sintético;
-- CNN pequena, VGG11 e ResNet18: Split-CIFAR-10;
-- VGG11 e ResNet18: benchmark pareado Functional DualHeat;
+- CNN pequena: Split-CIFAR-10;
 - MLP: Split-CIFAR-100 no runner visual;
 - BERT-Mini e BERT-base: CLINC150 por domínio. BERT-base exige manifesto
   congelado na CLI.

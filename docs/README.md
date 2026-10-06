@@ -40,7 +40,7 @@ pode afirmar** e **Ameaças à validade**.
 | Área | Estado | Documento principal |
 |---|---|---|
 | Functional SlowHeat e Functional DualHeat | implementados e testados; benchmarks visuais exploratórios concluídos | [functional_slowheat.md](mechanisms/functional_slowheat.md) |
-| SlowHeat para CNN, VGG11 e ResNet18 | implementado e testado | [functional_slowheat_cnn.md](mechanisms/functional_slowheat_cnn.md) |
+| SlowHeat para CNN | implementado e testado | [functional_slowheat_cnn.md](mechanisms/functional_slowheat_cnn.md) |
 | BERT/CLINC150 | implementado; diagnósticos exploratórios de mecanismo e replay concluídos; runs históricas na Parte II | [bert_slowheat_diagnostic_results.md](results/bert_slowheat_diagnostic_results.md) |
 | Trackers para Transformers | BERT implementado; SwiGLU implementado no host Qwen2; GQA, QKV fundido e distribuição ainda planejados | [functional_slowheat_transformers.md](mechanisms/functional_slowheat_transformers.md) |
 | Qwen2 / SlowHeat em LLM | host, diagnóstico de capacidade e runner de iso-plasticidade implementados e testados; smoke em GPU executado; sem resultado de continual learning agregado | [functional_slowheat_qwen.md](architectures/functional_slowheat_qwen.md) |
@@ -58,7 +58,7 @@ pode afirmar** e **Ameaças à validade**.
 
 As adições que não estavam cobertas pelo catálogo histórico original são:
 
-- Functional DualHeat em MLP, CNN pequena, VGG11 e ResNet18;
+- Functional DualHeat em MLP e CNN pequena;
 - FastHeat aplicado em treino e avaliação, com estado atualizado apenas em
   treino;
 - integração opcional com BERT da Hugging Face;
@@ -71,7 +71,6 @@ As adições que não estavam cobertas pelo catálogo histórico original são:
 - métodos visuais LPR, Classifier Expander e SCROLL, com variantes SlowHeat e
   Functional DualHeat;
 - quatro políticas de seleção da memória de replay;
-- benchmarks pareados Functional DualHeat em VGG11 e ResNet18;
 - dashboard HTTP com histórico de acurácia, Heat/FastHeat, snapshots por época e
   estágio e comparação entre métodos.
 
@@ -105,9 +104,8 @@ O inventário das implementações e identificadores aceitos pelos runners está
 
 | Componente | Fonte principal |
 |---|---|
-| SlowHeat linear/convolucional/MLP/VGG | `src/dual_heater/slow_heat.py` |
+| SlowHeat linear/convolucional/MLP | `src/dual_heater/slow_heat.py` |
 | FastHeat | `src/dual_heater/fast_heat.py` |
-| ResNet18 e variantes | `src/dual_heater/resnet.py` |
 | DualHeat legado | `src/dual_heater/dual_heat.py` |
 | LoRA legado | `src/dual_heater/lora.py` |
 | BERT e LoRA exato | `src/dual_heater/bert.py` |

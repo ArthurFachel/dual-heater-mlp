@@ -49,9 +49,7 @@ SlowHeat+Replay against Replay has been executed twice independently; both
 runs are versioned and agree on every scientific metric, though both record a
 dirty Git tree. Ten-seed paired suites for Split-CIFAR-10 and Split-CIFAR-100
 are versioned and analysed in Section 6: they show that the sign of the
-SlowHeat effect depends on the base method it is attached to. Ten-seed
-exploratory Split-CIFAR-10 benchmarks with VGG11 and ResNet18 do not establish
-a multiplicity-adjusted final-accuracy advantage for Functional DualHeat.
+SlowHeat effect depends on the base method it is attached to.
 Section 8 reports a five-target suite, frozen before execution and run from a
 clean Git tree, that removes the confound between protection regime and
 architecture: hard protection does not beat soft protection anywhere, and
@@ -382,13 +380,6 @@ within each dataset are Holm-corrected, the four datasets are not corrected
 against each other; a global correction over all sixteen contrasts would
 weaken the marginal entries.
 
-A separate ten-seed study compares Functional DualHeat against SlowHeat on
-Split-CIFAR-10 with VGG11 and ResNet18 backbones. No contrast survives Holm at
-5% in either architecture. The largest mean gain, VGG11 with LPR at +1.43
-points, has an adjusted p of 0.0803; all four ResNet18 contrasts fall between
--0.50 and -0.01 points with adjusted p of 1.000. Adding FastHeat to SlowHeat
-therefore has no robust effect in this protocol.
-
 Full tables, artifacts and provenance are in `docs/architectures/arch_cnn.md`.
 
 ## 7. BERT/CLINC150 Mechanism Diagnostics
@@ -560,8 +551,6 @@ Currently supported:
   (10/10 seeds); attached to DER++ it reduced accuracy by 1.13 and 0.53 points
   respectively (0/10 and 1/10 seeds favourable). All four survive Holm
   correction within their dataset.
-- Adding FastHeat to SlowHeat produced no Holm-surviving final-accuracy change
-  on Split-CIFAR-10 with either VGG11 or ResNet18.
 - Hard protection does not beat soft protection on any of five non-Transformer
   targets under a protocol frozen before execution with a clean Git tree. On
   Split-CIFAR-100/MLP hard is worse by 1.41 points (Holm p = 2.9e-05, 10/10

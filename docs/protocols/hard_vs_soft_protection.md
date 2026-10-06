@@ -62,9 +62,6 @@ eval-mode**:
 | Agregado | Commit | Data |
 |---|---|---|
 | `split_cifar10_cnn` | `3861862` | 28/08 |
-| `split_cifar10_vgg11` | `37b9c25` | 29/08 |
-| `split_cifar10_vgg11_all_methods` | `dc21eed` | 29/08 |
-| `split_cifar10_resnet18_all_methods` | `dc21eed` | 29/08 |
 
 A correção é `d5b22ad`, de 03/09 — verificado com
 `git merge-base --is-ancestor`. E o bug só afetava sweeps **sem** nenhum método
@@ -140,8 +137,8 @@ Registrada em `hard_vs_soft_protocol.json`, campo `declared_expectations`:
 Declarar isto antes importa porque os dois desfechos são publicáveis, e o
 registro impede racionalização posterior.
 
-Há um sinal preliminar, dos dados contaminados: hard perdeu para soft em VGG11
-(−2,78 p.p.) e empatou na CNN pequena (−0,29 p.p., ns). Se isso se confirmar em
+Há um sinal preliminar, dos dados contaminados: hard empatou na CNN pequena
+(−0,29 p.p., ns). Se isso se confirmar em
 dados limpos, a leitura é que **hard funciona quando há capacidade sobrando** —
 BERT com 11,2M de parâmetros e duas tarefas — e falha sob capacidade apertada.
 Isso conecta com o critério de plasticidade efetiva do eixo Qwen.

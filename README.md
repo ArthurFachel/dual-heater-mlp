@@ -9,16 +9,6 @@ The repository now distinguishes **Functional SlowHeat**, the new
 **Functional DualHeat** (activation FastHeat + Functional SlowHeat), and the
 historical `DualHeatLinear`/`DualHeatMLP` API.
 
-Ten-seed exploratory Split-CIFAR-10 benchmarks are now available for VGG11 and
-ResNet18. Functional DualHeat did not produce a multiplicity-adjusted gain in
-the primary final-average-accuracy contrasts. On VGG11, DualHeat minus SlowHeat
-was `-0.00483`, while DualHeat+LPR minus SlowHeat+LPR was `+0.01430`; both had
-Holm-adjusted `p = 0.0803`. All four ResNet18 contrasts were close to zero and
-had Holm-adjusted `p = 1.0`. The VGG11 DualHeat comparison reduced average
-forgetting by `0.02488` while reducing final accuracy, so the evidence supports
-a stability-plasticity trade-off rather than superiority. These results are
-exploratory, and all recorded paired fairness checks passed.
-
 A runner audit on 2026-09-02 found that epoch-end evaluation entered eval mode
 without restoring the learner's previous mode. SlowHeat sweeps without any
 FastHeat method consequently accumulated functional importance only during the
@@ -552,7 +542,6 @@ src/dual_heater/
   slow_heat.py       SlowHeat linear/conv layers and consolidation
   transformer.py     FFN and per-head functional-importance trackers
   bert.py            optional BERT instrumentation and exact LoRA integration
-  resnet.py          CIFAR ResNet18 controls and Functional DualHeat variant
   lora.py            experimental LoRA adaptation
   optim.py           optimizer-aware update masking
   metrics.py         continual-learning metrics
@@ -667,51 +656,13 @@ explicit representation bootstrap, followed by accumulated ridge-regression
 statistics and replay-only representation adaptation. This is a documented
 benchmark adaptation, not a claim of exact reproduction of pretrained SCROLL.
 
-The VGG11-CIFAR pilot uses the standard eight-convolution VGG11 feature pattern
-without BatchNorm, five max-pooling stages, adaptive `1x1` pooling and one
-linear classifier. Its first pilot runs the five core controls (`vanilla`,
-`slowheat_none`, `slowheat_unidirectional`, `slowheat` and `hard_freeze`) in a
-separate output tree:
-
-```bash
-PYTHONPATH=src:. python run_all_tests.py \
-  --num-seeds 3 \
-  --sections split-cifar10-vgg11 \
-  --device cuda
-```
-
-This CIFAR-sized adaptation avoids the ImageNet VGG classifier and isolates
-depth from BatchNorm running-statistics effects. Its artifacts are written to
-`results/split_mnist_protocol/split_cifar10_vgg11/`.
-
-The opt-in deep-CNN sweep runs the same eleven controls and paired auxiliary
-methods on VGG11 and CIFAR ResNet-18. ResNet-18 uses a 3x3 stride-1 stem,
-GroupNorm, stages `(64,128,256,512)` with `(2,2,2,2)` residual blocks and
-global average pooling. Exact LPR is retained with an update interval of 300
-optimizer steps to control the covariance-inversion cost:
-
-```bash
-PYTHONPATH=src:. python run_all_tests.py \
-  --num-seeds 10 \
-  --sections split-cifar10-vgg11-all-methods split-cifar10-resnet18-all-methods \
-  --device cuda \
-  --run-unit-tests
-```
-
-This is 220 learner runs (2 architectures x 11 methods x 10 paired seeds).
-The new output directories end in `_all_methods`, so historical VGG and
-ResNet artifacts cannot be mistaken for resumable runs of this protocol.
-
-The actual Functional DualHeat protocol is separate. It first calibrates
-FastHeat on validation only, freezes the selected configuration, and then runs
-fresh 13-method VGG11 and ResNet18 benchmarks in new output directories:
+The Functional DualHeat protocol calibrates FastHeat on validation only and
+freezes the selected configuration:
 
 ```bash
 python run_all_tests.py \
   --num-seeds 10 \
   --sections functional-dualheat-pilot \
-    split-cifar10-vgg11-functional-dualheat \
-    split-cifar10-resnet18-functional-dualheat \
   --device cuda --run-unit-tests
 ```
 

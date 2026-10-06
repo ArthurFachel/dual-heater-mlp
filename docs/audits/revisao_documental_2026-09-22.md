@@ -366,7 +366,7 @@ LPR/Classifier Expander/SCROLL sem restrição. `split_mnist.py:631-645` levanta
 ### 6.5 `project_methods_and_results.md` §16 — estrutura do repositório
 
 Lista 6 módulos em `src/dual_heater/`; existem **12**. Omite `bert.py` (47 KB,
-o maior), `qwen.py`, `transformer.py`, `resnet.py`, `state.py`, `_layers.py`.
+o maior), `qwen.py`, `transformer.py`, `state.py`, `_layers.py`.
 
 ### 6.6 Presets e contagens verificados como **corretos**
 
@@ -385,12 +385,12 @@ sintético = 11; estratégias de replay = 4; o parser aceita de fato
 | `FunctionalSlowHeatMixin` | `functional_slowheat_cnn.md:285` | `_SlowHeatImportanceMixin` (privado), `slow_heat.py:91` |
 | `update_task_importance()` | `functional_slowheat_cnn.md:294` | não existe; equivalente é `_update_task_ema` |
 | `registry.connect()` / `registry.merge()` | `functional_slowheat_cnn.md:260-262` | não existem |
-| `capacity_metrics()` nos modelos visuais | `methods_catalog.md:24-27` | existe **só** nas camadas e nos hosts BERT/Qwen. `SlowHeatMLP/CNN/VGG11/ResNet18` → `AttributeError` |
+| `capacity_metrics()` nos modelos visuais | `methods_catalog.md:24-27` | existe **só** nas camadas e nos hosts BERT/Qwen. `SlowHeatMLP/CNN` → `AttributeError` |
 | `TemporalSlowHeatTracker`, `SlowHeatRNNCell`, `SlowHeatLSTMCell`, `finish_backward()`, `begin_backward_window()` | `functional_slowheat_rnn_lstm.md` | não existem (proposta) |
 
 **Módulos e símbolos públicos não documentados em lugar nenhum:**
 `state.py` (`FP32ScientificStateMixin`, `register_counter` — garante buffers
-FP32, relevante para reprodutibilidade numérica), `_layers.py`, `CIFARResNet18`,
+FP32, relevante para reprodutibilidade numérica), `_layers.py`,
 `CLMetrics`, `compute_cl_metrics`, `BertSlowHeatConfig`,
 `ExactSlowHeatLoRAConfig`, `exact_lora_mask_bindings`,
 `register_exact_lora_masks`, e os 4 runners de diagnóstico BERT.

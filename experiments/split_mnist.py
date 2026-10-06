@@ -358,9 +358,6 @@ class SplitMNISTConfig:
     cnn_architecture: str = "small"
     cnn_channels: tuple[int, int] = (32, 64)
     cnn_pooled_size: tuple[int, int] = (2, 2)
-    vgg_channels: tuple[int, ...] = (64, 128, 256, 256, 512, 512, 512, 512)
-    resnet_stage_channels: tuple[int, int, int, int] = (64, 128, 256, 512)
-    resnet_blocks_per_stage: tuple[int, int, int, int] = (2, 2, 2, 2)
     batch_size: int = 128
     epochs_per_task: int = 2
     train_per_class: int | None = 1_000
@@ -526,37 +523,12 @@ class SplitMNISTConfig:
                 raise ValueError(
                     "backbone CNN requer image_shape [C, H, W] compatível com input_dim"
                 )
-            if self.cnn_architecture not in {"small", "vgg11", "resnet18"}:
-                raise ValueError(
-                    "cnn_architecture deve ser 'small', 'vgg11' ou 'resnet18'"
-                )
-            if self.cnn_architecture == "small":
-                if len(self.cnn_channels) != 2 or any(
-                    width < 1 for width in self.cnn_channels
-                ):
-                    raise ValueError("cnn_channels deve conter dois canais positivos")
-            elif self.cnn_architecture == "vgg11":
-                if len(self.vgg_channels) != 8 or any(
-                    width < 1 for width in self.vgg_channels
-                ):
-                    raise ValueError("vgg_channels deve conter oito canais positivos")
-                if min(self.image_shape[1:]) < 32:
-                    raise ValueError(
-                        "VGG11 requer dimensões espaciais de pelo menos 32"
-                    )
-            else:
-                if len(self.resnet_stage_channels) != 4 or any(
-                    width < 1 for width in self.resnet_stage_channels
-                ):
-                    raise ValueError(
-                        "resnet_stage_channels deve conter quatro canais positivos"
-                    )
-                if len(self.resnet_blocks_per_stage) != 4 or any(
-                    count < 1 for count in self.resnet_blocks_per_stage
-                ):
-                    raise ValueError(
-                        "resnet_blocks_per_stage deve conter quatro contagens positivas"
-                    )
+            if self.cnn_architecture != "small":
+                raise ValueError("cnn_architecture deve ser 'small'")
+            if len(self.cnn_channels) != 2 or any(
+                width < 1 for width in self.cnn_channels
+            ):
+                raise ValueError("cnn_channels deve conter dois canais positivos")
             if len(self.cnn_pooled_size) != 2 or any(
                 size < 1 for size in self.cnn_pooled_size
             ):
@@ -762,24 +734,10 @@ def config_payload(config: SplitMNISTConfig) -> dict[str, Any]:
             "cnn_architecture",
             "cnn_channels",
             "cnn_pooled_size",
-            "vgg_channels",
-            "resnet_stage_channels",
-            "resnet_blocks_per_stage",
         ):
             payload.pop(field)
-    elif config.cnn_architecture == "small":
-        payload.pop("cnn_architecture")
-        payload.pop("vgg_channels")
-        payload.pop("resnet_stage_channels")
-        payload.pop("resnet_blocks_per_stage")
-    elif config.cnn_architecture == "vgg11":
-        payload.pop("cnn_channels")
-        payload.pop("resnet_stage_channels")
-        payload.pop("resnet_blocks_per_stage")
     else:
-        payload.pop("cnn_channels")
-        payload.pop("cnn_pooled_size")
-        payload.pop("vgg_channels")
+        payload.pop("cnn_architecture")
     if not any(
         _uses_lpr(method)
         or _uses_classifier_expander(method)

@@ -11,7 +11,7 @@ isso sozinho. Antes de planejar o que implementar, é preciso saber o que existe
 
 ## Tabela de cobertura (host × baseline)
 
-| baseline | Split-MNIST (MLP) | Split-CLINC150 (BERT-mini) | Qwen LoRA | CIFAR/ResNet |
+| baseline | Split-MNIST (MLP) | Split-CLINC150 (BERT-mini) | Qwen LoRA | CIFAR/CNN |
 |---|---|---|---|---|
 | vanilla (sequencial) | sim | sim | sim | sim |
 | replay (ER) | sim | sim | **não** | sim |

@@ -5,17 +5,14 @@ from .fast_heat import FastHeatConfig, FastHeatGate, get_fast_states, reset_fast
 from .lora import DualHeatLoRALinear
 from .metrics import CLMetrics, compute_cl_metrics
 from .optim import SlowHeatAdamW, SlowHeatSGD
-from .resnet import CIFARResNet18, FunctionalDualHeatResNet18, SlowHeatResNet18
 from .slow_heat import (
     FunctionalDualHeatCNN,
     FunctionalDualHeatMLP,
-    FunctionalDualHeatVGG11,
     SlowHeatChannelTracker,
     SlowHeatCNN,
     SlowHeatConv2d,
     SlowHeatLinear,
     SlowHeatMLP,
-    SlowHeatVGG11,
 )
 from .transformer import SlowHeatAttentionTracker, SlowHeatFFNTracker
 
@@ -48,7 +45,6 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
-    "CIFARResNet18",
     "CLMetrics",
     "DualHeatLinear",
     "DualHeatLoRALinear",
@@ -57,8 +53,6 @@ __all__ = [
     "FastHeatGate",
     "FunctionalDualHeatCNN",
     "FunctionalDualHeatMLP",
-    "FunctionalDualHeatResNet18",
-    "FunctionalDualHeatVGG11",
     "SlowHeatAdamW",
     "SlowHeatAttentionTracker",
     "SlowHeatCNN",
@@ -67,9 +61,7 @@ __all__ = [
     "SlowHeatFFNTracker",
     "SlowHeatLinear",
     "SlowHeatMLP",
-    "SlowHeatResNet18",
     "SlowHeatSGD",
-    "SlowHeatVGG11",
     "compute_cl_metrics",
     "get_fast_states",
     "reset_fast_heat",

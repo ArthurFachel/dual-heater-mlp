@@ -20,7 +20,6 @@ from experiments.synthetic_cl import SYNTHETIC_METHODS
 from experiments.visual_generalization import (
     CNN_SWEEP_METHODS,
     CNN_VISUAL_METHODS,
-    VGG11_METHODS,
 )
 
 
@@ -216,50 +215,6 @@ def test_cnn_sweep_plan_declares_preselected_grid():
     assert section["output_dir"].endswith("split_cifar10_cnn_sweep")
 
 
-def test_vgg11_cifar_plan_declares_cifar_adaptation():
-    args = run_all_tests.parse_args(
-        ["--num-seeds", "3", "--sections", "split-cifar10-vgg11", "--dry-run"]
-    )
-    section = run_all_tests.build_run_plan(args)["sections"]["split-cifar10-vgg11"]
-
-    assert section["methods"] == list(VGG11_METHODS)
-    assert section["protocol"]["backbone"] == "cnn"
-    assert section["protocol"]["architecture"] == "vgg11"
-    assert section["protocol"]["channels"] == [
-        64, 128, 256, 256, 512, 512, 512, 512,
-    ]
-    assert section["protocol"]["pooled_size"] == [1, 1]
-    assert section["output_dir"].endswith("split_cifar10_vgg11")
-
-
-def test_deep_cnn_all_methods_plan_declares_220_paired_runs():
-    args = run_all_tests.parse_args(
-        [
-            "--num-seeds",
-            "10",
-            "--sections",
-            "split-cifar10-vgg11-all-methods",
-            "split-cifar10-resnet18-all-methods",
-            "--dry-run",
-        ]
-    )
-    plan = run_all_tests.build_run_plan(args)
-    vgg = plan["sections"]["split-cifar10-vgg11-all-methods"]
-    resnet = plan["sections"]["split-cifar10-resnet18-all-methods"]
-
-    assert vgg["methods"] == list(CNN_VISUAL_METHODS)
-    assert resnet["methods"] == list(CNN_VISUAL_METHODS)
-    assert vgg["protocol"]["architecture"] == "vgg11"
-    assert resnet["protocol"]["architecture"] == "resnet18"
-    assert vgg["protocol"]["lpr_update_frequency"] == 300
-    assert resnet["protocol"]["lpr_update_frequency"] == 300
-    assert vgg["learner_run_count"] + resnet["learner_run_count"] == 220
-    assert vgg["output_dir"].endswith("split_cifar10_vgg11_all_methods")
-    assert resnet["output_dir"].endswith(
-        "split_cifar10_resnet18_all_methods"
-    )
-
-
 def test_all_datasets_all_methods_plan_covers_every_compatible_cross_section():
     args = run_all_tests.parse_args(
         ["--num-seeds", "10", "--all-datasets-all-methods", "--dry-run"]
@@ -393,31 +348,6 @@ def test_cnn_sweep_section_uses_its_own_output_directory(tmp_path, monkeypatch):
     assert result == {"ok": True}
     assert captured["name"] == "split_cifar10_cnn_sweep"
     assert captured["output_dir"].name == "split_cifar10_cnn_sweep"
-
-
-def test_vgg11_section_uses_visual_generalization_runner(tmp_path, monkeypatch):
-    captured = {}
-
-    def fake_run(name, **kwargs):
-        captured["name"] = name
-        captured.update(kwargs)
-        return {"ok": True}
-
-    monkeypatch.setattr(run_all_tests, "run_visual_generalization", fake_run)
-    args = run_all_tests.parse_args(
-        ["--sections", "split-cifar10-vgg11", "--num-seeds", "1"]
-    )
-
-    result = run_all_tests._run_section(
-        "split-cifar10-vgg11",
-        args,
-        data_dir=tmp_path / "data",
-        output_dir=tmp_path / "results",
-    )
-
-    assert result == {"ok": True}
-    assert captured["name"] == "split_cifar10_vgg11"
-    assert captured["output_dir"].name == "split_cifar10_vgg11"
 
 
 def test_synthetic_all_methods_section_uses_secondary_seeds(tmp_path, monkeypatch):

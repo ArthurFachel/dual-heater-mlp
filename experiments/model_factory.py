@@ -10,16 +10,11 @@ import torch
 from torch import Tensor, nn
 
 from dual_heater import (
-    CIFARResNet18,
     FastHeatConfig,
     FunctionalDualHeatCNN,
     FunctionalDualHeatMLP,
-    FunctionalDualHeatResNet18,
-    FunctionalDualHeatVGG11,
     SlowHeatCNN,
     SlowHeatMLP,
-    SlowHeatResNet18,
-    SlowHeatVGG11,
 )
 from dual_heater.fast_heat import FastHeatActivation
 from experiments.method_specs import MethodSpec
@@ -36,9 +31,6 @@ class ModelFactoryConfig(Protocol):
     cnn_channels: tuple[int, int]
     cnn_architecture: str
     cnn_pooled_size: tuple[int, int]
-    vgg_channels: tuple[int, ...]
-    resnet_stage_channels: tuple[int, int, int, int]
-    resnet_blocks_per_stage: tuple[int, int, int, int]
     slow_strength: float
     plasticity_budget: float
     partial_output_slow_strength: float
@@ -133,51 +125,6 @@ class _VanillaCNN(nn.Module):
         return self.classifier(self.forward_features(inputs))
 
 
-class _VanillaVGG11(nn.Module):
-    """Native control matching the CIFAR-sized ``SlowHeatVGG11`` topology."""
-
-    def __init__(
-        self,
-        in_channels: int,
-        num_classes: int,
-        *,
-        channels: tuple[int, ...],
-        pooled_size: tuple[int, int],
-        fast_heat_config: FastHeatConfig | None = None,
-    ) -> None:
-        super().__init__()
-        pool_after = {0, 1, 3, 5, 7}
-        feature_layers: list[nn.Module] = []
-        input_width = in_channels
-        for index, output_width in enumerate(channels):
-            feature_layers.extend(
-                (
-                    nn.Conv2d(input_width, output_width, kernel_size=3, padding=1),
-                    _activation(
-                        output_width,
-                        unit_dim=1,
-                        fast_heat_config=fast_heat_config,
-                    ),
-                )
-            )
-            if index in pool_after:
-                feature_layers.append(nn.MaxPool2d(2))
-            input_width = output_width
-        self.features = nn.Sequential(*feature_layers)
-        self.adaptive_pool = nn.AdaptiveAvgPool2d(pooled_size)
-        self.flatten = nn.Flatten()
-        self.classifier = nn.Linear(
-            channels[-1] * pooled_size[0] * pooled_size[1],
-            num_classes,
-        )
-
-    def forward_features(self, inputs: Tensor) -> Tensor:
-        return self.flatten(self.adaptive_pool(self.features(inputs)))
-
-    def forward(self, inputs: Tensor) -> Tensor:
-        return self.classifier(self.forward_features(inputs))
-
-
 def _vanilla_model(
     config: ModelFactoryConfig,
     dims: tuple[int, ...],
@@ -187,22 +134,6 @@ def _vanilla_model(
     if config.backbone == "mlp":
         return _vanilla_mlp(dims, fast_heat_config=fast_heat_config)
     assert config.image_shape is not None
-    if config.cnn_architecture == "vgg11":
-        return _VanillaVGG11(
-            config.image_shape[0],
-            len(config.class_order),
-            channels=config.vgg_channels,
-            pooled_size=config.cnn_pooled_size,
-            fast_heat_config=fast_heat_config,
-        )
-    if config.cnn_architecture == "resnet18":
-        return CIFARResNet18(
-            config.image_shape[0],
-            len(config.class_order),
-            stage_channels=config.resnet_stage_channels,
-            blocks_per_stage=config.resnet_blocks_per_stage,
-            fast_heat_config=fast_heat_config,
-        )
     return _VanillaCNN(
         config.image_shape[0],
         len(config.class_order),
@@ -281,7 +212,7 @@ def build_paired_models(
                         )
                     else:
                         model = SlowHeatMLP(*dims, **common)
-                elif config.cnn_architecture == "small":
+                else:
                     assert config.image_shape is not None
                     cnn_type = FunctionalDualHeatCNN if spec.fastheat else SlowHeatCNN
                     fast_kwargs = (
@@ -301,56 +232,6 @@ def build_paired_models(
                         pooled_size=config.cnn_pooled_size,
                         **fast_kwargs,
                         **common,
-                    )
-                elif config.cnn_architecture == "vgg11":
-                    assert config.image_shape is not None
-                    vgg_type = (
-                        FunctionalDualHeatVGG11 if spec.fastheat else SlowHeatVGG11
-                    )
-                    fast_kwargs = (
-                        {
-                            "fast_decay": config.fast_decay,
-                            "fast_strength": config.fast_strength,
-                            "fast_threshold": config.fast_threshold,
-                            "fast_eps": config.fast_eps,
-                        }
-                        if spec.fastheat
-                        else {}
-                    )
-                    model = vgg_type(
-                        config.image_shape[0],
-                        len(config.class_order),
-                        channels=config.vgg_channels,
-                        pooled_size=config.cnn_pooled_size,
-                        **fast_kwargs,
-                        **common,
-                    )
-                else:
-                    assert config.image_shape is not None
-                    resnet_common = dict(common)
-                    resnet_common.pop("act")
-                    resnet_type = (
-                        FunctionalDualHeatResNet18
-                        if spec.fastheat
-                        else SlowHeatResNet18
-                    )
-                    fast_kwargs = (
-                        {
-                            "fast_decay": config.fast_decay,
-                            "fast_strength": config.fast_strength,
-                            "fast_threshold": config.fast_threshold,
-                            "fast_eps": config.fast_eps,
-                        }
-                        if spec.fastheat
-                        else {}
-                    )
-                    model = resnet_type(
-                        config.image_shape[0],
-                        len(config.class_order),
-                        stage_channels=config.resnet_stage_channels,
-                        blocks_per_stage=config.resnet_blocks_per_stage,
-                        **fast_kwargs,
-                        **resnet_common,
                     )
             with torch.no_grad():
                 for name, parameter in model.named_parameters():

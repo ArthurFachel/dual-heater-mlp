@@ -5,15 +5,12 @@ from dataclasses import replace
 
 import pytest
 import torch
-from torch import nn
 
 from dual_heater import (
     FastHeatConfig,
     FastHeatGate,
     FunctionalDualHeatCNN,
     FunctionalDualHeatMLP,
-    FunctionalDualHeatResNet18,
-    FunctionalDualHeatVGG11,
     SlowHeatAdamW,
 )
 from experiments.contracts import ContinualTask
@@ -148,37 +145,12 @@ def test_gamma_zero_fastheat_vanilla_and_dualheat_slowheat_equivalence():
 def test_gate_counts_and_no_classifier_gate():
     mlp = FunctionalDualHeatMLP(4, 6, 5, 3)
     cnn = FunctionalDualHeatCNN(3, 10, channels=(2, 3))
-    vgg = FunctionalDualHeatVGG11(
-        3,
-        10,
-        channels=(2, 3, 4, 4, 5, 5, 6, 6),
-    )
-    resnet = FunctionalDualHeatResNet18(
-        3,
-        10,
-        stage_channels=(4, 8, 12, 16),
-    )
 
     assert len(mlp.get_fast_states()) == 2
     assert len(cnn.get_fast_states()) == 2
-    assert len(vgg.get_fast_states()) == 8
-    assert len(resnet.get_fast_states()) == 9
     assert not any(
         isinstance(module, FastHeatGate) for module in cnn.classifier.modules()
     )
-    assert not any(
-        isinstance(module, FastHeatGate) for module in vgg.classifier.modules()
-    )
-    assert not any(
-        isinstance(module, FastHeatGate) for module in resnet.classifier.modules()
-    )
-    for stage in resnet.stages:
-        for block in stage:
-            assert isinstance(block.relu, nn.ReLU)
-            assert any(
-                isinstance(module, FastHeatGate)
-                for module in block.output_activation.modules()
-            )
 
 
 def test_dualheat_and_slowheat_trainable_initialization_is_byte_identical():
@@ -253,16 +225,7 @@ def _one_visual_task() -> ContinualTask:
     )
 
 
-@pytest.mark.parametrize("architecture", ["vgg11", "resnet18"])
-def test_thirteen_method_visual_smoke_has_finite_metrics_and_costs(architecture):
-    architecture_kwargs = (
-        {"vgg_channels": (2, 2, 2, 2, 2, 2, 2, 2)}
-        if architecture == "vgg11"
-        else {
-            "resnet_stage_channels": (2, 2, 2, 2),
-            "resnet_blocks_per_stage": (1, 1, 1, 1),
-        }
-    )
+def test_thirteen_method_visual_smoke_has_finite_metrics_and_costs():
     config = SplitMNISTConfig(
         class_order=(0, 1),
         classes_per_task=2,
@@ -270,7 +233,8 @@ def test_thirteen_method_visual_smoke_has_finite_metrics_and_costs(architecture)
         hidden_dims=(1,),
         backbone="cnn",
         image_shape=(3, 32, 32),
-        cnn_architecture=architecture,
+        cnn_architecture="small",
+        cnn_channels=(2, 2),
         cnn_pooled_size=(1, 1),
         batch_size=2,
         epochs_per_task=1,
@@ -282,7 +246,6 @@ def test_thirteen_method_visual_smoke_has_finite_metrics_and_costs(architecture)
         lpr_update_frequency=100,
         max_train_examples_per_task=2,
         methods=FUNCTIONAL_DUALHEAT_BENCHMARK_METHODS,
-        **architecture_kwargs,
     )
 
     results = run_split_mnist(config, [_one_visual_task()])

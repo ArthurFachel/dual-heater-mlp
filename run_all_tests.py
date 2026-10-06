@@ -40,11 +40,9 @@ from experiments.dualheat_pairs import (
     run_dualheat_pairs,
 )
 from experiments.functional_dualheat import (
-    FUNCTIONAL_DUALHEAT_BENCHMARK_METHODS,
-    MAIN_BENCHMARK_SEEDS,
+    PILOT_ARCHITECTURES,
     PILOT_GRID,
     PILOT_SEEDS,
-    run_functional_dualheat_benchmark,
     run_functional_dualheat_pilot,
 )
 from experiments.multi_seed import run_multi_seed
@@ -237,22 +235,7 @@ def _methods_by_section(device: str) -> dict[str, list[str]]:
         "split-cifar10-cnn-sweep": list(
             visual_configs["split_cifar10_cnn_sweep"].methods
         ),
-        "split-cifar10-vgg11": list(
-            visual_configs["split_cifar10_vgg11"].methods
-        ),
-        "split-cifar10-vgg11-all-methods": list(
-            visual_configs["split_cifar10_vgg11_all_methods"].methods
-        ),
-        "split-cifar10-resnet18-all-methods": list(
-            visual_configs["split_cifar10_resnet18_all_methods"].methods
-        ),
         "functional-dualheat-pilot": ["slowheat", "dualheat"],
-        "split-cifar10-vgg11-functional-dualheat": list(
-            FUNCTIONAL_DUALHEAT_BENCHMARK_METHODS
-        ),
-        "split-cifar10-resnet18-functional-dualheat": list(
-            FUNCTIONAL_DUALHEAT_BENCHMARK_METHODS
-        ),
         "split-cifar100": list(visual_configs["split_cifar100"].methods),
     }
 
@@ -271,11 +254,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 else (
                     list(PILOT_SEEDS)
                     if name == "functional-dualheat-pilot"
-                    else (
-                        list(MAIN_BENCHMARK_SEEDS)
-                        if name.endswith("-functional-dualheat")
-                        else list(args.baseline_seeds)
-                    )
+                    else list(args.baseline_seeds)
                 )
             ),
             "output_dir": _portable_project_path(
@@ -307,7 +286,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
             }
         elif name == "functional-dualheat-pilot":
             details["protocol"] = {
-                "architectures": ["vgg11", "resnet18"],
+                "architectures": ["cnn"],
                 "grid": list(PILOT_GRID),
                 "epochs_per_task": 5,
                 "selection_data": "validation_only",
@@ -316,7 +295,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 ),
             }
             details["learner_run_count"] = (
-                len(PILOT_GRID) * 2 * len(PILOT_SEEDS) * 2
+                len(PILOT_GRID) * len(PILOT_ARCHITECTURES) * len(PILOT_SEEDS) * 2
             )
         elif name == "ablations":
             details["replay_memory_per_class"] = list(REPLAY_MEMORY_SIZES)
@@ -338,18 +317,9 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
             "split-cifar10",
             "split-cifar10-cnn",
             "split-cifar10-cnn-sweep",
-            "split-cifar10-vgg11",
-            "split-cifar10-vgg11-all-methods",
-            "split-cifar10-resnet18-all-methods",
-            "split-cifar10-vgg11-functional-dualheat",
-            "split-cifar10-resnet18-functional-dualheat",
             "split-cifar100",
         }:
             config_name = name.replace("-", "_")
-            if name == "split-cifar10-vgg11-functional-dualheat":
-                config_name = "split_cifar10_vgg11_all_methods"
-            elif name == "split-cifar10-resnet18-functional-dualheat":
-                config_name = "split_cifar10_resnet18_all_methods"
             config = generalization_configs(args.device)[config_name]
             details["protocol"] = {
                 "scenario": config.scenario,
@@ -364,15 +334,7 @@ def build_run_plan(args: argparse.Namespace) -> dict[str, Any]:
                         "backbone": "cnn",
                         "architecture": config.cnn_architecture,
                         "image_shape": list(config.image_shape or ()),
-                        "channels": list(
-                            config.vgg_channels
-                            if config.cnn_architecture == "vgg11"
-                            else (
-                                config.resnet_stage_channels
-                                if config.cnn_architecture == "resnet18"
-                                else config.cnn_channels
-                            )
-                        ),
+                        "channels": list(config.cnn_channels),
                         "pooled_size": list(config.cnn_pooled_size),
                         "epochs_per_task": config.epochs_per_task,
                     }
@@ -445,26 +407,6 @@ def _run_section(
             verbose=not args.quiet,
             resume=not args.fresh,
         )
-    if name in {
-        "split-cifar10-vgg11-functional-dualheat",
-        "split-cifar10-resnet18-functional-dualheat",
-    }:
-        architecture = "vgg11" if "vgg11" in name else "resnet18"
-        return run_functional_dualheat_benchmark(
-            architecture,
-            manifest_path=(
-                output_dir
-                / SECTION_OUTPUT_DIRS["functional-dualheat-pilot"]
-                / "selected_fastheat_config.json"
-            ),
-            data_dir=data_dir,
-            output_dir=output_dir / SECTION_OUTPUT_DIRS[name],
-            device=args.device,
-            download=not args.no_download,
-            verbose=not args.quiet,
-            resume=not args.fresh,
-        )
-
     common = {
         "seeds": list(args.baseline_seeds),
         "data_dir": data_dir,
@@ -502,16 +444,6 @@ def _run_section(
         return run_visual_generalization("split_cifar10_cnn", **common)
     if name == "split-cifar10-cnn-sweep":
         return run_visual_generalization("split_cifar10_cnn_sweep", **common)
-    if name == "split-cifar10-vgg11":
-        return run_visual_generalization("split_cifar10_vgg11", **common)
-    if name == "split-cifar10-vgg11-all-methods":
-        return run_visual_generalization(
-            "split_cifar10_vgg11_all_methods", **common
-        )
-    if name == "split-cifar10-resnet18-all-methods":
-        return run_visual_generalization(
-            "split_cifar10_resnet18_all_methods", **common
-        )
     if name == "split-cifar100":
         return run_visual_generalization("split_cifar100", **common)
     raise ValueError(f"seção desconhecida: {name}")

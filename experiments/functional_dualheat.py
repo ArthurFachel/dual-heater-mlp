@@ -31,7 +31,7 @@ MAIN_BENCHMARK_SEEDS = (
     130_501_536,
     492_612_040,
 )
-PILOT_ARCHITECTURES = ("vgg11", "resnet18")
+PILOT_ARCHITECTURES = ("cnn",)
 PILOT_GRID = tuple(
     {
         "fast_decay": decay,
@@ -83,11 +83,10 @@ def _architecture_config(
 ) -> SplitMNISTConfig:
     configs = generalization_configs(device)
     names = {
-        "vgg11": "split_cifar10_vgg11_all_methods",
-        "resnet18": "split_cifar10_resnet18_all_methods",
+        "cnn": "split_cifar10_cnn",
     }
     if architecture not in names:
-        raise ValueError("architecture deve ser 'vgg11' ou 'resnet18'")
+        raise ValueError("architecture deve ser 'cnn'")
     return configs[names[architecture]]
 
 

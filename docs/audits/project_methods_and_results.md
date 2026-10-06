@@ -725,7 +725,6 @@ src/dual_heater/
   transformer.py     helpers de capacidade e máscara compartilhados
   bert.py            host BERT SlowHeat (maior módulo do pacote)
   qwen.py            host Qwen2 SlowHeat, MLP SwiGLU
-  resnet.py          backbone ResNet18 instrumentado
   _layers.py         primitivas de camada compartilhadas
   state.py           FP32ScientificStateMixin, register_counter
   optim.py           SlowHeatAdamW e SlowHeatSGD

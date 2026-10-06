@@ -1,9 +1,9 @@
-# Próximo passo — CNN (Split-CIFAR-10/100, VGG11, ResNet18)
+# Próximo passo — CNN (Split-CIFAR-10/100)
 
 > Um de quatro documentos por arquitetura. Índice e decisões transversais em
 > [proximo_passo_artigo.md](proximo_passo_artigo.md).
 >
-> Escopo: `SlowHeatCNN`, `SlowHeatVGG11`, `SlowHeatResNet18`. Fonte de
+> Escopo: `SlowHeatCNN`. Fonte de
 > evidência: [docs/architectures/arch_cnn.md](../docs/architectures/arch_cnn.md).
 
 ---
@@ -24,9 +24,6 @@ atrapalha.
 
 Mais dois resultados, ambos negativos e ambos úteis:
 
-- **C2 — FastHeat não ajuda.** Nenhum dos 8 contrastes DualHeat − SlowHeat
-  sobrevive a Holm em VGG11 ou ResNet18. O maior (`VGG11 + LPR`, +1,43 p.p.)
-  fica em `p = 0,0803`.
 - **C3 — hard perde para soft.** Com replay, hard perde 3,53 p.p. para soft e
   6,22 p.p. para replay puro, 10/10 seeds. Protocolo congelado, árvore Git
   limpa (`6f4d12d`).

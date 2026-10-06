@@ -54,30 +54,9 @@ SECTION_SPECS = (
         "split_cifar10_cnn_sweep",
         default=False,
     ),
-    SectionSpec("split-cifar10-vgg11", "split_cifar10_vgg11", default=False),
-    SectionSpec(
-        "split-cifar10-vgg11-all-methods",
-        "split_cifar10_vgg11_all_methods",
-        default=False,
-    ),
-    SectionSpec(
-        "split-cifar10-resnet18-all-methods",
-        "split_cifar10_resnet18_all_methods",
-        default=False,
-    ),
     SectionSpec(
         "functional-dualheat-pilot",
         "functional_dualheat_pilot",
-        default=False,
-    ),
-    SectionSpec(
-        "split-cifar10-vgg11-functional-dualheat",
-        "split_cifar10_vgg11_functional_dualheat",
-        default=False,
-    ),
-    SectionSpec(
-        "split-cifar10-resnet18-functional-dualheat",
-        "split_cifar10_resnet18_functional_dualheat",
         default=False,
     ),
     SectionSpec(

@@ -4,7 +4,7 @@ Documento-guia das arquiteturas convolucionais. É a fonte para a seção de
 generalidade do artigo. O contrato de mecanismo para convoluções está em
 [functional_slowheat_cnn.md](../mechanisms/functional_slowheat_cnn.md).
 
-Escopo: `SlowHeatCNN`, `SlowHeatVGG11`, `SlowHeatResNet18` em Split-CIFAR-10 e
+Escopo: `SlowHeatCNN` em Split-CIFAR-10 e
 Split-CIFAR-100 class-incremental.
 
 ---
@@ -15,8 +15,7 @@ Em benchmarks convolucionais, o efeito do Functional SlowHeat **depende do
 método base ao qual ele é acoplado**, e a direção do efeito inverte:
 acoplado a ER-ACE melhora consistentemente (até +4,15 p.p. em Split-CIFAR-10),
 acoplado a DER++ **piora** (−1,13 p.p. em CIFAR-10, −0,53 p.p. em CIFAR-100),
-ambos sobrevivendo a Holm. Acrescentar FastHeat (Functional DualHeat) ao
-SlowHeat não produz ganho robusto em VGG11 nem em ResNet18. E o regime de
+ambos sobrevivendo a Holm. E o regime de
 proteção **hard não é melhor que soft** na CNN: perde 3,53 p.p. com replay e
 6,22 p.p. contra replay puro, unânime nas 10 seeds.
 
@@ -60,26 +59,6 @@ mecanismo de estabilidade, enquanto ER-ACE e SlowHeat são complementares —
 **Artefatos:** `results/dualheat_pairs/{split_cifar10,split_cifar100}/pair_report.json`,
 commit `be05068`, `status = exploratory_paired_suite`, 10 seeds pareadas.
 
-### C2 — FastHeat sobre SlowHeat em VGG11 e ResNet18 (negativo)
-
-Diferença de acurácia final, sempre `DualHeat − SlowHeat`, com Holm sobre os 4
-contrastes primários por arquitetura:
-
-| Arquitetura | Par | Diferença | p Holm |
-|---|---|---:|---:|
-| VGG11 | `dualheat_lpr − slowheat_lpr` | +1,430 pp | 0,0803 |
-| VGG11 | `dualheat − slowheat` | −0,483 pp | 0,0803 |
-| VGG11 | `dualheat_classifier_expander − ...` | −1,295 pp | 0,1903 |
-| VGG11 | `dualheat_scroll − slowheat_scroll` | −0,146 pp | 0,8772 |
-| ResNet18 | todos os 4 pares | −0,007 a −0,496 pp | 1,0000 |
-
-**Nenhum contraste sobrevive a Holm a 5%.** O maior ganho médio (VGG11 + LPR,
-+1,43 p.p.) tem `p` ajustado de 0,0803. Conclusão negativa/indeterminada:
-FastHeat não trouxe melhoria robusta nas duas arquiteturas sob este protocolo.
-
-**Artefatos:**
-`results/split_mnist_protocol/split_cifar10_{vgg11,resnet18}_functional_dualheat/functional_dualheat_analysis.json`.
-
 ### C3 — Regime de proteção: hard não vence soft (10 seeds, protocolo congelado)
 
 Suíte `hard_vs_soft`, Split-CIFAR-10 com CNN [32, 64], 10 seeds pareadas,
@@ -120,7 +99,7 @@ separando o fingerprint da análise da identidade do treino.
 |---|---|---|
 | `split_mnist_protocol/split_cifar10/` | 10 seeds × 19 métodos | não analisado |
 | `split_mnist_protocol/split_cifar100/` | 10 seeds × 19 métodos | não analisado |
-| `split_mnist_protocol/split_cifar10_{cnn,vgg11,resnet18}*` | sweeps por backbone | parcialmente analisado |
+| `split_mnist_protocol/split_cifar10_cnn*` | sweeps por backbone | parcialmente analisado |
 | `cache_derpp_10seeds/replay_selection_sweep/split_cifar*` | 50 seeds × 5 caches | **analisado em 28/09**, ver [replay_selection_50seed_analysis.md](../results/replay_selection_50seed_analysis.md) — a inversão de sinal depende do **seletor de memória**, não só do método base; checkpoints `.pt` removidos, agregados intactos |
 
 O sweep de seleção de replay com **50 seeds** é o maior *n* disponível para

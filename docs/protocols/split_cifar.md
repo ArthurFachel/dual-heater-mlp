@@ -5,7 +5,7 @@ completos de dez seeds pareadas para Split-CIFAR-10 e Split-CIFAR-100 em
 `results/split_mnist_protocol/split_cifar10/aggregate.json` (19 métodos),
 `results/split_mnist_protocol/split_cifar100/aggregate.json` (19 métodos),
 `results/dualheat_pairs/split_cifar10/` e `results/dualheat_pairs/split_cifar100/`
-(8 métodos), além dos sweeps CNN, VGG11 e ResNet18. Nenhum desses resultados foi
+(8 métodos), além do sweep CNN. Nenhum desses resultados foi
 analisado neste documento: eles são exploratórios e não possuem pré-registro.
 
 Os adapters em `experiments/visual_generalization.py` expõem os benchmarks
@@ -65,13 +65,6 @@ também executa os pares:
 - `classifier_expander` e `slowheat_classifier_expander`;
 - `scroll` e `slowheat_scroll`.
 
-A seção opt-in `split-cifar10-vgg11` executa os cinco controles centrais em uma
-VGG11 adaptada para CIFAR: oito convoluções no padrão VGG11, cinco max-pools,
-`AdaptiveAvgPool2d(1, 1)` e uma cabeça linear. BatchNorm é omitido para que
-estatísticas correntes não alterem canais protegidos. Métodos auxiliares ficam
-fora deste primeiro piloto para isolar o efeito da profundidade. Os resultados
-ficam em um diretório separado e não substituem o piloto CNN pequeno.
-
 A inicialização dos parâmetros treináveis é idêntica dentro de cada par e de
 cada seed. Os contrastes multi-seed são calculados contra `vanilla` e contra
 cada método normal, permitindo ler diretamente `método+SlowHeat - método`.
@@ -89,35 +82,9 @@ bootstrap pareado da representação. Portanto, `scroll` neste runner é uma
 adaptação autocontida do protocolo, não uma reprodução numérica do resultado
 pré-treinado do artigo.
 
-### Sweep profundo VGG11 + ResNet-18
-
-As seções `split-cifar10-vgg11-all-methods` e
-`split-cifar10-resnet18-all-methods` executam os mesmos 11 métodos descritos
-acima. A ResNet usa stem 3x3 com stride 1, GroupNorm, quatro estágios
-64/128/256/512 com 2/2/2/2 blocos e global average pooling. O SlowHeat observa
-as saídas após cada soma residual e protege também projeções e parâmetros
-affine do GroupNorm.
-
-O LPR permanece exato, com `lpr_update_frequency=300`. Para executar as duas
-arquiteturas com dez seeds pareadas:
-
-```bash
-PYTHONPATH=src:. python run_all_tests.py \
-  --num-seeds 10 \
-  --sections split-cifar10-vgg11-all-methods split-cifar10-resnet18-all-methods \
-  --device cuda \
-  --run-unit-tests
-```
-
-São 220 execuções de learner. Cada arquitetura possui diretório próprio com
-identidade de execução e retomada por seed; os nomes `_all_methods` evitam
-colisão com resultados históricos sem `run_identity.json`.
-
-Esses sweeps avaliam apenas Functional SlowHeat e suas combinações. O protocolo
-novo de Functional DualHeat, incluindo FastHeat, piloto de validação e dois
-benchmarks de 13 métodos, está documentado em
-[functional_slowheat.md](../mechanisms/functional_slowheat.md). Seus diretórios terminam em
-`_functional_dualheat` e não sobrescrevem os resultados acima.
+O protocolo de Functional DualHeat, incluindo FastHeat e piloto de validação,
+está documentado em
+[functional_slowheat.md](../mechanisms/functional_slowheat.md).
 
 ## Métodos
 
