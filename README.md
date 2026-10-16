@@ -4,8 +4,7 @@ Research code for neuron-level plasticity mechanisms in continual learning.
 SlowHeat scores each neuron's functional importance as |z * dL/dz|,
 consolidates it at task boundaries and limits how much important units can
 change. FastHeat adds top-k divisive competition on activations. DualHeat
-combines both. It doesn't anchor weights: penalty methods like EWC and MAS
-appear only as baselines.
+combines both.
 
 Status: active research, not yet published.
 
