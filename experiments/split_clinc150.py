@@ -150,7 +150,7 @@ SUPPORTED_METHODS = (
     "slowheat_ffn_attention",
     "slowheat_ffn_attention_replay",
 )
-PlasticityMaskMode = Literal["soft", "hard", "random_hard"]
+PlasticityMaskMode = Literal["soft", "hard", "random_hard", "uniform_hard"]
 BERT_HEAT_VARIANTS = (
     "slowheat_bound",
     "slowheat_global",
@@ -297,7 +297,7 @@ class SplitCLINC150Config:
             raise TypeError("evaluate_test deve ser booleano")
         if self.scheduler_scope not in ("task", "stream"):
             raise ValueError("scheduler_scope deve ser 'task' ou 'stream'")
-        if self.plasticity_mask_mode not in ("soft", "hard", "random_hard"):
+        if self.plasticity_mask_mode not in ("soft", "hard", "random_hard", "uniform_hard"):
             raise ValueError(
                 "plasticity_mask_mode deve ser 'soft', 'hard' ou 'random_hard'"
             )
@@ -933,6 +933,47 @@ def _build_model(
     return model
 
 
+class UniformPlasticity:
+    """Plasticity-matched control for a hard mask: no unit selection.
+
+    Every entry covered by the hard mask gets the same update factor, equal to the
+    mean of the hard mask over the covered surface. Same surface plasticity as the
+    hard arms, but nothing is frozen and nothing is chosen. Refreshed at each
+    consolidation, right where the hard arms change their mask.
+    """
+
+    def __init__(self, hard_bindings: Sequence[PlasticityMaskBinding]) -> None:
+        self._hard = list(hard_bindings)
+        self.level = torch.tensor(1.0)
+        self.history: list[dict[str, float]] = []
+
+    def refresh(self, stage: int) -> float:
+        kept, total = 0.0, 0
+        for binding in self._hard:
+            mask = binding.mask() if callable(binding.mask) else binding.mask
+            mask = torch.broadcast_to(mask.detach().float().cpu(), binding.parameter.shape)
+            kept += float(mask.sum())
+            total += binding.parameter.numel()
+        level = kept / total if total else 1.0
+        self.level = torch.tensor(level)
+        self.history.append({"stage": stage, "level": level, "covered_entries": total,
+                             "hard_protected_entries": int(round(total - kept))})
+        return level
+
+    def _source(self) -> Tensor:
+        return self.level
+
+    def bindings(self) -> list[PlasticityMaskBinding]:
+        return [
+            PlasticityMaskBinding(
+                parameter=binding.parameter,
+                mask=self._source,
+                kind=binding.kind.replace("hard", "uniform"),
+            )
+            for binding in self._hard
+        ]
+
+
 def _build_optimizer_and_scheduler(
     model: nn.Module,
     method: str,
@@ -956,6 +997,12 @@ def _build_optimizer_and_scheduler(
                 optimizer,
                 hard=config.plasticity_mask_mode != "soft",
             )
+        elif config.plasticity_mask_mode == "uniform_hard":
+            if slow_model.slowheat_config.freeze_unbound_parameters:
+                slow_model.validate_trainable_mask_coverage()
+            holder = UniformPlasticity(slow_model.mask_bindings(hard=True))
+            optimizer.register_mask_bindings(holder.bindings())
+            optimizer.uniform_plasticity = holder
         else:
             slow_model.register_plasticity_masks(
                 optimizer,
@@ -1463,6 +1510,9 @@ def _run_split_clinc150(
             if method in SLOWHEAT_METHODS and method != "slowheat_none":
                 assert slow_model is not None
                 slow_model.consolidate(strategy="max")
+                if config.plasticity_mask_mode == "uniform_hard":
+                    level = optimizer.uniform_plasticity.refresh(stage)
+                    print(f"[uniform_hard] seed={config.seed} stage={stage} level={level:.6f}", flush=True)
                 if config.plasticity_mask_mode == "random_hard":
                     randomize_slowheat_protection(
                         slow_model,
@@ -1684,6 +1734,11 @@ def _run_split_clinc150(
             ),
             "training_losses": training_losses,
             "capacity_history": capacity_history,
+            "uniform_plasticity_history": (
+                optimizer.uniform_plasticity.history
+                if hasattr(optimizer, "uniform_plasticity")
+                else None
+            ),
             "degeneracy_history": degeneracy_history,
             "parameter_drift_history": parameter_drift_history,
             "mask_coverage": (
