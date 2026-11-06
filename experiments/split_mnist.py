@@ -243,9 +243,37 @@ _METHOD_SPECS = {
         budget=0.25,
         protect_output=False,
     ),
+    # F7 (exploratory, 2026-11-06): the same plasticity-matched control on the
+    # stronger baselines. Each spec mirrors its SlowHeat arm field by field; only
+    # the unit selection is removed (UniformPlasticityLevel).
+    "uniform_derpp_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        derpp=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "uniform_replay_hidden_beta_30_budget_0.25_calibrated": MethodSpec(
+        slowheat=True,
+        replay=True,
+        calibrated=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    # F8 (exploratory, 2026-11-06): hard_freeze with one shared factor equal to the
+    # plastic fraction of its own binary mask (output layer covered, iso-scope).
+    "uniform_hard_freeze": MethodSpec(slowheat=True),
 }
 
-UNIFORM_PLASTICITY_METHODS = {"uniform_replay_hidden_beta_30_budget_0.25"}
+UNIFORM_PLASTICITY_METHODS = {
+    "uniform_replay_hidden_beta_30_budget_0.25",
+    "uniform_derpp_hidden_beta_30_budget_0.25",
+    "uniform_replay_hidden_beta_30_budget_0.25_calibrated",
+    "uniform_hard_freeze",
+}
+HARD_MASK_METHODS = {"hard_freeze", "hard_freeze_replay", "uniform_hard_freeze"}
 
 FUNCTIONAL_DUALHEAT_METHODS = {
     "fastheat",
@@ -1149,7 +1177,7 @@ def _build_optimizer(
             optimizer.register_slow_heat_module(layer)
     else:
         optimizer.register_slow_heat_model(
-            model, hard=method in {"hard_freeze", "hard_freeze_replay"}
+            model, hard=method in HARD_MASK_METHODS
         )
     if method in UNIFORM_PLASTICITY_METHODS:
         apply_uniform_plasticity(optimizer)
