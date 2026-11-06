@@ -16,6 +16,7 @@ PAIRS = [
     ("slowheat_replay_hidden_beta_30_budget_0.25_calibrated",
      "uniform_replay_hidden_beta_30_budget_0.25_calibrated"),
     ("hard_freeze", "uniform_hard_freeze"),
+    ("slowheat_er_ace_hidden_beta_30_budget_0.25", "uniform_er_ace_hidden_beta_30_budget_0.25"),
 ]
 
 

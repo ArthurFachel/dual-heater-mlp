@@ -265,6 +265,15 @@ _METHOD_SPECS = {
     # F8 (exploratory, 2026-11-06): hard_freeze with one shared factor equal to the
     # plastic fraction of its own binary mask (output layer covered, iso-scope).
     "uniform_hard_freeze": MethodSpec(slowheat=True),
+    # F10 (exploratory, 2026-11-06): same control on ER-ACE.
+    "uniform_er_ace_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        er_ace=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
 }
 
 UNIFORM_PLASTICITY_METHODS = {
@@ -272,6 +281,7 @@ UNIFORM_PLASTICITY_METHODS = {
     "uniform_derpp_hidden_beta_30_budget_0.25",
     "uniform_replay_hidden_beta_30_budget_0.25_calibrated",
     "uniform_hard_freeze",
+    "uniform_er_ace_hidden_beta_30_budget_0.25",
 }
 HARD_MASK_METHODS = {"hard_freeze", "hard_freeze_replay", "uniform_hard_freeze"}
 
