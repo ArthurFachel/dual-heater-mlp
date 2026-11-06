@@ -232,7 +232,20 @@ _METHOD_SPECS = {
         budget=0.25,
         protect_output=False,
     ),
+    # Plasticity-matched control for the confirmatory candidate (F4, exploratory,
+    # 2026-11-05). Same model, same SlowHeat tracking and consolidation, but every
+    # entry covered by the SlowHeat mask gets one shared factor equal to the mean of
+    # that mask over the covered surface. Same surface plasticity, no unit selection.
+    "uniform_replay_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
 }
+
+UNIFORM_PLASTICITY_METHODS = {"uniform_replay_hidden_beta_30_budget_0.25"}
 
 FUNCTIONAL_DUALHEAT_METHODS = {
     "fastheat",
@@ -1138,7 +1151,58 @@ def _build_optimizer(
         optimizer.register_slow_heat_model(
             model, hard=method in {"hard_freeze", "hard_freeze_replay"}
         )
+    if method in UNIFORM_PLASTICITY_METHODS:
+        apply_uniform_plasticity(optimizer)
     return optimizer
+
+
+class UniformPlasticityLevel:
+    """Replace every registered SlowHeat mask by its mean over the covered surface.
+
+    The level is recomputed once per optimizer step (step pre-hook) from the
+    original, still-live SlowHeat masks of this very model, so the uniform arm has
+    exactly the surface plasticity its own SlowHeat mask would give, at every step,
+    with nothing chosen. Covered surface = every entry of every parameter that has
+    a registered mask (output layer excluded when protect_output=False).
+    """
+
+    def __init__(self, optimizer) -> None:
+        registrations = list(optimizer._plasticity_masks.items())
+        if not registrations:
+            raise RuntimeError("uniform control requires registered SlowHeat masks")
+        self._originals = [(parameter, source) for _, (parameter, source, _) in registrations]
+        self.level = torch.tensor(1.0)
+        self.history: list[float] = []
+        self.refresh()
+        for key, (parameter, _, kind) in registrations:
+            optimizer._plasticity_masks[key] = (parameter, self._source, f"uniform:{kind}")
+        optimizer.register_step_pre_hook(self._pre_step)
+
+    def _pre_step(self, *_args) -> None:
+        self.refresh()  # torch requires step pre-hooks to return None
+
+    @torch.no_grad()
+    def refresh(self) -> float:
+        kept, total = 0.0, 0
+        for parameter, source in self._originals:
+            mask = source() if callable(source) else source
+            mask = torch.broadcast_to(mask.detach().float(), parameter.shape)
+            kept += float(mask.sum())
+            total += parameter.numel()
+        level = kept / total
+        self.level = torch.tensor(level)
+        if not self.history or self.history[-1] != level:
+            self.history.append(level)
+        return level
+
+    def _source(self) -> Tensor:
+        return self.level
+
+
+def apply_uniform_plasticity(optimizer) -> UniformPlasticityLevel:
+    control = UniformPlasticityLevel(optimizer)
+    optimizer.uniform_plasticity = control
+    return control
 
 
 @torch.no_grad()
