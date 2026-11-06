@@ -263,6 +263,9 @@ class SplitCLINC150Config:
     #: goals/protocol_importance_criterion_ablation.md (I2).
     importance_criterion: str = "functional"
     task_limit: int | None = None
+    # F5 (exploratory): explicit domain order, e.g. a different pair first. None
+    # keeps the protocol order (banking, credit_cards, ...).
+    domain_order: tuple[str, ...] | None = None
     methods: tuple[str, ...] = (
         "vanilla", "slowheat_none", "slowheat_ffn", "slowheat", "replay",
         "slowheat_replay",
@@ -1121,7 +1124,10 @@ def _run_split_clinc150(
     config.validate()
     if len(tasks) != 10 or any(len(task.classes) != 15 for task in tasks):
         raise ValueError("CLINC150 requer dez tasks de quinze classes")
-    if tuple(task.domain for task in tasks) != tuple(CLINC150_DOMAINS):
+    expected_order = tuple(CLINC150_DOMAINS) if config.domain_order is None else tuple(config.domain_order)
+    if sorted(expected_order) != sorted(CLINC150_DOMAINS):
+        raise ValueError("domain_order deve ser uma permutação dos dez domínios")
+    if tuple(task.domain for task in tasks) != expected_order:
         raise ValueError("ordem de domínios diverge do protocolo")
     if config.task_limit is not None:
         tasks = tasks[: config.task_limit]
