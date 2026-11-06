@@ -150,7 +150,7 @@ SUPPORTED_METHODS = (
     "slowheat_ffn_attention",
     "slowheat_ffn_attention_replay",
 )
-PlasticityMaskMode = Literal["soft", "hard", "random_hard", "uniform_hard"]
+PlasticityMaskMode = Literal["soft", "hard", "random_hard", "uniform_hard", "uniform_soft"]
 BERT_HEAT_VARIANTS = (
     "slowheat_bound",
     "slowheat_global",
@@ -297,7 +297,7 @@ class SplitCLINC150Config:
             raise TypeError("evaluate_test deve ser booleano")
         if self.scheduler_scope not in ("task", "stream"):
             raise ValueError("scheduler_scope deve ser 'task' ou 'stream'")
-        if self.plasticity_mask_mode not in ("soft", "hard", "random_hard", "uniform_hard"):
+        if self.plasticity_mask_mode not in ("soft", "hard", "random_hard", "uniform_hard", "uniform_soft"):
             raise ValueError(
                 "plasticity_mask_mode deve ser 'soft', 'hard' ou 'random_hard'"
             )
@@ -997,10 +997,12 @@ def _build_optimizer_and_scheduler(
                 optimizer,
                 hard=config.plasticity_mask_mode != "soft",
             )
-        elif config.plasticity_mask_mode == "uniform_hard":
+        elif config.plasticity_mask_mode in ("uniform_hard", "uniform_soft"):
             if slow_model.slowheat_config.freeze_unbound_parameters:
                 slow_model.validate_trainable_mask_coverage()
-            holder = UniformPlasticity(slow_model.mask_bindings(hard=True))
+            holder = UniformPlasticity(
+                slow_model.mask_bindings(hard=config.plasticity_mask_mode == "uniform_hard")
+            )
             optimizer.register_mask_bindings(holder.bindings())
             optimizer.uniform_plasticity = holder
         else:
@@ -1510,9 +1512,9 @@ def _run_split_clinc150(
             if method in SLOWHEAT_METHODS and method != "slowheat_none":
                 assert slow_model is not None
                 slow_model.consolidate(strategy="max")
-                if config.plasticity_mask_mode == "uniform_hard":
+                if config.plasticity_mask_mode in ("uniform_hard", "uniform_soft"):
                     level = optimizer.uniform_plasticity.refresh(stage)
-                    print(f"[uniform_hard] seed={config.seed} stage={stage} level={level:.6f}", flush=True)
+                    print(f"[{config.plasticity_mask_mode}] seed={config.seed} stage={stage} level={level:.6f}", flush=True)
                 if config.plasticity_mask_mode == "random_hard":
                     randomize_slowheat_protection(
                         slow_model,
