@@ -853,6 +853,12 @@ def main() -> None:
     parser.add_argument(
         "--output", default="results/qwen_iso_plasticity/manifest.json"
     )
+    parser.add_argument(
+        "--arms",
+        nargs="+",
+        default=None,
+        help="F14: run only these declared arm names (e.g. hard_b0.75 reduced_lr vanilla); default all",
+    )
     args = parser.parse_args()
 
     unknown = [name for name in args.domains if name not in CLINC150_DOMAINS]
@@ -899,6 +905,8 @@ def main() -> None:
         "consolidation_strategy": "max",
         "evaluation": "class-il with seen-class logit masking",
     }
+    if args.arms:
+        protocol["arms_filter"] = sorted(args.arms)
 
     families: dict[str, Any] = {}
     for target in targets:
@@ -907,6 +915,11 @@ def main() -> None:
             budgets=ISO_BUDGETS,
             permuted_budget=args.permuted_budget,
         )
+        if args.arms:
+            missing = sorted(set(args.arms) - {arm.name for arm in arms})
+            if missing:
+                raise ValueError("braço não declarado: " + ", ".join(missing))
+            arms = [arm for arm in arms if arm.name in args.arms]
         records = []
         for arm in arms:
             print(f"[E*={target:g}] arm {arm.name} ({arm.kind}) ...", flush=True)
