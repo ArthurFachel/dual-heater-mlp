@@ -58,9 +58,9 @@ def _qwen_config(*, layers: int = 2, labels: int = 4, intermediate: int = 12):
     )
 
 
-def _model(*, budget=0.25, scope="local", layers=2, strength=0.0):
+def _model(*, budget=0.25, scope="local", layers=2, strength=0.0, labels=4):
     return SlowHeatQwen2ForSequenceClassification(
-        _qwen_config(layers=layers),
+        _qwen_config(layers=layers, labels=labels),
         QwenSlowHeatConfig(
             slow_strength=strength,
             ffn_plasticity_budget=budget,
@@ -1132,7 +1132,11 @@ def _run_hard_family_arm(kind, *, seed=0):
     ]
     torch.manual_seed(seed)
     model = _model(layers=2, budget=0.75)
-    name = "hard_b0.75" if kind == "hard" else "hard_permuted_b0.75"
+    name = {
+        "hard": "hard_b0.75",
+        "hard_permuted": "hard_permuted_b0.75",
+        "hard_random_fixed": "hard_random_fixed_b0.75",
+    }[kind]
     record = _run_arm_body(
         ArmSpec(name=name, kind=kind, target_plasticity=0.75, budget=0.75),
         tasks,
@@ -1206,3 +1210,139 @@ def test_hard_permuted_moves_the_protected_identity_but_not_the_count():
     assert [b["protected_units"] for b in perm_record["boundaries"]] == [
         b["protected_units"] for b in hard_record["boundaries"]
     ]
+
+
+# ---------------------------------------------------------------------------
+# F16: hard mask on a FIXED random set (drawn once, kept across boundaries)
+# ---------------------------------------------------------------------------
+
+
+def test_hard_random_fixed_is_opt_in_and_declared_at_budget_equal_to_target():
+    base = build_arms(target_plasticity=0.75, budgets=(0.05, 0.25), permuted_budget=0.25)
+    extended = build_arms(
+        target_plasticity=0.75,
+        budgets=(0.05, 0.25),
+        permuted_budget=0.25,
+        include_hard_random_fixed=True,
+    )
+    assert extended[: len(base)] == base
+    assert extended[len(base):] == [
+        ArmSpec(
+            name="hard_random_fixed_b0.75",
+            kind="hard_random_fixed",
+            target_plasticity=0.75,
+            budget=0.75,
+        )
+    ]
+
+
+def test_hard_random_fixed_registers_a_binary_mask_and_matches_the_hard_count():
+    """M-F16a: soft fallback or a different protected count breaks the control."""
+
+    model, record, optimizer = _run_hard_family_arm("hard_random_fixed")
+    hard_model, hard_record, _ = _run_hard_family_arm("hard")
+    for tracker in model.get_ffn_trackers():
+        tracker.slow_strength = 5.0
+    checked = 0
+    for _parameter, mask, _kind in getattr(optimizer, "_plasticity_masks", {}).values():
+        factor = mask() if callable(mask) else mask
+        if factor is None:
+            continue
+        values = torch.as_tensor(factor).flatten().float()
+        assert torch.all((values == 0.0) | (values == 1.0))
+        checked += 1
+    assert checked > 0
+    for boundary in record["boundaries"]:
+        assert boundary["mask"] == "hard"
+        assert boundary["slow_strength"] is None
+        assert boundary["plasticity_error"] < 1e-6
+        assert boundary["random_fixed"] is True
+    assert [b["protected_units"] for b in record["boundaries"]] == [
+        b["protected_units"] for b in hard_record["boundaries"]
+    ]
+    assert any(p != top for p, top in _protected_sets(model)), (
+        "o braço aleatório fixo protegeu o top-k por importância"
+    )
+
+
+def test_hard_random_fixed_keeps_the_same_units_across_boundaries():
+    """M-F16b: redrawing at every boundary turns it back into hard_permuted."""
+
+    from experiments.qwen_iso_plasticity import fix_random_heat
+
+    model = _model(layers=2, budget=0.75)
+    _seed_distinct_importance(model, seed=1)
+    fix_random_heat(model, seed=7)
+    first = [set(torch.nonzero(t.slow_heat > 0).flatten().tolist()) for t in model.get_ffn_trackers()]
+    _seed_distinct_importance(model, seed=2)  # consolidates again: heat rebuilt from importance
+    fix_random_heat(model, seed=7)
+    second = [set(torch.nonzero(t.slow_heat > 0).flatten().tolist()) for t in model.get_ffn_trackers()]
+    assert first == second
+    tops = []
+    for tracker in model.get_ffn_trackers():
+        k = len(second[len(tops)])
+        order = torch.argsort(tracker.importance_memory, descending=True, stable=True)
+        tops.append(set(order[:k].tolist()))
+    assert second != tops
+
+
+def test_hard_random_fixed_set_differs_across_layers_and_seeds():
+    """M-F16c: one shared ordering for every layer (or ignoring the seed) is not random."""
+
+    from experiments.qwen_iso_plasticity import fix_random_heat
+
+    def draw(seed):
+        model = _model(layers=2, budget=0.75)
+        _seed_distinct_importance(model, seed=1)
+        fix_random_heat(model, seed=seed)
+        return [torch.nonzero(t.slow_heat > 0).flatten().tolist() for t in model.get_ffn_trackers()]
+
+    a, b = draw(7), draw(8)
+    assert a != b
+    assert a[0] != a[1]
+
+
+def _run_three_task_arm(kind, *, seed=0):
+    tasks = [
+        _fake_task("a", (0, 1), labels=[0, 1, 0, 1]),
+        _fake_task("b", (2, 3), labels=[2, 3, 2, 3]),
+        _fake_task("c", (4, 5), labels=[4, 5, 4, 5]),
+    ]
+    torch.manual_seed(seed)
+    model = _model(layers=2, budget=0.75, labels=6)
+    name = {"hard": "hard_b0.75", "hard_permuted": "hard_permuted_b0.75",
+            "hard_random_fixed": "hard_random_fixed_b0.75"}[kind]
+    return _run_arm_body(
+        ArmSpec(name=name, kind=kind, target_plasticity=0.75, budget=0.75),
+        tasks,
+        model=model,
+        scope="local",
+        steps_per_task=1,
+        batch_size=2,
+        learning_rate=0.01,
+        device=torch.device("cpu"),
+        seed=seed,
+        beta_policy="per_boundary",
+        autocast_dtype=None,
+        generator=torch.Generator(device="cpu").manual_seed(seed),
+        optimizer_sink=lambda opt: None,
+    )
+
+
+def test_runner_keeps_the_fixed_random_set_and_redraws_the_permuted_one():
+    """M-F16d: the runner must call the fixed draw with a stage-independent seed.
+
+    Needs three tasks: with two there is a single boundary and a per-boundary
+    redraw is invisible.
+    """
+
+    fixed = _run_three_task_arm("hard_random_fixed")["boundaries"]
+    permuted = _run_three_task_arm("hard_permuted")["boundaries"]
+    assert len(fixed) == 2 and len(permuted) == 2
+    assert fixed[0]["protected_units"] == fixed[1]["protected_units"]
+    assert fixed[0]["protected_digest"] == fixed[1]["protected_digest"], (
+        "o conjunto aleatório fixo mudou entre fronteiras"
+    )
+    assert permuted[0]["protected_digest"] != permuted[1]["protected_digest"], (
+        "o hard_permuted deveria ressortear a cada fronteira"
+    )
