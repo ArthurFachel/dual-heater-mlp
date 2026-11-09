@@ -111,6 +111,12 @@ class ArmSpec:
     target_plasticity: float
     # `budget` is None exactly for the two arms that register no mask.
     budget: float | None = None
+    # Pilot (exploratory): the hard mask may be recomputed only at the first
+    # `mask_updates` boundaries, then stays fixed. None = recompute always.
+    mask_updates: int | None = None
+    # Pilot (exploratory): first N steps of every task after the first train
+    # only the classification head. 0 = off.
+    head_warmup_steps: int = 0
 
     def __post_init__(self) -> None:
         if not 0.0 < self.target_plasticity <= 1.0:
@@ -120,6 +126,13 @@ class ArmSpec:
             raise ValueError(f"braço {self.name} com máscara exige budget")
         if not masked and self.budget is not None:
             raise ValueError(f"braço {self.name} sem máscara não pode ter budget")
+        if self.mask_updates is not None:
+            if self.kind != "hard":
+                raise ValueError("mask_updates só vale para o braço hard")
+            if self.mask_updates < 1:
+                raise ValueError("mask_updates deve ser >= 1")
+        if self.head_warmup_steps < 0:
+            raise ValueError("head_warmup_steps deve ser >= 0")
 
 
 def build_arms(
@@ -129,6 +142,8 @@ def build_arms(
     permuted_budget: float,
     include_hard_permuted: bool = False,
     include_hard_random_fixed: bool = False,
+    pilot_freeze_after: Sequence[int] = (),
+    pilot_head_warmup: int = 0,
 ) -> list[ArmSpec]:
     """Declared arms for one family: every budget plus the three controls.
 
@@ -205,7 +220,44 @@ def build_arms(
                 budget=target_plasticity,
             )
         )
+    # Pilot (exploratory), opt-in: limit on mask updates and head warmup.
+    for updates in pilot_freeze_after:
+        arms.append(
+            ArmSpec(
+                name=f"hard_freeze{updates}_b{target_plasticity:g}",
+                kind="hard",
+                target_plasticity=target_plasticity,
+                budget=target_plasticity,
+                mask_updates=updates,
+            )
+        )
+    if pilot_head_warmup:
+        arms.append(
+            ArmSpec(
+                name=f"hard_warmup{pilot_head_warmup}_b{target_plasticity:g}",
+                kind="hard",
+                target_plasticity=target_plasticity,
+                budget=target_plasticity,
+                head_warmup_steps=pilot_head_warmup,
+            )
+        )
+        # Matched control: the same warmup profile on the uniform-lr arm, so a
+        # gain cannot come only from "less backbone plasticity early in a task".
+        arms.append(
+            ArmSpec(
+                name=f"reduced_lr_warmup{pilot_head_warmup}",
+                kind="reduced_lr",
+                target_plasticity=target_plasticity,
+                head_warmup_steps=pilot_head_warmup,
+            )
+        )
     return arms
+
+
+def _warmup_steps_for_stage(arm: ArmSpec, stage: int) -> int:
+    """Head warmup applies from the second task on; task 1 has nothing to protect."""
+
+    return arm.head_warmup_steps if stage >= 1 else 0
 
 
 def reachable_iso_points(
@@ -431,6 +483,7 @@ def _train_task(
     device: torch.device,
     generator: torch.Generator,
     autocast_dtype: torch.dtype | None,
+    freeze_backbone_steps: int = 0,
 ) -> list[float]:
     split = task.train
     count = len(split.labels)
@@ -456,13 +509,30 @@ def _train_task(
             )
         if scaler is not None:
             scaler.scale(output.loss).backward()
+            _drop_backbone_grads(model, step < freeze_backbone_steps)
             scaler.step(optimizer)
             scaler.update()
         else:
             output.loss.backward()
+            _drop_backbone_grads(model, step < freeze_backbone_steps)
             optimizer.step()
         losses.append(float(output.loss.item()))
     return losses
+
+
+def _drop_backbone_grads(model, active: bool) -> None:
+    """Head warmup: every trainable parameter outside the head gets grad None.
+
+    The optimizers skip parameters whose grad is None, so they get no update,
+    no weight decay and no momentum step. Importance was already recorded by
+    the backward hooks, so warmup does not blind the estimator.
+    """
+
+    if not active:
+        return
+    for name, parameter in model.named_parameters():
+        if parameter.requires_grad and not name.startswith("score."):
+            parameter.grad = None
 
 
 class _NullContext:
@@ -733,6 +803,7 @@ def _run_arm_body(
             device=device,
             generator=generator,
             autocast_dtype=autocast_dtype,
+            freeze_backbone_steps=_warmup_steps_for_stage(arm, stage),
         )
         # Checked BEFORE consolidation, which zeroes `task_ema` and would make
         # a dead layer indistinguishable from a consolidated one.
@@ -780,6 +851,17 @@ def _run_arm_body(
             achieved = free_fraction_scoped(
                 layer_importances(model), arm.budget, scope=scope
             )
+            mask_frozen = None
+            if arm.mask_updates is not None:
+                # consolidate() just rebuilt slow_heat from importance. Within the
+                # limit, keep a copy; past it, put the last allowed set back.
+                mask_frozen = stage >= arm.mask_updates
+                if mask_frozen:
+                    with torch.no_grad():
+                        for tracker, saved in zip(model.get_slow_states(), frozen_heat):
+                            tracker.slow_heat.copy_(saved)
+                else:
+                    frozen_heat = [t.slow_heat.detach().clone() for t in model.get_slow_states()]
             hard_permuted = None
             random_fixed = None
             if arm.kind == "hard_random_fixed":
@@ -812,6 +894,7 @@ def _run_arm_body(
                     ),
                     "permutation_reordered": hard_permuted,
                     "random_fixed": random_fixed,
+                    "mask_frozen": mask_frozen,
                     "protected_digest": protected_digest(model),
                 }
             )
@@ -962,6 +1045,19 @@ def main() -> None:
         action="store_true",
         help="F16: also declare hard_random_fixed_b<E*> (hard mask on a random set fixed for the run)",
     )
+    parser.add_argument(
+        "--pilot-freeze-after",
+        type=int,
+        nargs="+",
+        default=[],
+        help="PILOT (exploratory): declare hard_freeze<X>_b<E*>, hard mask recomputed only at the first X boundaries",
+    )
+    parser.add_argument(
+        "--pilot-head-warmup",
+        type=int,
+        default=0,
+        help="PILOT (exploratory): declare hard_warmup<N>_b<E*> and reduced_lr_warmup<N> (head-only first N steps per task)",
+    )
     args = parser.parse_args()
 
     unknown = [name for name in args.domains if name not in CLINC150_DOMAINS]
@@ -1015,6 +1111,10 @@ def main() -> None:
         protocol["hard_permuted_control"] = True
     if args.hard_random_fixed_control:
         protocol["hard_random_fixed_control"] = True
+    if args.pilot_freeze_after:
+        protocol["pilot_freeze_after"] = sorted(args.pilot_freeze_after)
+    if args.pilot_head_warmup:
+        protocol["pilot_head_warmup"] = args.pilot_head_warmup
 
     families: dict[str, Any] = {}
     for target in targets:
@@ -1024,6 +1124,8 @@ def main() -> None:
             permuted_budget=args.permuted_budget,
             include_hard_permuted=args.hard_permuted_control,
             include_hard_random_fixed=args.hard_random_fixed_control,
+            pilot_freeze_after=tuple(args.pilot_freeze_after),
+            pilot_head_warmup=args.pilot_head_warmup,
         )
         if args.arms:
             missing = sorted(set(args.arms) - {arm.name for arm in arms})

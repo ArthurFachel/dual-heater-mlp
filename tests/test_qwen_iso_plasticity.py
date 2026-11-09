@@ -1346,3 +1346,166 @@ def test_runner_keeps_the_fixed_random_set_and_redraws_the_permuted_one():
     assert permuted[0]["protected_digest"] != permuted[1]["protected_digest"], (
         "o hard_permuted deveria ressortear a cada fronteira"
     )
+
+
+# ---------------------------------------------------------------------------
+# Pilot (exploratory): mask-update limit and head warmup
+# ---------------------------------------------------------------------------
+
+
+def test_pilot_arms_are_opt_in_and_declared_exactly():
+    base = build_arms(target_plasticity=0.75, budgets=(0.05, 0.25), permuted_budget=0.25)
+    extended = build_arms(
+        target_plasticity=0.75,
+        budgets=(0.05, 0.25),
+        permuted_budget=0.25,
+        pilot_freeze_after=(1, 3),
+        pilot_head_warmup=20,
+    )
+    assert extended[: len(base)] == base
+    assert extended[len(base):] == [
+        ArmSpec(name="hard_freeze1_b0.75", kind="hard", target_plasticity=0.75, budget=0.75, mask_updates=1),
+        ArmSpec(name="hard_freeze3_b0.75", kind="hard", target_plasticity=0.75, budget=0.75, mask_updates=3),
+        ArmSpec(name="hard_warmup20_b0.75", kind="hard", target_plasticity=0.75, budget=0.75, head_warmup_steps=20),
+        ArmSpec(name="reduced_lr_warmup20", kind="reduced_lr", target_plasticity=0.75, head_warmup_steps=20),
+    ]
+
+
+def test_mask_update_limit_only_for_hard_and_positive():
+    with pytest.raises(ValueError):
+        ArmSpec(name="x", kind="iso", target_plasticity=0.75, budget=0.25, mask_updates=1)
+    with pytest.raises(ValueError):
+        ArmSpec(name="x", kind="hard", target_plasticity=0.75, budget=0.75, mask_updates=0)
+    with pytest.raises(ValueError):
+        ArmSpec(name="x", kind="hard", target_plasticity=0.75, budget=0.75, head_warmup_steps=-1)
+
+
+def _run_hard_limited(*, mask_updates=None, seed=0):
+    tasks = [
+        _fake_task("a", (0, 1), labels=[0, 1, 0, 1]),
+        _fake_task("b", (2, 3), labels=[2, 3, 2, 3]),
+        _fake_task("c", (4, 5), labels=[4, 5, 4, 5]),
+    ]
+    torch.manual_seed(seed)
+    model = _model(layers=2, budget=0.75, labels=6)
+    return _run_arm_body(
+        ArmSpec(name="h", kind="hard", target_plasticity=0.75, budget=0.75, mask_updates=mask_updates),
+        tasks,
+        model=model,
+        scope="local",
+        steps_per_task=1,
+        batch_size=2,
+        learning_rate=0.01,
+        device=torch.device("cpu"),
+        seed=seed,
+        beta_policy="per_boundary",
+        autocast_dtype=None,
+        generator=torch.Generator(device="cpu").manual_seed(seed),
+        optimizer_sink=lambda opt: None,
+    )["boundaries"]
+
+
+def test_mask_frozen_after_one_update_keeps_the_first_set():
+    """M-P1: the limit must freeze the set computed at the first boundary."""
+
+    plain = _run_hard_limited()
+    frozen = _run_hard_limited(mask_updates=1)
+    assert [b["mask_frozen"] for b in frozen] == [False, True]
+    assert frozen[0]["protected_digest"] == plain[0]["protected_digest"]
+    assert frozen[1]["protected_digest"] == frozen[0]["protected_digest"]
+    assert frozen[1]["protected_units"] == plain[1]["protected_units"]
+
+
+def test_mask_limit_not_reached_behaves_like_the_plain_hard_arm():
+    """M-P2: off-by-one in the limit freezes one boundary too early."""
+
+    plain = _run_hard_limited()
+    limited = _run_hard_limited(mask_updates=2)
+    assert [b["mask_frozen"] for b in limited] == [False, False]
+    assert [b["protected_digest"] for b in limited] == [b["protected_digest"] for b in plain]
+
+
+def test_head_warmup_moves_only_the_head_during_warmup_steps():
+    """M-P3: warmup must leave every non-head trainable parameter untouched."""
+
+    from experiments.qwen_iso_plasticity import _train_task
+
+    torch.manual_seed(0)
+    model = _model(layers=1)
+    optimizer = SlowHeatAdamW([p for p in model.parameters() if p.requires_grad], lr=0.05)
+    before = {n: p.detach().clone() for n, p in model.named_parameters() if p.requires_grad}
+    task = _fake_task("a", (0, 1), labels=[0, 1, 0, 1])
+    _train_task(
+        model, optimizer, None, task, steps=2, batch_size=2, device=torch.device("cpu"),
+        generator=torch.Generator(device="cpu").manual_seed(0), autocast_dtype=None,
+        freeze_backbone_steps=2,
+    )
+    moved = {n for n, p in model.named_parameters() if p.requires_grad and not torch.equal(p, before[n])}
+    assert moved, "nada treinou: a cabeça deveria mover"
+    assert all(n.startswith("score.") for n in moved), f"fora da cabeça moveu: {sorted(moved)}"
+
+
+def test_head_warmup_releases_the_backbone_after_the_warmup():
+    """M-P4: warmup longer than declared starves the task."""
+
+    from experiments.qwen_iso_plasticity import _train_task
+
+    torch.manual_seed(0)
+    model = _model(layers=1)
+    optimizer = SlowHeatAdamW([p for p in model.parameters() if p.requires_grad], lr=0.05)
+    before = {n: p.detach().clone() for n, p in model.named_parameters() if p.requires_grad}
+    task = _fake_task("a", (0, 1), labels=[0, 1, 0, 1])
+    _train_task(
+        model, optimizer, None, task, steps=2, batch_size=2, device=torch.device("cpu"),
+        generator=torch.Generator(device="cpu").manual_seed(0), autocast_dtype=None,
+        freeze_backbone_steps=1,
+    )
+    moved = {n for n, p in model.named_parameters() if p.requires_grad and not torch.equal(p, before[n])}
+    assert any(not n.startswith("score.") for n in moved)
+
+
+def test_head_warmup_skips_the_first_task():
+    """M-P5: task 1 has a random head and nothing to protect; warmup there only wastes steps."""
+
+    from experiments.qwen_iso_plasticity import _warmup_steps_for_stage
+
+    arm = ArmSpec(name="w", kind="hard", target_plasticity=0.75, budget=0.75, head_warmup_steps=20)
+    assert _warmup_steps_for_stage(arm, 0) == 0
+    assert _warmup_steps_for_stage(arm, 1) == 20
+    assert _warmup_steps_for_stage(arm, 9) == 20
+
+
+def test_runner_passes_the_warmup_to_every_task_after_the_first(monkeypatch):
+    """M-P8: the runner could drop the warmup and every unit test would still pass."""
+
+    import experiments.qwen_iso_plasticity as qip
+
+    seen: list[int] = []
+    original = qip._train_task
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("freeze_backbone_steps", 0))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(qip, "_train_task", spy)
+    tasks = [
+        _fake_task("a", (0, 1), labels=[0, 1, 0, 1]),
+        _fake_task("b", (2, 3), labels=[2, 3, 2, 3]),
+        _fake_task("c", (4, 5), labels=[4, 5, 4, 5]),
+    ]
+    qip._run_arm_body(
+        ArmSpec(name="r", kind="reduced_lr", target_plasticity=0.75, head_warmup_steps=7),
+        tasks,
+        model=_model(layers=1, labels=6),
+        scope="local",
+        steps_per_task=1,
+        batch_size=2,
+        learning_rate=0.01,
+        device=torch.device("cpu"),
+        seed=0,
+        beta_policy="per_boundary",
+        autocast_dtype=None,
+        generator=torch.Generator(device="cpu").manual_seed(0),
+        optimizer_sink=lambda opt: None,
+    )
+    assert seen == [0, 7, 7]
