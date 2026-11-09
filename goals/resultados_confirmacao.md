@@ -92,7 +92,11 @@ primeira tarefa, com concordância unânime das 10 seeds.
 
 ## Leitura honesta
 
-**1. O braço hard funciona — mas o achado é exploratório.** É o único resultado
+**1. O braço hard funciona — mas o achado é exploratório.**
+> **Atualização 09/11:** confirmado em seeds novas no F14 (protocolo congelado c495d14):
+> hard_b0.75 - reduced_lr = +5,67 pp de retenção [+3,00; +8,33], 9/10, p 9,7e-4.
+> `docs/results/confirmatory_qwen_hard_results.md`. A ressalva abaixo vale para a run de 28/09.
+ É o único resultado
 que sobrevive à correção, e sobrevive nos dois alvos de plasticidade com 10/10
 seeds. Retenção da primeira tarefa sobe de 0,020 para 0,095-0,114 — de
 essencialmente acaso para 5x o acaso. O custo em aquisição da última tarefa é
