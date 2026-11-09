@@ -259,7 +259,10 @@ vencedor é LoRA-FA, e isso vai dito no texto, não escondido.
 
 ### Tarefas
 
-- [ ] 3b.1 **Benchmark: TRACE no corpo, SuperNI como fallback barato.**
+- [x] 3b.1 **DECIDIDO 09/11 com o Fachel: SuperNI-15 do SAPT no corpo, TRACE só com tarefas curtas
+      como extensão** (MeetingBank > 4k tokens, 5.000 exemplos/tarefa). Dados em
+      `/mnt/B-SSD/fachel/datasets/sapt`, medidas em `goals/estudo_fase3b.md`. Texto original abaixo.
+      ~~Benchmark: TRACE no corpo, SuperNI como fallback barato.~~
       **Sem juiz LLM** — AlpacaEval/MT-Bench trazem custo de API e ruído que não
       dá para pré-registrar. LongBench não cabe em 11-12 GB.
 

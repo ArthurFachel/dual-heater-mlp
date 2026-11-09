@@ -1,6 +1,7 @@
 # Fase 3b: estudo de desenho (instruction tuning como palco do instrumento)
 
-Status: ESTUDO, não é protocolo. Nada aqui é pré-registro, nada foi rodado. Escrito em 09/11/2026 para
+Status: ESTUDO, não é protocolo. Decidido com o Fachel em 09/11: SuperNI-15 (SAPT) no corpo, TRACE só
+com tarefas curtas como extensão; download autorizado e feito (seção 8). Nada aqui é pré-registro, nada foi rodado. Escrito em 09/11/2026 para
 decidir com o Fachel como montar a fase. Fonte de verdade da fase continua sendo
 goals/roadmap_icml_ijcnn.md (seção Fase 3b).
 
@@ -109,3 +110,41 @@ Custo: desconhecido até o passo 4. Não chuto número.
 - D1/D4 (EWC no host LoRA) continuam abertas e mudam a seção 5.
 - Prazo: a 3b é a candidata natural a corte se a escrita apertar (R6 do roadmap). O plano B sem GPU
   (blocos 12 e 14 em classificação) continua valendo.
+
+## 8. Dados baixados e medidos (09/11)
+
+Origem: github.com/circle-hit/SAPT, commit 52a52b9, só CL_Benchmark/SuperNI (sparse checkout, 12 MB),
+em /mnt/B-SSD/fachel/datasets/sapt. Ordens 1 e 2 em gen_script_superni_llama.py.
+
+Tamanhos e comprimentos em tokens do Qwen2.5 (prompt = definição + entrada, formato build_prompt; 200
+primeiros exemplos de treino):
+
+| tarefa | train/dev/test | prompt p50 / p95 | saída p50 / p95 |
+|---|---|---|---|
+| task002_quoref_answer_generation | 1000/100/100 | 495 / 748 | 4 / 7 |
+| task073_commonsenseqa_answer_generation | 975/100/100 | 137 / 151 | 1 / 1 |
+| task1290_xsum_summarization | 1000/100/100 | 424 / 1165 | 26 / 38 |
+| task1510_evalution_relation_extraction | 1000/100/100 | 90 / 93 | 4 / 5 |
+| task1572_samsum_summary | 160/20/20 | 166 / 412 | 23 / 50 |
+| task1590_diplomacy_text_generation | 126/16/16 | 219 / 437 | 18 / 71 |
+| task1687_sentiment140_classification | 1000/100/100 | 64 / 81 | 1 / 1 |
+| task1729_personachat_generate_next | 1000/100/100 | 206 / 307 | 13 / 19 |
+| task181_outcome_extraction | 338/43/43 | 199 / 241 | 2 / 11 |
+| task363_sst2_polarity_classification | 1000/100/100 | 70 / 90 | 1 / 1 |
+| task511_reddit_tifu_long_text_summarization | 1000/100/100 | 430 / 1331 | 22 / 53 |
+| task591_sciq_answer_generation | 1000/100/100 | 30 / 41 | 2 / 5 |
+| task639_multi_woz_user_utterance_generation | 142/18/18 | 47 / 66 | 15 / 37 |
+| task748_glucose_reverse_cause_event_detection | 1000/100/100 | 159 / 181 | 18 / 25 |
+| task875_emotion_classification | 1000/100/100 | 67 / 97 | 2 / 2 |
+
+O que isso muda:
+- Cabe. O SAPT usa max_source_length 1024 e max_target_length 50; só xsum e reddit_tifu passam de 1024
+  no p95. Nada parecido com os 4k+ do MeetingBank.
+- Quatro tarefas têm teste minúsculo (16, 18, 20 e 43 exemplos). O ROUGE-L delas vai ser ruidoso; o AP
+  médio dilui isso, mas um endpoint por tarefa nelas não tem poder. Declarar no protocolo.
+- Custo: o script LLaMA do SAPT treina 50 épocas por tarefa (LoRA r=4, lr 5e-5, batch 2). Inviável no
+  Lab e desnecessário para a pergunta. Vamos declarar um orçamento próprio (épocas ou passos fixos por
+  tarefa) e perder a comparação numérica direta com a tabela do SAPT. A comparação que importa é
+  interna e pareada. Dizer isso no artigo.
+- Avaliação: soma de 1 a 15 tarefas vistas x ~100 exemplos = ~10 mil gerações curtas por run (p95 da
+  saída <= 71 tokens). O custo real sai da calibração.
