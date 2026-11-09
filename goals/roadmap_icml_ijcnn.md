@@ -1,6 +1,6 @@
 # TODO — ICML + IJCNN
 
-**Atualizado:** 2026-11-09 (bloco F11-F14; o resto é de 2026-10-05)
+**Atualizado:** 2026-11-09 (bloco F11-F16 e 3b.1; o resto é de 2026-10-05)
 **Substitui:** o roadmap narrativo (versão anterior deste arquivo, recuperável
 com `git show 8b10bd8:goals/roadmap_icml_ijcnn.md`).
 Este documento é **editável**; os protocolos em `goals/protocol_*.md` **não**.
@@ -49,7 +49,7 @@ são corpo do ICML e **não** aparecem no IJCNN. Citar uma na outra como
 
 ---
 
-## 🟠 Atualização 09/11 — confirmatórios F11-F14 (seeds novas, protocolo congelado antes)
+## 🟠 Atualização 09/11 — confirmatórios F11-F16 (seeds novas, protocolo congelado antes)
 
 Todos com protocolo commitado antes da run e análise validada nos dados exploratórios. Diário e fila em
 `~/Desktop/dual-heat-direcoes` (laptop), followups `F11`-`F14`.
@@ -60,16 +60,21 @@ Todos com protocolo commitado antes da run e análise validada nos dados explora
 | F12 | BERT CLINC150, 5 pares | soft b30 - uniforme soft | +2,93 a +5,20 pp ret. T1, 5/5 (Holm) | `exp/concentration-2x2` 73612f1 |
 | F13 | NCP 410M, FFN | soft b30 - uniforme | -0,00764 nat MiniPile, 10/10, ~11% do esquecimento | repo `ncp`, f8526c8 + resultados |
 | F14 | Qwen2.5-0.5B, 10 tarefas | hard_b0.75 - reduced_lr | +5,67 pp ret. t0 [+3,00; +8,33], 9/10 | `exp/qwen-hard-confirm`, `docs/results/confirmatory_qwen_hard_results.md` |
+| F15 | Qwen2.5-0.5B, 10 tarefas | hard_b0.75 - hard_permuted (mesma contagem, mesma máscara binária, unidades ressorteadas a cada fronteira) | +4,10 pp ret. t0 [+0,61; +7,59], 9/10, p 0,026 | `exp/f15-hard-permuted`, `docs/results/confirmatory_qwen_hard_permuted_results.md` |
+| F16 | Qwen2.5-0.5B, 10 tarefas | hard_b0.75 - aleatório FIXO (sorteado uma vez por run) | rodando desde 09/11 12:45, seeds 400-409 | `exp/f16-hard-random-fixed`, protocolo `docs/protocols/confirmatory_qwen_hard_random_fixed.md` (cc81913) |
 
 Consequências para este roadmap:
 
 - O braço hard do Qwen deixa de ser só exploratório (ver `goals/resultados_confirmacao.md`, ressalva de
   28/09). Continua sem responder "importa quais unidades?" sob máscara dura: falta hard com unidades
-  aleatórias no mesmo E. Proposto como F15.
+  aleatórias no mesmo E. Feito no F15: a seleção vence o aleatório ressorteado (+4,10 pp); cerca de 2/3
+  da vantagem do hard sobre o lr reduzido vêm da seleção. Como o ressorteio pode enfraquecer o controle,
+  o F16 repete contra um aleatório fixo.
 - R7 ("o método de vocês ganha?") no host Qwen de fine-tuning completo: o F14 bate o controle de lr, não
   baselines publicadas. O LoRA-FA do R-C não tem análogo nesse host.
 - Os resultados estão espalhados em três branches (`main`, `exp/concentration-2x2`, `exp/qwen-hard-confirm`)
-  e sem push. Consolidar antes da escrita.
+  (push feito em 09/11, mais `exp/f15-hard-permuted` e `exp/f16-hard-random-fixed`). Consolidar em
+  `main` antes da escrita.
 - Prazo: em 09/11 faltam ~11 semanas para o ICML (estimado) e 12 para o IJCNN. Nenhum manuscrito começado
   (`article/ijcnn/` não existe).
 

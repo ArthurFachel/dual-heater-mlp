@@ -36,7 +36,9 @@ RESSALVAS:
   três braços. Retenção absoluta continua baixa (7,9% no melhor braço).
 - O sorteio é refeito a cada fronteira (o consolidate reconstrói o calor). O conjunto do hard selecionado
   tende a ser estável; o sorteado não: nenhuma unidade fica congelada a sequência inteira. Um aleatório
-  FIXO seria um controle mais duro. Viés a favor de confirmar; não testado.
+  FIXO seria um controle mais duro. Viés a favor de confirmar. Em teste no F16 (protocolo cc81913).
+  Observado no smoke do F16: o conjunto do hard também muda entre fronteiras; o F16 grava um digest
+  do conjunto por fronteira e vai medir quanto.
 - Réplica do F14 nas seeds novas: hard - reduced_lr +6,07 pp de retenção (10/10, p 0,009), mas FAA
   +3,82 pp com IC tocando 0 (no F14 o FAA tinha IC fora de 0).
 - Aquisição da última tarefa igual nos três braços (0,843-0,847).
