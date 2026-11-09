@@ -61,7 +61,7 @@ Todos com protocolo commitado antes da run e análise validada nos dados explora
 | F13 | NCP 410M, FFN | soft b30 - uniforme | -0,00764 nat MiniPile, 10/10, ~11% do esquecimento | repo `ncp`, f8526c8 + resultados |
 | F14 | Qwen2.5-0.5B, 10 tarefas | hard_b0.75 - reduced_lr | +5,67 pp ret. t0 [+3,00; +8,33], 9/10 | `exp/qwen-hard-confirm`, `docs/results/confirmatory_qwen_hard_results.md` |
 | F15 | Qwen2.5-0.5B, 10 tarefas | hard_b0.75 - hard_permuted (mesma contagem, mesma máscara binária, unidades ressorteadas a cada fronteira) | +4,10 pp ret. t0 [+0,61; +7,59], 9/10, p 0,026 | `exp/f15-hard-permuted`, `docs/results/confirmatory_qwen_hard_permuted_results.md` |
-| F16 | Qwen2.5-0.5B, 10 tarefas | hard_b0.75 - aleatório FIXO (sorteado uma vez por run) | rodando desde 09/11 12:45, seeds 400-409 | `exp/f16-hard-random-fixed`, protocolo `docs/protocols/confirmatory_qwen_hard_random_fixed.md` (cc81913) |
+| F16 | Qwen2.5-0.5B, 10 tarefas | hard_b0.75 - aleatório FIXO (sorteado uma vez por run) | **REFUTADO**: +1,50 pp [-0,07; +3,07], 8/10, p 0,060; fixo - ressorteado +0,30 (n.s.); hard - ressorteado +1,80 pp nesta banda (F15: +4,10) | `exp/f16-hard-random-fixed`, protocolo `docs/protocols/confirmatory_qwen_hard_random_fixed.md` (cc81913) |
 
 Consequências para este roadmap:
 
@@ -69,7 +69,10 @@ Consequências para este roadmap:
   28/09). Continua sem responder "importa quais unidades?" sob máscara dura: falta hard com unidades
   aleatórias no mesmo E. Feito no F15: a seleção vence o aleatório ressorteado (+4,10 pp); cerca de 2/3
   da vantagem do hard sobre o lr reduzido vêm da seleção. Como o ressorteio pode enfraquecer o controle,
-  o F16 repete contra um aleatório fixo.
+  o F16 repetiu contra um aleatório fixo e REFUTOU (+1,50 pp, IC toca 0). O ressorteio não era o
+  problema (fixo = ressorteado); o efeito da seleção é que é pequeno e instável entre bandas (+4,10 no
+  F15, +1,80 no F16). Leitura defensável: a máscara dura bate o lr reduzido; a seleção dentro dela tem
+  sinal positivo e efeito pequeno, não robusto.
 - R7 ("o método de vocês ganha?") no host Qwen de fine-tuning completo: o F14 bate o controle de lr, não
   baselines publicadas. O LoRA-FA do R-C não tem análogo nesse host.
 - Os resultados estão espalhados em três branches (`main`, `exp/concentration-2x2`, `exp/qwen-hard-confirm`)
