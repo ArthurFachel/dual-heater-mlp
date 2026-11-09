@@ -5,7 +5,7 @@ Criado em 22 de setembro de 2026 pela revisão documental. Antes deste índice,
 confirmação congelada e o maior artefato do repositório.
 
 Regra de leitura: **nenhum diretório aqui é confirmatório, exceto os
-marcados como tal** (desde 09/11 também F14 e F15). Todos os demais são exploratórios e não têm pré-registro.
+marcados como tal** (desde 09/11 também F14, F15 e F16). Todos os demais são exploratórios e não têm pré-registro.
 
 ## Confirmatório
 
@@ -15,6 +15,7 @@ marcados como tal** (desde 09/11 também F14 e F15). Todos os demais são explor
 | `protocol_post_eval_fix_d5b22ad/confirmation/` | 20 seeds, commit `f2f7616`, 2026-09-04. Mesmo `sha256` de pré-registro |
 | `f14_confirm_qwen_hard/` | F14, 10 seeds (200-209), protocolo congelado `c495d14`, 2026-11-08. Ver [`confirmatory_qwen_hard_results.md`](confirmatory_qwen_hard_results.md) |
 | `f15_confirm_qwen_hard_permuted/` | F15, 10 seeds (300-309), protocolo congelado `dab50ed`, 2026-11-09. Ver [`confirmatory_qwen_hard_permuted_results.md`](confirmatory_qwen_hard_permuted_results.md) |
+| `f16_confirm_qwen_hard_random_fixed/` | F16, 10 seeds (400-409), protocolo congelado `cc81913`, 2026-11-09, REFUTADO. Ver [`confirmatory_qwen_hard_random_fixed_results.md`](confirmatory_qwen_hard_random_fixed_results.md) |
 
 Resultado e ressalvas em [`confirmatory_protocol.md`](../protocols/confirmatory_protocol.md).
 As duas execuções concordam em todas as métricas científicas e divergem apenas
