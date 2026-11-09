@@ -89,7 +89,11 @@ from experiments.split_clinc150 import (
     text_task_fingerprint,
 )
 
-ArmKind = Literal["iso", "permuted", "hard", "vanilla", "reduced_lr"]
+ArmKind = Literal["iso", "permuted", "hard", "hard_permuted", "vanilla", "reduced_lr"]
+
+# Kinds that register a mask, and the subset whose mask is binary.
+MASKED_KINDS = frozenset({"iso", "permuted", "hard", "hard_permuted"})
+HARD_KINDS = frozenset({"hard", "hard_permuted"})
 
 # Declared in the frozen protocol, section E.
 ISO_BUDGETS: tuple[float, ...] = (0.05, 0.10, 0.25, 0.50)
@@ -109,7 +113,7 @@ class ArmSpec:
     def __post_init__(self) -> None:
         if not 0.0 < self.target_plasticity <= 1.0:
             raise ValueError("target_plasticity deve estar em (0, 1]")
-        masked = self.kind in {"iso", "permuted", "hard"}
+        masked = self.kind in MASKED_KINDS
         if masked and self.budget is None:
             raise ValueError(f"braço {self.name} com máscara exige budget")
         if not masked and self.budget is not None:
@@ -121,6 +125,7 @@ def build_arms(
     target_plasticity: float,
     budgets: Sequence[float],
     permuted_budget: float,
+    include_hard_permuted: bool = False,
 ) -> list[ArmSpec]:
     """Declared arms for one family: every budget plus the three controls.
 
@@ -173,6 +178,18 @@ def build_arms(
             target_plasticity=target_plasticity,
         )
     )
+    if include_hard_permuted:
+        # F15: same budget and same binary mask as the hard arm, protected
+        # identity shuffled at every boundary. Opt-in so that every manifest
+        # written before F15 keeps its declared arm list.
+        arms.append(
+            ArmSpec(
+                name=f"hard_permuted_b{target_plasticity:g}",
+                kind="hard_permuted",
+                target_plasticity=target_plasticity,
+                budget=target_plasticity,
+            )
+        )
     return arms
 
 
@@ -610,8 +627,8 @@ def _run_arm_body(
     generator: torch.Generator,
     optimizer_sink,
 ) -> dict[str, Any]:
-    masked = arm.kind in {"iso", "permuted", "hard"}
-    hard = arm.kind == "hard"
+    masked = arm.kind in MASKED_KINDS
+    hard = arm.kind in HARD_KINDS
     lr = (
         learning_rate * arm.target_plasticity
         if arm.kind == "reduced_lr"
@@ -707,6 +724,16 @@ def _run_arm_body(
             achieved = free_fraction_scoped(
                 layer_importances(model), arm.budget, scope=scope
             )
+            hard_permuted = None
+            if arm.kind == "hard_permuted":
+                # After consolidate, which rebuilds slow_heat from importance
+                # at every boundary; permuting earlier would be overwritten.
+                hard_permuted = permute_slowheat_heat(model, seed=seed + 1000 * stage)
+                if not hard_permuted:
+                    raise RuntimeError(
+                        f"permutação identidade na fronteira {stage}->{stage + 1}: "
+                        "o controle aleatório não seria aleatório"
+                    )
             boundaries.append(
                 {
                     "boundary": f"{stage}->{stage + 1}",
@@ -719,7 +746,7 @@ def _run_arm_body(
                         int(torch.count_nonzero(tracker.slow_heat > 0.0).item())
                         for tracker in model.get_ffn_trackers()
                     ),
-                    "permutation_reordered": None,
+                    "permutation_reordered": hard_permuted,
                 }
             )
             continue
@@ -859,6 +886,11 @@ def main() -> None:
         default=None,
         help="F14: run only these declared arm names (e.g. hard_b0.75 reduced_lr vanilla); default all",
     )
+    parser.add_argument(
+        "--hard-permuted-control",
+        action="store_true",
+        help="F15: also declare hard_permuted_b<E*> (hard mask on shuffled units, same E)",
+    )
     args = parser.parse_args()
 
     unknown = [name for name in args.domains if name not in CLINC150_DOMAINS]
@@ -907,6 +939,9 @@ def main() -> None:
     }
     if args.arms:
         protocol["arms_filter"] = sorted(args.arms)
+    if args.hard_permuted_control:
+        # Only written when set, so pre-F15 protocol hashes are unchanged.
+        protocol["hard_permuted_control"] = True
 
     families: dict[str, Any] = {}
     for target in targets:
@@ -914,6 +949,7 @@ def main() -> None:
             target_plasticity=target,
             budgets=ISO_BUDGETS,
             permuted_budget=args.permuted_budget,
+            include_hard_permuted=args.hard_permuted_control,
         )
         if args.arms:
             missing = sorted(set(args.arms) - {arm.name for arm in arms})

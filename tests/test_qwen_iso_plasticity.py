@@ -1090,3 +1090,119 @@ def test_the_real_heat_matches_the_scoped_arithmetic_used_to_solve_beta():
     assert effective_plasticity(real, 10.0) == pytest.approx(
         effective_plasticity(recomputed, 10.0), abs=1e-9
     )
+
+
+# ---------------------------------------------------------------------------
+# F15: hard mask on permuted (random) units, same E and same hardness
+# ---------------------------------------------------------------------------
+
+
+def test_hard_permuted_is_opt_in_and_declared_at_budget_equal_to_target():
+    """Opt-in keeps every earlier manifest and its arm list unchanged."""
+
+    base = build_arms(target_plasticity=0.75, budgets=(0.05, 0.25), permuted_budget=0.25)
+    extended = build_arms(
+        target_plasticity=0.75,
+        budgets=(0.05, 0.25),
+        permuted_budget=0.25,
+        include_hard_permuted=True,
+    )
+    assert all(arm.kind != "hard_permuted" for arm in base)
+    assert extended[: len(base)] == base
+    assert extended[len(base):] == [
+        ArmSpec(
+            name="hard_permuted_b0.75",
+            kind="hard_permuted",
+            target_plasticity=0.75,
+            budget=0.75,
+        )
+    ]
+
+
+def test_hard_permuted_arm_requires_a_budget():
+    with pytest.raises(ValueError):
+        ArmSpec(name="hp", kind="hard_permuted", target_plasticity=0.75)
+
+
+def _run_hard_family_arm(kind, *, seed=0):
+    captured: dict[str, object] = {}
+    tasks = [
+        _fake_task("a", (0, 1), labels=[0, 1, 0, 1]),
+        _fake_task("b", (2, 3), labels=[2, 3, 2, 3]),
+    ]
+    torch.manual_seed(seed)
+    model = _model(layers=2, budget=0.75)
+    name = "hard_b0.75" if kind == "hard" else "hard_permuted_b0.75"
+    record = _run_arm_body(
+        ArmSpec(name=name, kind=kind, target_plasticity=0.75, budget=0.75),
+        tasks,
+        model=model,
+        scope="local",
+        steps_per_task=1,
+        batch_size=2,
+        learning_rate=0.01,
+        device=torch.device("cpu"),
+        seed=seed,
+        beta_policy="per_boundary",
+        autocast_dtype=None,
+        generator=torch.Generator(device="cpu").manual_seed(seed),
+        optimizer_sink=lambda opt: captured.setdefault("optimizer", opt),
+    )
+    return model, record, captured["optimizer"]
+
+
+def _protected_sets(model):
+    sets = []
+    for tracker in model.get_ffn_trackers():
+        protected = set(torch.nonzero(tracker.slow_heat > 0.0).flatten().tolist())
+        k = len(protected)
+        order = torch.argsort(tracker.importance_memory, descending=True, stable=True)
+        sets.append((protected, set(order[:k].tolist())))
+    return sets
+
+
+def test_hard_permuted_registers_a_binary_mask_and_reports_a_hard_boundary():
+    """M-F15a: kind 'hard_permuted' must not fall back to the soft mask."""
+
+    model, record, optimizer = _run_hard_family_arm("hard_permuted")
+    masks = getattr(optimizer, "_plasticity_masks", {})
+    assert masks
+    for tracker in model.get_ffn_trackers():
+        tracker.slow_strength = 5.0
+    checked = 0
+    for _parameter, mask, _kind in masks.values():
+        factor = mask() if callable(mask) else mask
+        if factor is None:
+            continue
+        values = torch.as_tensor(factor).flatten().float()
+        assert torch.all((values == 0.0) | (values == 1.0))
+        checked += 1
+    assert checked > 0
+    assert record["boundaries"]
+    for boundary in record["boundaries"]:
+        assert boundary["mask"] == "hard"
+        assert boundary["slow_strength"] is None
+        assert boundary["plasticity_error"] < 1e-6
+        assert boundary["permutation_reordered"] is True
+
+
+def test_hard_permuted_moves_the_protected_identity_but_not_the_count():
+    """M-F15b: skipping (or overwriting) the permutation leaves top-k protected.
+
+    The hard arm must protect exactly the top-k units by importance; the
+    permuted arm must protect the same NUMBER of units, but not that set.
+    """
+
+    hard_model, hard_record, _ = _run_hard_family_arm("hard")
+    perm_model, perm_record, _ = _run_hard_family_arm("hard_permuted")
+
+    for protected, top in _protected_sets(hard_model):
+        assert protected == top
+    perm_sets = _protected_sets(perm_model)
+    assert any(protected != top for protected, top in perm_sets), (
+        "o braço hard_permuted protegeu exatamente o top-k: a permutação não chegou à máscara"
+    )
+    assert [len(p) for p, _ in perm_sets] == [len(p) for p, _ in _protected_sets(hard_model)]
+    assert [b["protected_units"] for b in perm_record["boundaries"]] == [
+        b["protected_units"] for b in hard_record["boundaries"]
+    ]
