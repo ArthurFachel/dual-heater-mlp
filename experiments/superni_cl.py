@@ -333,9 +333,15 @@ def generate_answers(
         top_k=None,
         repetition_penalty=1.0,
     )
-    answers: list[list[int]] = []
-    for start in range(0, len(prompts), batch_size):
-        chunk = prompts[start : start + batch_size]
+    # Batches are formed over prompts sorted by length, so long and short
+    # prompts do not share a batch and padding stays small; answers are put
+    # back in input order at the end. Greedy decoding is per-row, so grouping
+    # does not change any answer (pinned by test).
+    order = sorted(range(len(prompts)), key=lambda index: len(prompts[index]))
+    by_position: dict[int, list[int]] = {}
+    for start in range(0, len(order), batch_size):
+        indices = order[start : start + batch_size]
+        chunk = [prompts[index] for index in indices]
         width = max(len(prompt) for prompt in chunk)
         input_ids = torch.full((len(chunk), width), pad_token_id, dtype=torch.long)
         attention = torch.zeros((len(chunk), width), dtype=torch.long)
@@ -353,9 +359,9 @@ def generate_answers(
                 attention_mask=attention.to(device),
                 generation_config=generation_config,
             )
-        for row in range(len(chunk)):
-            answers.append(cut_at_eos(output[row, width:].tolist(), eos_token_id=eos_token_id))
-    return answers
+        for row, index in enumerate(indices):
+            by_position[index] = cut_at_eos(output[row, width:].tolist(), eos_token_id=eos_token_id)
+    return [by_position[index] for index in range(len(prompts))]
 
 
 class _nullcontext:

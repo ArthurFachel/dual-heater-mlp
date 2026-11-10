@@ -758,3 +758,61 @@ def test_answer_only_loss_equals_the_full_logits_loss() -> None:
     assert all(
         p.grad is not None for n, p in wrapped.named_parameters() if "lora_" in n
     )
+
+
+def test_generation_groups_prompts_by_length_and_keeps_the_input_order() -> None:
+    """Sorting by length cuts padding; answers must still come back in input order."""
+
+    from experiments.superni_cl import generate_answers
+
+    tokenizer = CharTokenizer()
+    model = tiny_model_factory().eval()
+    long_a = tokenizer.encode("Copy the following long text: abcdefgh\nOutput:")
+    long_b = tokenizer.encode("Copy the following long text: hgfedcba\nOutput:")
+    short_a = tokenizer.encode("Hi\nOutput:")
+    short_b = tokenizer.encode("Yo\nOutput:")
+    prompts = [long_a, short_a, long_b, short_b]
+    widths: list[int] = []
+    original = model.generate
+
+    def spy(*args, **kwargs):
+        widths.append(int(kwargs["input_ids"].shape[1]))
+        return original(*args, **kwargs)
+
+    model.generate = spy
+    batched = generate_answers(
+        model, prompts, pad_token_id=1, eos_token_id=1, max_new_tokens=6, batch_size=2, device="cpu",
+    )
+    model.generate = original
+    single = [
+        generate_answers(
+            model, [prompt], pad_token_id=1, eos_token_id=1, max_new_tokens=6, batch_size=1, device="cpu",
+        )[0]
+        for prompt in prompts
+    ]
+    assert batched == single
+    assert sorted(widths) == sorted([len(long_a), len(short_a)]), widths
+
+
+class _EchoModel:
+    """generate() answers each row with its last real prompt token, then eos.
+
+    Answers differ per prompt, so a scrambled output order is visible.
+    """
+
+    def generate(self, *, input_ids, attention_mask, generation_config):
+        import torch as _t
+
+        last = input_ids[:, -1:]
+        eos = _t.full_like(last, generation_config.eos_token_id)
+        return _t.cat([input_ids, last, eos], dim=1)
+
+
+def test_sorted_generation_returns_each_answer_to_its_own_prompt() -> None:
+    from experiments.superni_cl import generate_answers
+
+    prompts = [[7, 7, 7, 7, 7, 11], [5, 12], [7, 7, 7, 7, 13], [5, 14], [9, 9, 9, 15]]
+    answers = generate_answers(
+        _EchoModel(), prompts, pad_token_id=0, eos_token_id=1, max_new_tokens=4, batch_size=2, device="cpu",
+    )
+    assert answers == [[11], [12], [13], [14], [15]]
