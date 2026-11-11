@@ -135,7 +135,7 @@ def test_vanilla_registers_no_masks() -> None:
     )
 
 
-@pytest.mark.parametrize("method", ["exact", "rank", "leak", "slice"])
+@pytest.mark.parametrize("method", ["exact", "rank", "leak", "slice", "random_fixed"])
 def test_every_masked_parameter_is_bound_exactly_once(method: str) -> None:
     _, instrumentation = _build(method, task_count=2)
     bindings = instrumentation.mask_bindings()
@@ -144,7 +144,7 @@ def test_every_masked_parameter_is_bound_exactly_once(method: str) -> None:
     assert all(binding.kind for binding in bindings)
 
 
-@pytest.mark.parametrize("method", ["exact", "rank", "leak", "slice"])
+@pytest.mark.parametrize("method", ["exact", "rank", "leak", "slice", "random_fixed"])
 def test_masks_broadcast_to_their_parameter_and_stay_in_the_unit_interval(
     method: str,
 ) -> None:
@@ -407,7 +407,7 @@ def test_slice_leaves_the_first_task_fully_plastic() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("method", ["exact", "rank", "leak"])
+@pytest.mark.parametrize("method", ["exact", "rank", "leak", "random_fixed"])
 def test_consolidation_respects_the_plasticity_budget(method: str) -> None:
     model, instrumentation = _build(method, plasticity_budget=0.5)
     optimizer = _optimizer(model, instrumentation)
@@ -666,3 +666,96 @@ def test_alpha_is_configurable_and_defaults_to_sixteen() -> None:
     scaled = parser.parse_args(["--output", "/tmp/x", "--rank", "32", "--alpha", "32"])
     assert scaled.alpha == 32.0
     assert scaled.rank == 32
+
+
+# ---------------------------------------------------------------------------
+# random_fixed: the selection control of exact (Fase 3c)
+# ---------------------------------------------------------------------------
+
+
+def _trained_and_consolidated(method: str, *, seed: int = 0, boundaries: int = 1):
+    model, instrumentation = _build(method, plasticity_budget=0.5, random_seed=seed)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    for stage in range(boundaries):
+        instrumentation.begin_task(stage)
+        _train_step(model, instrumentation, optimizer)
+        instrumentation.consolidate()
+    return model, instrumentation, optimizer
+
+
+def _protected_rows(instrumentation) -> list[set[int]]:
+    return [
+        set(torch.nonzero(adapted.tracker.slow_heat > 0.0).flatten().tolist())
+        for adapted in instrumentation.modules
+    ]
+
+
+def test_random_fixed_freezes_a_and_binds_only_b() -> None:
+    model, instrumentation = _build("random_fixed")
+    assert not any(
+        parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if ".lora_A." in name
+    )
+    bindings = instrumentation.mask_bindings()
+    assert len(bindings) == len(instrumentation.modules)
+    assert all("_B_output_rows" in binding.kind for binding in bindings)
+
+
+def test_random_fixed_moves_heat_values_without_changing_them() -> None:
+    _, exact, _ = _trained_and_consolidated("exact")
+    _, shuffled, _ = _trained_and_consolidated("random_fixed")
+    for a, b in zip(exact.modules, shuffled.modules):
+        assert torch.equal(
+            torch.sort(a.tracker.slow_heat).values, torch.sort(b.tracker.slow_heat).values
+        ), a.name
+    assert shuffled.mask_coverage()[1] == exact.mask_coverage()[1]
+    assert shuffled.effective_plasticity() == pytest.approx(
+        exact.effective_plasticity(), abs=1e-6
+    )  # same values, different fp32 summation order
+    assert shuffled.effective_plasticity() < 1.0, "the control must actually mask"
+    audit = shuffled.last_reassignment
+    assert audit["heat_sum_after"] == pytest.approx(audit["heat_sum_before"])
+    assert audit["protected_rows"] > 0
+    assert exact.last_reassignment is None
+
+
+def test_random_fixed_protects_the_head_of_its_fixed_order_not_its_own_selection() -> None:
+    _, exact, _ = _trained_and_consolidated("exact")
+    _, shuffled, _ = _trained_and_consolidated("random_fixed")
+    own = _protected_rows(exact)
+    moved = _protected_rows(shuffled)
+    for index, rows in enumerate(moved):
+        order = shuffled.fixed_row_order(index).tolist()
+        assert rows == set(order[: len(rows)]), shuffled.modules[index].name
+        assert len(rows) == len(own[index])
+    overlap = sum(len(a & b) for a, b in zip(own, moved)) / sum(len(a) for a in own)
+    assert overlap < 0.9
+    assert shuffled.last_reassignment["own_selection_overlap"] == pytest.approx(overlap)
+
+
+def test_random_fixed_keeps_the_same_rows_across_boundaries() -> None:
+    _, first, _ = _trained_and_consolidated("random_fixed", boundaries=1)
+    _, second, _ = _trained_and_consolidated("random_fixed", boundaries=3)
+    for index, (early, late) in enumerate(zip(_protected_rows(first), _protected_rows(second))):
+        # the order drawn at the first boundary, not one recomputed later
+        order = first.fixed_row_order(index).tolist()
+        assert late == set(order[: len(late)])
+        # nested: a run never swaps a protected row for another
+        assert early <= late or late <= early
+
+
+def test_random_fixed_order_depends_only_on_the_seed() -> None:
+    _, a = _build("random_fixed", random_seed=11)
+    _, b = _build("random_fixed", random_seed=11)
+    _, c = _build("random_fixed", random_seed=12)
+    assert torch.equal(a.fixed_row_order(0), b.fixed_row_order(0))
+    assert not torch.equal(a.fixed_row_order(0), c.fixed_row_order(0))
+    assert not torch.equal(a.fixed_row_order(0), a.fixed_row_order(1))
+
+
+@pytest.mark.parametrize("seed", [-1, True, 1.5])
+def test_random_seed_must_be_a_non_negative_integer(seed) -> None:
+    with pytest.raises(ValueError):
+        LoRASlowHeatConfig(method="random_fixed", rank=RANK, random_seed=seed)

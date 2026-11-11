@@ -51,7 +51,8 @@ def test_frozen_a_control_and_exact_freeze_a_identically() -> None:
     assert 'config.method in FROZEN_A_METHODS' in source, (
         "freezing must be driven by a shared set, so the two arms cannot diverge"
     )
-    assert lora_slowheat.FROZEN_A_METHODS == frozenset({"exact", "frozen_a_control"})
+    # random_fixed (3c) is exact with its heat moved, so it must freeze A the same way.
+    assert lora_slowheat.FROZEN_A_METHODS == frozenset({"exact", "frozen_a_control", "random_fixed"})
 
 
 def test_exact_decomposition_seeds_are_registered_and_disjoint() -> None:

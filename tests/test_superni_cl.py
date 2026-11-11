@@ -535,7 +535,7 @@ def test_experiment_records_e_zero_shot_and_gates_per_arm() -> None:
         model_factory=tiny_model_factory,
     )
     by_arm = {row["method"]: row for row in manifest["results"]}
-    assert set(by_arm) == {"vanilla", "exact", "frozen_a_control", "lr_control"}
+    assert set(by_arm) == {"vanilla", "exact", "frozen_a_control", "lr_control", "random_fixed"}
     for row in by_arm.values():
         for key in ("masked_mean", "masked_parameters", "learning_rate_scale",
                     "surface_plasticity", "trainable_parameters"):
@@ -574,6 +574,14 @@ def test_experiment_records_e_zero_shot_and_gates_per_arm() -> None:
     assert gates["G-imp"]["exact"] is True
     assert all(stage["importance_liveness"]["live"] for stage in exact["stages"])
     assert gates["G-imp"]["vanilla"] is None
+    shuffled = by_arm["random_fixed"]
+    assert gates["G-imp"]["random_fixed"] is True
+    assert shuffled["masked_parameters"] == exact["masked_parameters"]
+    assert shuffled["trainable_parameters"] == frozen["trainable_parameters"]
+    assert shuffled["stages"][0]["mask_mean_in_force"] == pytest.approx(1.0)
+    assert shuffled["stages"][1]["mask_mean_in_force"] < 1.0
+    assert all(stage["heat_reassignment"]["protected_rows"] > 0 for stage in shuffled["stages"])
+    assert all(stage["heat_reassignment"] is None for stage in exact["stages"])
     assert "ap_range" in gates["G-disp"]
     assert manifest["protocol_hash"] == runner.protocol_hash(manifest["protocol"])
     assert manifest["protocol"]["arms"] == list(runner.ARMS)
@@ -816,3 +824,16 @@ def test_sorted_generation_returns_each_answer_to_its_own_prompt() -> None:
         _EchoModel(), prompts, pad_token_id=0, eos_token_id=1, max_new_tokens=4, batch_size=2, device="cpu",
     )
     assert answers == [[11], [12], [13], [14], [15]]
+
+
+def test_random_fixed_row_order_is_seeded_from_the_run_seed() -> None:
+    import experiments.superni_cl as runner
+
+    orders = []
+    for seed in (5, 5, 6):
+        arm = runner.build_arm("random_fixed", tiny_config(seed=seed),
+                               model_factory=tiny_model_factory, task_count=2)
+        assert arm.instrumentation.config.random_seed == seed + 500_000
+        orders.append(arm.instrumentation.fixed_row_order(0))
+    assert torch.equal(orders[0], orders[1])
+    assert not torch.equal(orders[0], orders[2])

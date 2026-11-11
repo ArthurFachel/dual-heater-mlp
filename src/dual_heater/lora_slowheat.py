@@ -42,6 +42,17 @@ Reference arms
 ``exact``
     Solution A: ``A`` frozen, rows of ``B`` masked by an output-space tracker.
     This mirrors ``dual_heater.bert.build_exact_slowheat_lora`` on a Qwen host.
+
+``random_fixed``
+    The selection control of ``exact`` (Fase 3c). Same ``A`` freeze, same
+    tracker, same budget and strength. After every consolidation the heat
+    values of each module are sorted and handed to the rows of ONE random
+    order, drawn once per run from ``random_seed`` and the module index: the
+    i-th hottest value always lands on row ``order[i]``. The multiset of mask
+    factors per module is unchanged, so the arm removes exactly the plasticity
+    its own importance would have removed, but on rows chosen at random and
+    kept across boundaries (nested if the protected count grows). This is the
+    soft-mask analogue of F16's ``hard_random_fixed``.
 """
 
 from __future__ import annotations
@@ -59,12 +70,13 @@ from .optim import PlasticityMaskBinding
 from .transformer import SlowHeatFFNTracker
 
 LoRAMethod = Literal[
-    "vanilla", "exact", "rank", "leak", "slice", "lr_control", "frozen_a_control"
+    "vanilla", "exact", "rank", "leak", "slice", "lr_control", "frozen_a_control",
+    "random_fixed",
 ]
 LeakCombination = Literal["min", "weighted"]
 
 #: Mechanisms that build a per-unit importance tracker.
-TRACKED_METHODS: frozenset[str] = frozenset({"exact", "rank", "leak"})
+TRACKED_METHODS: frozenset[str] = frozenset({"exact", "rank", "leak", "random_fixed"})
 
 #: Mechanisms whose tracker lives in the rank bottleneck instead of the output.
 RANK_SPACE_METHODS: frozenset[str] = frozenset({"rank"})
@@ -89,7 +101,7 @@ UNMASKED_METHODS: frozenset[str] = frozenset(
 #:     exact - frozen_a_control    ->  SlowHeat given LoRA-FA
 #:
 #: Only the second is ours to claim.
-FROZEN_A_METHODS: frozenset[str] = frozenset({"exact", "frozen_a_control"})
+FROZEN_A_METHODS: frozenset[str] = frozenset({"exact", "frozen_a_control", "random_fixed"})
 
 #: Fraction of the reference arm's trainable surface that survives freezing
 #: ``A`` at ``r = 16``: 4_214_016 / 6_769_920. It is the learning-rate scale
@@ -201,16 +213,24 @@ class LoRASlowHeatConfig:
     task_count: int = 2
     consolidation_strategy: Literal["max", "mean", "sum"] = "max"
     adapter_name: str = "default"
+    #: ``random_fixed`` only: seeds the per-module row order, drawn once per run.
+    random_seed: int = 0
 
     def __post_init__(self) -> None:
         if self.method not in {
             "vanilla", "exact", "rank", "leak", "slice", "lr_control",
-            "frozen_a_control",
+            "frozen_a_control", "random_fixed",
         }:
             raise ValueError(
                 "method deve ser 'vanilla', 'exact', 'rank', 'leak', 'slice', "
-                "'lr_control' ou 'frozen_a_control'"
+                "'lr_control', 'frozen_a_control' ou 'random_fixed'"
             )
+        if (
+            not isinstance(self.random_seed, int)
+            or isinstance(self.random_seed, bool)
+            or self.random_seed < 0
+        ):
+            raise ValueError("random_seed deve ser um inteiro >= 0")
         for name in ("rank", "task_count"):
             value = getattr(self, name)
             if not isinstance(value, int) or isinstance(value, bool) or value < 1:
@@ -318,6 +338,8 @@ class QwenLoRASlowHeat:
         # mechanism; the iso-plasticity controller may raise it to cost-match
         # the arm, which explicitly trades the exactness claim away.
         self._slice_floor: float = 0.0
+        #: ``random_fixed``: audit of the last heat reassignment (None before).
+        self.last_reassignment: dict[str, Any] | None = None
         self._collect_modules()
         if config.method in TRACKED_METHODS:
             self._install_hooks()
@@ -478,6 +500,56 @@ class QwenLoRASlowHeat:
         for adapted in self.modules:
             assert adapted.tracker is not None
             adapted.tracker.consolidate(strategy=self.config.consolidation_strategy)
+        if self.config.method == "random_fixed":
+            # After consolidate, which rebuilds slow_heat from importance_memory
+            # at every boundary; reassigning earlier would be overwritten.
+            self.last_reassignment = self._reassign_heat_to_fixed_rows()
+
+    def fixed_row_order(self, module_index: int) -> Tensor:
+        """The run's row order for one module; depends only on the seed and index."""
+
+        adapted = self.modules[module_index]
+        assert adapted.tracker is not None
+        generator = torch.Generator(device="cpu").manual_seed(
+            self.config.random_seed * 1009 + module_index
+        )
+        return torch.randperm(adapted.tracker.slow_heat.numel(), generator=generator)
+
+    def _reassign_heat_to_fixed_rows(self) -> dict[str, Any]:
+        """Move each module's heat values onto the fixed random row order.
+
+        Sorting is stable and the order is fixed, so the hottest value always
+        lands on ``order[0]``, the next on ``order[1]``, and so on: the
+        protected rows are ``order[:k]`` at every boundary. The values are only
+        moved, never changed, so every per-module mask statistic is preserved.
+        """
+
+        protected = 0
+        kept = 0
+        sum_before = 0.0
+        sum_after = 0.0
+        with torch.no_grad():
+            for index, adapted in enumerate(self.modules):
+                tracker = adapted.tracker
+                assert tracker is not None
+                heat = tracker.slow_heat
+                order = self.fixed_row_order(index).to(heat.device)
+                selected = heat > 0.0
+                values = torch.sort(heat, descending=True, stable=True).values
+                moved = torch.empty_like(heat)
+                moved[order] = values
+                sum_before += float(heat.sum().item())
+                heat.copy_(moved)
+                sum_after += float(heat.sum().item())
+                protected += int(selected.sum().item())
+                kept += int((selected & (heat > 0.0)).sum().item())
+        return {
+            "protected_rows": protected,
+            "rows_kept_from_own_selection": kept,
+            "own_selection_overlap": kept / protected if protected else None,
+            "heat_sum_before": sum_before,
+            "heat_sum_after": sum_after,
+        }
 
     # ------------------------------------------------------------------
     # mask bindings
@@ -698,7 +770,7 @@ class QwenLoRASlowHeat:
                         f"{prefix}_B_slice_columns",
                     )
                 )
-            elif method == "exact":
+            elif method in ("exact", "random_fixed"):
                 # A is frozen by the builder, so only B carries a binding.
                 source = self._rank_factor_source(adapted)
 

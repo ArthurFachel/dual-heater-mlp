@@ -28,7 +28,9 @@ Arms
 ``vanilla`` (SeqLoRA), ``exact`` (SlowHeat on LoRA, A frozen + rows of B
 masked), ``frozen_a_control`` (LoRA-FA) and ``lr_control`` (uniform lr scale,
 which must be given explicitly so it can be set to a measured E of another
-arm). E is measured as in ``experiments/qwen_lora_slowheat.py``:
+arm). ``random_fixed`` (Fase 3c) is ``exact`` with its heat values moved, after
+every consolidation, onto one fixed random row order per module (seed + 500000),
+so it removes the same plasticity on rows chosen at random. E is measured as in ``experiments/qwen_lora_slowheat.py``:
 ``mask_coverage`` + ``plasticity_record`` per arm, then
 ``attach_surface_plasticity`` against ``vanilla``.
 
@@ -83,7 +85,7 @@ from dual_heater.optim import SlowHeatAdamW
 from dual_heater.superni_data import SuperNIExample, SuperNITask, load_sapt_superni
 from dual_heater.superni_metrics import exact_match, rouge_l
 
-ARMS: tuple[str, ...] = ("vanilla", "exact", "frozen_a_control", "lr_control")
+ARMS: tuple[str, ...] = ("vanilla", "exact", "frozen_a_control", "lr_control", "random_fixed")
 IGNORE_INDEX = -100
 OUTPUT_MARKER = "\nOutput:"
 PRECISIONS: tuple[str, ...] = ("fp32", "fp16")
@@ -681,6 +683,8 @@ def build_arm(method: str, config: RunConfig, *, model_factory: Callable[[], Any
         hard=config.hard,
         target_modules=tuple(config.target_modules),
         task_count=max(task_count, 1),
+        # Same offset as F16's hard_random_fixed. Only random_fixed reads it.
+        random_seed=config.seed + 500_000,
     )
     model, instrumentation = build_lora_slowheat(base, lora_config, task_type="CAUSAL_LM")
     configure_precision(model, config.precision)
@@ -865,6 +869,7 @@ def run_arm(
                     "masked_parameters_in_force": in_force_count,
                     "mask_mean_after_consolidation": arm.instrumentation.effective_plasticity(),
                     "importance_liveness": liveness,
+                    "heat_reassignment": arm.instrumentation.last_reassignment,
                     "freeze_audit": freeze_audit,
                     "peak_cuda_allocated_mib": (
                         torch.cuda.max_memory_allocated(device) / 2**20
