@@ -1,38 +1,10 @@
-# 2 Effective plasticity and the three-term decomposition
+# 3 Effective plasticity, controls and the three-term decomposition
 
-## 2.1 The method under study
+Section 2 defines what the method does. This section defines what it is
+compared against. Every control removes the same amount of plasticity as the
+method, measured on the same surface.
 
-SlowHeat keeps, for every hidden unit i of a protected layer, an importance
-score accumulated during training on a task (an EMA of |z_i| or of the
-first-order utility |z_i * dL/dz_i|, normalized within the layer). At each task
-boundary the scores are consolidated into a protection value h_i in [0, 1]
-subject to a per-layer capacity budget p (the fraction of units left free):
-
-    protected_count <= floor((1 - p) * unit_count)
-
-and h is turned into a per-unit update factor m_i:
-
-    hard mask:  m_i = 0 for the top (1 - p) units by importance, 1 otherwise
-    soft mask:  m_i = 1 / (1 + beta * h_i)          (beta = 30 unless stated)
-
-For a weight W[i, j] the factor is min(m_out_i, m_in_j), so an important unit
-protects its incoming row and its outgoing column.
-
-**Masking the update, not the gradient.** Under AdamW, scaling the raw gradient
-by a constant c scales the first moment by about c and the second by about c^2,
-so m_t / sqrt(v_t) largely cancels c; decoupled weight decay is applied outside
-the gradient altogether. A gradient hook is therefore not a learning-rate
-control. We let the optimizer compute its native step and mask the result:
-
-    Delta_applied = M * (theta_after_native_step - theta_before_step)
-
-with the same interpolation applied to tensor-valued optimizer state. This
-contract is unit-tested: M = 1 reproduces the native optimizer, M = 0 blocks
-both gradient and weight-decay motion, M = 0.1 yields a tenth of the native
-update. [TODO: 1-sentence pointer to the follow_update vs native state ablation
-if we keep it.]
-
-## 2.2 Effective plasticity
+## 3.1 Effective plasticity
 
 For a method that multiplies updates by a factor field M over a reference
 trainable surface S (all parameters the vanilla learner would train), we define
@@ -51,10 +23,10 @@ goals/protocol_plasticity_generalization.md and its condition.]
 
 The definition over the *whole* reference surface is not a detail. Averaging M
 only over parameters that carry a mask ("binding" parameters) drops every
-parameter the method froze outright. Section 5 shows a pre-registered result in
+parameter the method froze outright. Section 6 shows a pre-registered result in
 which this omission turned E = 0.532 into a reported E = 0.850.
 
-## 2.3 Controls
+## 3.2 Controls
 
 All controls run in the same process, on the same seed, data order and device
 as the method arm.
@@ -73,7 +45,7 @@ as the method arm.
   count and shape.
 - **M (method).**
 
-## 2.4 The decomposition
+## 3.3 The decomposition
 
 On paired seeds,
 
@@ -95,8 +67,13 @@ control any method can implement without knowing its structure.
 **Structural variants.** Some methods remove plasticity by a structural choice
 rather than a mask. In LoRA, freezing the down-projection A (LoRA-FA
 [CITE LoRA-FA arXiv 2308.03303]) removes 37.75% of the trainable parameters of
-our configuration (4,214,016 of 6,769,920 remain). We treat this as a shape term
-with its own uniform control: a learning-rate scale equal to the remaining
-fraction, 4,214,016 / 6,769,920 = 0.62246, computed without reading any accuracy.
-Our masked LoRA arm ("exact") adds unit selection on top of the frozen A, so
-exact - frozen_A is the selection term in that host.
+our classification configuration (4,214,016 of 6,769,920 remain; r = 16). We
+treat this as a shape term with its own uniform control: a learning-rate scale
+equal to the remaining fraction, 4,214,016 / 6,769,920 = 0.62246, computed
+without reading any accuracy. Our masked LoRA arm ("exact") adds a row mask on B
+on top of the frozen A. On the classification stream we split it as
+exact - frozen_A. On the generative stream (r = 8, where frozen A keeps
+2,039,808 of 3,317,760 parameters, 0.61481) we also ran the proper R arm: the
+same multiset of B-row factors per module assigned to a fixed random order of
+rows (random_fixed), matched to exact in E within 0.0006 in every seed. There
+exact - random_fixed is the selection term and random_fixed - U is shape.

@@ -1,53 +1,59 @@
 # Abstract
 
-Continual learning (CL) methods that protect parameters are usually evaluated
-against an unconstrained baseline. Any such method also removes plasticity, so
-part of its reported gain may come from simply learning less. We make this
-explicit by splitting the gain of a masking method over the vanilla learner into
+Methods that protect parameters during continual learning (CL) are usually
+evaluated against an unconstrained learner. Every such method also removes
+plasticity, and a learner that changes less forgets less. We introduce
+SlowHeat, a masking method that ranks hidden units by importance, consolidates
+the ranking at task boundaries under a per-layer capacity budget, and masks the
+optimizer's native update rather than the gradient. We then ask how much of its
+gain is learning less. We split the gain over the unconstrained learner into
 three paired terms, each measured against a control with the same effective
-plasticity: *plasticity* (a uniform update scale with the method's mean factor
-versus vanilla), *shape* (the same mask structure on randomly chosen units versus
-the uniform scale), and *selection* (the method's chosen units versus random
-ones). We apply the decomposition to our own method, SlowHeat, across five
-hosts: an MLP on Split- and Permuted-MNIST, a 4-layer BERT on CLINC150, a 410M
-concept language model under continued pre-training, and Qwen2.5-0.5B under
-full fine-tuning and under LoRA (on a classification stream and on a
-generative instruction stream). All primary contrasts were pre-registered and
-run on fresh seeds. Three findings hold. First, the method beats a
-plasticity-matched uniform control in every host where we tested it (11 of 11
-pre-registered contrasts). Second, none of the three terms has a fixed sign: the
-plasticity term alone is worth +30.4 pp of retention in BERT, costs
--6.0 pp of accuracy in Qwen-LoRA on classification, and gains +2.9 pp of AP
-with a similar cut on the generative stream, and a random mask is *worse* than a uniform
-scale in BERT but better in the language model (the generative LoRA sign is a
-confirmatory primary; the others come from exploratory runs and from
-descriptive contrasts of confirmatory runs; Table 1 tags each cell). Third, the selection term, the
-part that justifies an importance criterion, is the smallest and least stable:
-large in BERT, present in the language model, small and not robust in Qwen
-(+4.10 pp, then refuted at +1.50 pp against a fixed random set), and zero under
-LoRA on both streams, where freezing the down-projection (LoRA-FA) already accounts for the
-whole gain. Comparisons against vanilla, or against a random mask alone, cannot
-tell these cases apart. We release the controls and the pre-registration trail,
-including the refuted results.
+plasticity: *plasticity* (a uniform update scale with the method's mean factor),
+*shape* (the same mask on randomly chosen units) and *selection* (the chosen
+units against random ones). We test four model families in seven settings: an
+MLP on Split- and Permuted-MNIST, a 4-layer BERT on CLINC150, a 410M concept
+language model under continued pre-training, and Qwen2.5-0.5B under full
+fine-tuning and under LoRA, on a classification stream and on a generative
+instruction stream. Primary contrasts were pre-registered and run on fresh
+seeds. Three findings hold. First, the method beats a plasticity-matched
+uniform control in all 11 pre-registered contrasts. Second, inside the
+criterion, activation magnitude alone matches the first-order utility
+(-0.17 pp) and both beat a same-size random mask by +12.23 pp. Third, most of
+the gain is not selection. The plasticity term ranges from +30.4 to -6.0 pp
+across settings, a random mask is worse than a uniform scale in one host and
+better in others, and the selection term is large in BERT, small and once
+refuted in Qwen, and zero under LoRA on both streams (within 1 pp of AP on the
+generative one), where freezing the LoRA down-projection explains the gain.
+Comparisons against the unconstrained learner, or against a random mask alone,
+cannot tell these cases apart. We release the controls and the full
+pre-registration trail, including the refuted results.
+
+[NOTE for the LaTeX version: the method name is a macro (\method). The
+submitted version uses a neutral name for double-blind review; "SlowHeat" only
+in the camera-ready.]
 
 # 1 Introduction
 
-A CL method that protects some parameters while training on a new task does two
-things at once. It decides *which* parameters keep their values, and it reduces
-*how much* the network can change. The second effect alone reduces forgetting:
-a learner with a smaller step forgets less and also learns less. Reporting a
-method's gain over the unconstrained learner mixes both effects, and the usual
-second control, a random mask of the same size, mixes a third one: the mask's
-structure.
+LoRA learns less and forgets less [CITE Biderman et al. 2024]. The observation
+generalizes. A CL method that protects some parameters while training on a new
+task does two things at once: it decides *which* parameters keep their values,
+and it reduces *how much* the network can change. The second effect alone
+reduces forgetting. Reporting a method's gain over the unconstrained learner
+mixes both effects, and the usual second control, a random mask of the same
+size, mixes in a third one, the structure of the mask.
 
-We ran into this with our own method. A confirmatory result that passed a
-pre-registered analysis with Holm correction and five integrity gates compared
-an arm with effective plasticity 0.532 against a control at 0.850, because the
-plasticity metric averaged only over the parameters that carried a mask
-(Section 5). The verdict survived once the arms were matched, but the
-magnitude was the sum of a real gain and a degradation of the comparator. That
-episode is the reason for this paper: if a matched-plasticity claim can be wrong
-under pre-registration, an unmatched one says little.
+We ran into this while developing our own method. SlowHeat (Section 2) keeps
+a per-unit importance score, protects the top units at each task boundary under
+a capacity budget, and applies the protection to the optimizer's update. Its
+early results looked strong against vanilla and against random masks. Then a
+confirmatory, pre-registered result that had passed Holm correction and five
+integrity gates turned out to compare an arm with effective plasticity 0.532
+against a control at 0.850, because our plasticity metric averaged only over
+parameters that carried a mask (Section 6). The verdict survived once the arms
+were matched, but the magnitude was the sum of a real gain and a degradation of
+the comparator. If a matched claim can be wrong under pre-registration, an
+unmatched one says little. This paper reports the method together with the
+controls that tell what its gain is made of.
 
 **The decomposition.** For a masking method M with mean update factor E over
 the trainable surface, define three controls on the same host, seeds and data:
@@ -61,42 +67,42 @@ without the importance criterion. Then
 Each term is a paired contrast with a fixed meaning. Only the last one is
 evidence that the importance criterion matters.
 
-**What we find.** Applied to SlowHeat on five hosts:
+**What we find.**
 
-1. *Method versus matched plasticity holds.* M - U is positive in all 11
-   pre-registered contrasts: 4 replay-family baselines on Split-MNIST, 5 domain
-   pairs in BERT, one continued pre-training run of a 410M language model, and
-   one 10-task sequence in Qwen2.5-0.5B (Table 1).
-2. *No term has a fixed sign.* The plasticity term ranges from +30.4 pp of
-   retention (BERT, hard mask) to -6.0 pp of accuracy (Qwen-LoRA). The shape term
-   is negative in BERT (a random hard mask is 5.9 pp worse than a uniform scale)
-   and positive in the language model. A method ranked against vanilla or
-   against a random mask inherits whichever sign the host gives.
-3. *Selection is the smallest and least stable term.* It is +9.8 pp in BERT
-   (exploratory), present in the language model (exploratory), +4.10 pp in Qwen
-   in one pre-registered band of seeds and refuted at +1.50 pp [-0.07, +3.07]
-   against a fixed random set in the next one, and zero under LoRA, where
-   freezing the LoRA down-projection, a published method (LoRA-FA), explains the
-   entire gain we had attributed to our mask.
-4. *Rankings move.* In a 5-arm LoRA comparison, an arm that had removed 94% of
-   plasticity ranks second unmatched, above vanilla, and third matched, below
-   vanilla (Section 4.5, exploratory).
+1. *The method beats matched plasticity.* M - U is positive in all 11
+   pre-registered primary contrasts: 4 replay-family baselines on Split-MNIST,
+   5 domain pairs in BERT, continued pre-training of a 410M language model, and
+   a 10-task sequence in Qwen2.5-0.5B (Table 1).
+2. *A cheap criterion is enough.* Ranking units by activation magnitude |z|
+   matches the first-order utility |z * dL/dz| (-0.17 pp, 5/10 seeds), and both
+   beat a random mask of the same capacity by +12.23 pp of retention (10/10).
+3. *Most of the gain is not selection.* The plasticity term ranges from
+   +30.4 pp of retention to -6.0 pp of accuracy. The shape term changes sign
+   across hosts. The selection term is +9.8 pp in BERT, present in the language
+   model, +4.10 pp in Qwen in one pre-registered band and refuted at +1.50 pp
+   against a fixed random set in the next, and zero under LoRA on both streams,
+   where freezing the LoRA down-projection, a published method (LoRA-FA),
+   explains the gain.
+4. *Rankings move.* Among five LoRA variants, an arm that removed 94% of the
+   plasticity ranks second unmatched, above vanilla, and below vanilla once
+   matched (Section 5.6, exploratory).
 
 **Contributions.**
 
-- A three-term, plasticity-matched decomposition for masking CL methods, with
+- A masking method for CL with a capacity budget and an optimizer contract that
+  masks the update and its state, unit-tested to reproduce the native optimizer
+  at M = 1 and to block all motion, including weight decay, at M = 0.
+- A three-term, plasticity-matched decomposition for masking methods, with two
   controls that are cheap to add to existing code (a uniform update scale and a
   same-shape random mask).
-- Pre-registered evidence on five hosts, including the parts that go against
-  our own method: a refuted selection contrast (F16), a null against LoRA-FA
-  (R-C), and a null for the gradient term of our importance criterion
-  (companion paper).
+- Pre-registered evidence in seven settings, including the parts that go
+  against our method: a refuted selection contrast, a null against LoRA-FA on
+  two streams, and a null for the gradient term of our own criterion.
 - A case study of a confirmed, pre-registered result whose plasticity matching
-  was wrong, and of a correctly computed endpoint that had no variance in its
-  regime. Both passed every gate we had.
+  was wrong, and of a correctly computed endpoint that had no variance.
 
-We do not claim a new state of the art. The method is a case study for the
-controls.
+We do not claim a new state of the art. We claim that the method's gain over
+matched plasticity is real, and we show how much of it is selection.
 
-[TODO: Figure 1. Stacked bars per host: plasticity / shape / selection, with
-C/E tags. Data in Table 1.]
+[TODO: Figure 1. Stacked bars per setting: plasticity / shape / selection,
+C/E tags, only rows whose three terms come from the same seeds. Data in Table 1.]

@@ -1,10 +1,14 @@
-# 5 Case study: two ways a pre-registered pipeline was wrong
+# 6 Case study: two ways a pre-registered pipeline was wrong
 
-Both episodes below happened inside the protocol of Section 3.2. Neither was
+[Body budget 0.75 page: keep 6.1 to the claim, the error, the matched re-run
+table and the one-line control that would have caught it; move the rest of 6.1,
+all of 6.2 except its last paragraph, and 6.3 to Appendix J.]
+
+Both episodes below happened inside the protocol of Section 4.2. Neither was
 caught by a gate. We report them because the controls in this paper exist to
 prevent the first, and the second limits how far Table 1 can be read.
 
-## 5.1 A confirmed result that described conditions that did not exist
+## 6.1 A confirmed result that described conditions that did not exist
 
 **The claim.** On Qwen-LoRA (10 tasks), our masked arm `exact` against a
 learning-rate control was pre-registered with the arms matched at E = 0.85. A
@@ -16,7 +20,7 @@ p = 0.02148.
 parameters that carried a SlowHeat binding. `exact` also freezes the LoRA
 down-projection A, 2,555,904 parameters with an update factor of exactly zero,
 and none of them entered the mean. Measured over the reference trainable
-surface (Section 2.2) the contrast compared E = 0.532 against E = 0.850:
+surface (Section 3.1) the contrast compared E = 0.532 against E = 0.850:
 32 points of plasticity removed, in the direction that favors the treated arm.
 The check verified the metric, and the metric was wrong.
 
@@ -57,9 +61,9 @@ The control that would have found this on day one was a one-line
 `requires_grad_(False)` arm. It was not in the design because nobody had
 separated the two things `exact` does.
 
-## 5.2 A correct endpoint with no variance
+## 6.2 A correct endpoint with no variance
 
-**The setup.** To extend the companion paper's BERT result from 2 to 5 tasks,
+**The setup.** To extend the BERT criterion result (Section 5.5) from 2 to 5 tasks,
 we pre-registered a 5-task sequence with task-1 retention as the primary
 endpoint and a gate requiring FAA well above chance. One calibration seed,
 outside the confirmatory band, ran first to measure cost.
@@ -77,18 +81,18 @@ frozen; it can be resumed with a re-registered endpoint.
 
 **What the gates missed.** Our gates checked the regime (accuracy far from
 chance), the ranking of arms, and mask overlap. None checked whether the primary
-endpoint had dispersion. In Section 5.1 a metric was computed wrongly; here it
+endpoint had dispersion. In Section 6.1 a metric was computed wrongly; here it
 was computed correctly and was uninformative. We now require a calibration seed
 to show a nonzero between-arm spread on the primary endpoint before a band is
 spent. [TODO: decide whether to state this as a rule or as a recommendation.]
 
-This matters for Table 1. Qwen-FT retention is measured close to a floor:
+This matters for Table 1 (Section 5.2). Qwen-FT retention is measured close to a floor:
 first-task retention of the best arm is 9.0% (F14), 7.9% (F15) and 4.8% (F16),
 and in F16 six of ten seeds have the hard arm at or below 3%. The refuted F16
 contrast may be partly a floor effect. We do not use that possibility to
 reinterpret it.
 
-## 5.3 Precedent
+## 6.3 Precedent
 
 An earlier audit found that our accuracy evaluation called `model.eval()`
 without restoring the previous mode, so importance hooks, which accumulate only

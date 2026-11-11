@@ -1,50 +1,68 @@
-# ICML 2027 draft: plasticity-matched decomposition
+# ICML 2027 draft: method + plasticity-matched decomposition
 
-Status: first full draft of the body, written 2026-11-10 by Venus from the frozen
-analyses. Not yet reviewed by Fachel. Target: ICML 2027 (8 pages + refs; CFP not
-published as of 2026-11-10, deadline estimated ~22/01/2027).
+Status: second structure, 2026-11-11 (Venus). Decision of 11/11 with the advisor:
+one paper only, ICML 2027. The IJCNN companion is dropped; its results (R-A, R-B,
+R-D) are now part of this paper. Not yet reviewed by Fachel or the advisor.
 
-Working title: "How Much of Continual Learning Is Learning Less?
-A Plasticity-Matched Decomposition"
+Venue (read on icml.cc 2026-11-11): abstract 14/01/2027 AoE (locks the author
+list), full paper 22/01/2027 AoE, Rio de Janeiro. CFP and template for 2027 not
+yet published; 2026 rules assumed: 8 pages of body, unlimited references,
+impact statement and appendices, one file, double-blind.
+
+Working title: "Importance-Masked Updates for Continual Learning, and How Much of
+Their Gain Is Learning Less". Alternative kept: "How Much of Continual Learning
+Is Learning Less? A Plasticity-Matched Decomposition".
+
+Double-blind: the LaTeX uses a \method macro with a neutral name; "SlowHeat"
+only in the camera-ready. The public GitHub repo must not be referenced.
 
 ## Files (read in order)
 
-| file | section | state |
+| file | section | body pages (target) |
 |---|---|---|
-| 01_abstract_intro.md | Abstract, 1 Introduction | draft |
-| 02_decomposition.md | 2 Effective plasticity and the three-term decomposition | draft |
-| 03_setup.md | 3 Hosts, arms and pre-registration | draft |
-| 04_results.md | 4 Results (the decomposition table and per-term evidence) | draft |
-| 05_case_study.md | 5 How our own confirmed result was wrong | draft |
-| 06_negative_related_limits.md | 6 Negative results, 7 Related work, 8 Limitations | draft |
-| A_registry.md | Appendix A: every number, its status and its source | draft |
+| 01_abstract_intro.md | Abstract, 1 Introduction | 1.0 |
+| 02_method.md | 2 The method | 1.25 |
+| 03_controls_decomposition.md | 3 Effective plasticity, controls, decomposition | 0.75 |
+| 04_setup.md | 4 Settings, arms, pre-registration | 0.75 |
+| 05_results.md | 5.1 method vs matched, 5.2 Table 1, 5.3 signs, 5.4 selection, 5.5 criterion, 5.6 rankings, 5.7 penalties | 2.75 |
+| 06_case_study.md | 6 Case study | 0.75 |
+| 07_negative_related_limits.md | 7 Negative results, 8 Related work, 9 Limitations | 0.75 |
+| A_registry.md | Appendix A: every number, status, source | - |
+| APPENDIX_PLAN.md | Appendices B-K: content and sources | - |
+
+Total body target 8.0. Current markdown is over budget in 5 and 6; cuts are
+marked in place and move to the appendix.
 
 ## Rules used while writing
 
 - Every number comes from a pre-registered analysis output or an exploratory
-  result file; the source is in Appendix A. Nothing was recomputed by hand except
-  the sums/differences marked "derived" in Appendix A.
-- C = confirmatory (protocol frozen in a commit before the run, fresh seeds).
-  E = exploratory. The tables carry the tag in every cell.
+  result file; the source is in Appendix A. Nothing recomputed by hand except
+  sums/differences marked "derived".
+- C = confirmatory primary; S = pre-registered secondary; c = descriptive from a
+  confirmatory run; E = exploratory.
 - Refuted confirmatory results (F16) are reported as refuted.
 
-## Open decisions for Fachel (block the final version)
+## Open items (block the final version)
 
-1. Non-overlap rule with the IJCNN companion. R-A/R-B are IJCNN body. This draft
-   uses the BERT hard exploratory decomposition (uniform_lr_control, 03/11), which
-   reuses the R-A arms plus a uniform arm. Is that a "table line citing the
-   companion" or does it cross the rule?
-2. Missing confirmatory cells. To make Table 1 confirmatory end to end:
-   (a) random arm confirmatory in NCP (F3 is exploratory; ~1 h/run GPU);
-   (b) random arm in MLP Split-MNIST (CPU, minutes);
-   (c) vanilla arm in NCP (the plasticity term is not measured there);
-   (d) Qwen selection with power (F17 proposal, 20 seeds).
-3. One external method decomposed (UPGD, ICLR 2024) so the paper is not only
-   about our method. Cheap in the MLP.
-4. Retention floor in Qwen (4.8 to 9.0% absolute). Report as limitation, or
-   re-measure with fewer tasks.
+1. Missing cells of Table 1 (plan T3): random arm in MLP-S/MLP-P (CPU);
+   random + vanilla arms in LM-410M paired to F13 seeds; F17 (20 seeds, new
+   band, NOT 500-519: 500-509 were used by P1).
+2. External methods decomposed (plan T4): UPGD in MLP-S; EWC/SI/MAS from the
+   existing penalty runs.
+3. R-D: protocol commit hash and backbone/width to fill in; decide body
+   paragraph vs appendix only.
+4. Retention floor in Qwen-FT (4.8 to 9.0%): limitation, or a 5-task
+   calibration in the appendix.
 
 ## Placeholders
 
-Search for `[CITE` (missing bibliographic entries) and `[TODO` (content still
-owed). No placeholder hides a number.
+Search for `[CITE` and `[TODO`. No placeholder hides a number.
+
+Change log
+- cbeae61: first full draft (decomposition-only framing).
+- f88d508: 3b added.
+- this commit: one-paper framing; new 02_method; sections renumbered; R-A/R-B/R-D
+  folded in (5.5); 3c (C3g) result added (generative selection null, bounded);
+  generative row of Table 1 now complete on shared seeds; Limitations fixed
+  (SuperNI is in the draft); "five hosts" replaced by four model families,
+  seven settings; companion-paper references removed.

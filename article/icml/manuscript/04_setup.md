@@ -1,6 +1,6 @@
-# 3 Hosts, arms and pre-registration
+# 4 Settings, arms and pre-registration
 
-## 3.1 Hosts
+## 4.1 Settings
 
 | host | model | stream | protected surface | budget / factor | primary endpoint |
 |---|---|---|---|---|---|
@@ -11,6 +11,8 @@
 | Qwen-FT | Qwen2.5-0.5B, full fine-tuning of FFN + head | CLINC150 "plus" as class-IL classification, 10 domains, 120 steps/task, lr 1e-5, batch 2, seq 64, fp32 | FFN units | hard, top 25% per layer frozen (E* = 0.75) | first-task retention |
 | Qwen-LoRA | Qwen2.5-0.5B + LoRA r = 16 | Split-CLINC150, 10 tasks | LoRA A, B | frozen A; mask on rows of B | forgetting |
 | Qwen-LoRA-Gen | Qwen2.5-0.5B + LoRA r = 8, alpha 16, FFN | SuperNI-15 (SAPT order 1) [CITE SAPT], generative, loss on answer tokens, 1 epoch/task, lr 1e-4, batch 2, greedy decoding up to 50 tokens, fp32 | LoRA A, B | frozen A; soft mask on rows of B (p = 0.50, beta = 3) | AP, ROUGE-L, as in SAPT |
+| BERT-crit | same BERT host as above | Split-CLINC150, 2 tasks | FFN + attention | hard, slow_strength 3.0, 2,364,672 protected entries in every protected arm | task-1 retention |
+| CIFAR-replay | MLP [TODO: width from replay_selection config] | Split-CIFAR-100, replay buffer, 6 learners | replay memory (which examples are stored) | n/a | FAA |
 
 The MLP and BERT hosts ran on CPU; LM-410M and Qwen ran on one GPU per seed
 (GTX 1080 Ti or Titan Xp, fp32; Pascal has no bf16). All arms of a seed share a
@@ -24,7 +26,7 @@ to measure forgetting of the original distribution. The effect is small in
 absolute terms: the uniform arm forgets +0.0711 nats of MiniPile loss over the
 run.
 
-## 3.2 Pre-registration
+## 4.2 Pre-registration
 
 Every confirmatory contrast in this paper followed the same procedure:
 
@@ -56,7 +58,7 @@ invalidates the run; it is not reinterpreted.
 We report exploratory results where no confirmatory one exists, tagged E, and
 never use them as the basis of a claim stated without that tag.
 
-## 3.3 Families of runs
+## 4.3 Families of runs
 
 | id | host | contrast(s) | seeds | protocol commit |
 |---|---|---|---|---|
@@ -68,8 +70,11 @@ never use them as the basis of a claim stated without that tag.
 | F16 | Qwen-FT | M - R (fixed) | 10 (400-409) | cc81913 |
 | PM | Qwen-LoRA | frozen_A - U, matched on the full surface | 10 | d9b57fc |
 | RC | Qwen-LoRA | frozen_A - V; exact - frozen_A | 10 | f5d77ce |
-| 3b | Qwen-LoRA-Gen | U - V with U matched to exact and to frozen_A (primary, Holm over 2); M - U and frozen_A - U (secondary) | 10 (1000-1009) | deea8d2 |
+| 3b | Qwen-LoRA-Gen | U - V with U matched to exact and to frozen_A (primary, Holm over 2); M - U and frozen_A - U (secondary). Pre-registered with declared deviations (Section 4.2, item 3) | 10 (1000-1009) | deea8d2 |
+| 3c | Qwen-LoRA-Gen | M - R(fixed) (primary, single test); R - U (secondary) | same 10 seeds as 3b, paired by design (declared deviation from rule 2) | 842f54f |
+| RA/RB | BERT-crit | magnitude - random; functional - magnitude (Holm over 2, exact sign test) | 10 (4.000.003+) | a3f5117 |
+| RD | CIFAR-replay | high-loss and representative selectors vs the same learner without selection, per learner (Holm per family) | 20 | [TODO: hash of protocol_replay_selector_confirmation.md]; the report self-declares exploratory_not_independent_confirmation for cross-learner contrasts |
 
 Exploratory sources (E): F3 (LM-410M, M - R and R - U, 6 seeds), F7/F8 (MLP,
 U - B and M - U, 20 and 10 seeds), the BERT hard decomposition (10 seeds,
-band 13.000.003+), and the LoRA rank comparison (Section 4.5, 10 seeds).
+band 13.000.003+), and the LoRA rank comparison (Section 5.6, 10 seeds).
