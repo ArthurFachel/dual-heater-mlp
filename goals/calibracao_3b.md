@@ -53,3 +53,13 @@ ficam iguais. Com a emenda ep1 e ep3 passam; pela regra 3 (menor número de épo
 Essa escolha vale para a calibração; qualquer texto que use o 3b deve citar este desvio.
 
 Próximo passo previsto pelo plano: os dois lr_control (pareados ao E medido do exact e do LoRA-FA) em 1 época.
+
+## lr_control em 1 época (10/11/2026, commit ce39311, seed 950)
+Escala = E medido do braço pareado no manifest ep1 (scripts/lr_control_3b.sh). Saída: results/3b_calibration/ep1_lrc_*.
+| par | AP tratado | AP lr_control | d_AP | Fgt tratado | Fgt lr_control | E | horas |
+|---|---|---|---|---|---|---|---|
+| exact vs lrc_exact | 0,453 | 0,406 | +0,047 | 0,061 | 0,109 | 0,560 | 0,6 |
+| LoRA-FA vs lrc_lorafa | 0,448 | 0,395 | +0,053 | 0,073 | 0,120 | 0,615 | 0,6 |
+Uma seed, calibração: mede regime e custo, não efeito. Os dois tratados batem o controle de lr pareado por margem
+parecida, e exact contra LoRA-FA fica em +0,005 de AP; a pergunta do confirmatório é essa diferença, não o contraste
+com lr_control. Custo por seed com os 5 braços em 1 época: cerca de 3,2 h-GPU.
