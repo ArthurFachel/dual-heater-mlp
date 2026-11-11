@@ -32,8 +32,8 @@ PRIMARIO: D_unmatched - D_matched = AP(lrc_X) - AP(vanilla), t pareado bilateral
       D_unmatched medio +0.0870, D_matched medio +0.0581, fracao D_matched/D_unmatched 0.668
 
 S1: D_matched(X) = AP(X) - AP(lrc_X)
-  exact              +0.0604 (sd 0.0185) IC95 [+0.0472; +0.0736] 10/10 >0  p 2.69e-06  -> IC acima de zero: selecao paga com E pareado
-  frozen_a_control   +0.0581 (sd 0.0161) IC95 [+0.0466; +0.0696] 10/10 >0  p 1.16e-06  -> IC acima de zero: selecao paga com E pareado
+  exact              +0.0604 (sd 0.0185) IC95 [+0.0472; +0.0736] 10/10 >0  p 2.69e-06  -> IC acima de zero: A congelado + mascara SlowHeat em B bate o lr pareado
+  frozen_a_control   +0.0581 (sd 0.0161) IC95 [+0.0466; +0.0696] 10/10 >0  p 1.16e-06  -> IC acima de zero: congelar A (estrutural, sem selecao) bate o lr pareado
 
 S2: com Fgt (menos e melhor; valores = Fgt(a) - Fgt(b), negativo favorece a)
   lrc_exact - vanilla            -0.0353 IC95 [-0.0496; -0.0209] 10/10 <0  p 3.51e-04

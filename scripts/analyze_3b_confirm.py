@@ -79,6 +79,8 @@ for a in arms:
 P("")
 
 pair = {"exact": "lrc_exact", "frozen_a_control": "lrc_lorafa"}
+# S1 label: LoRA-FA selects nothing, it is a structural freeze of A.
+WHAT = {"exact": "A congelado + mascara SlowHeat em B", "frozen_a_control": "congelar A (estrutural, sem selecao)"}
 P("PRIMARIO: D_unmatched - D_matched = AP(lrc_X) - AP(vanilla), t pareado bilateral, Holm sobre 2")
 prim = {}
 for X, L in pair.items():
@@ -102,7 +104,7 @@ for X, L in pair.items():
     s1[X] = summ([rows[s]["ap"][X] - rows[s]["ap"][L] for s in SEEDS])
     mu, sd, lo, hi, p, pos, n = s1[X]
     P(f"  {X:18s} {mu:+.4f} (sd {sd:.4f}) IC95 [{lo:+.4f}; {hi:+.4f}] {pos}/{n} >0  p {p:.2e}  -> "
-      f"{'IC acima de zero: selecao paga com E pareado' if lo > 0 else ('IC abaixo de zero' if hi < 0 else 'IC cruza zero: nao confirmado')}")
+      f"{('IC acima de zero: ' + WHAT[X] + ' bate o lr pareado') if lo > 0 else ('IC abaixo de zero' if hi < 0 else 'IC cruza zero: nao confirmado')}")
 P("")
 P("S2: com Fgt (menos e melhor; valores = Fgt(a) - Fgt(b), negativo favorece a)")
 for X, L in pair.items():
