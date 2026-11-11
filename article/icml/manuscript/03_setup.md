@@ -10,6 +10,7 @@
 | LM-410M | ConceptLM Pythia-410M [CITE ConceptLM], released weights | continued pre-training on FineWeb-Edu, importance measured on MiniPile; 125 steps (~4M tokens), lr 3e-5, grad. accum. 64, warmup 25 | FFN units | p = 0.75, soft beta = 30 | MiniPile test next-token loss (nats) at the last step |
 | Qwen-FT | Qwen2.5-0.5B, full fine-tuning of FFN + head | CLINC150 "plus" as class-IL classification, 10 domains, 120 steps/task, lr 1e-5, batch 2, seq 64, fp32 | FFN units | hard, top 25% per layer frozen (E* = 0.75) | first-task retention |
 | Qwen-LoRA | Qwen2.5-0.5B + LoRA r = 16 | Split-CLINC150, 10 tasks | LoRA A, B | frozen A; mask on rows of B | forgetting |
+| Qwen-LoRA-Gen | Qwen2.5-0.5B + LoRA r = 8, alpha 16, FFN | SuperNI-15 (SAPT order 1) [CITE SAPT], generative, loss on answer tokens, 1 epoch/task, lr 1e-4, batch 2, greedy decoding up to 50 tokens, fp32 | LoRA A, B | frozen A; soft mask on rows of B (p = 0.50, beta = 3) | AP, ROUGE-L, as in SAPT |
 
 The MLP and BERT hosts ran on CPU; LM-410M and Qwen ran on one GPU per seed
 (GTX 1080 Ti or Titan Xp, fp32; Pascal has no bf16). All arms of a seed share a
@@ -34,6 +35,11 @@ Every confirmatory contrast in this paper followed the same procedure:
    config in the repositories).
 3. The analysis script is written and validated on the earlier exploratory data
    before the run: it must reproduce the exploratory estimate exactly.
+   Exception: for 3b the analysis script was written after the run finished.
+   It computes the endpoints declared in the frozen protocol and its header
+   says when it was written. The 3b epoch count (1 per task) came from a
+   calibration on seed 950 whose acceptance threshold was amended post hoc
+   (12/15 to 11/15 tasks acquired); the amendment is committed (6d487a5).
 4. No seed is dropped. A crashed run is re-run with the same seed and the fact
    is reported. In F11 to F16 no seed crashed. [TODO: check PM and RC logs.]
 5. Decision rule: paired two-sided t test (or exact sign test where declared),
@@ -62,6 +68,7 @@ never use them as the basis of a claim stated without that tag.
 | F16 | Qwen-FT | M - R (fixed) | 10 (400-409) | cc81913 |
 | PM | Qwen-LoRA | frozen_A - U, matched on the full surface | 10 | d9b57fc |
 | RC | Qwen-LoRA | frozen_A - V; exact - frozen_A | 10 | f5d77ce |
+| 3b | Qwen-LoRA-Gen | U - V with U matched to exact and to frozen_A (primary, Holm over 2); M - U and frozen_A - U (secondary) | 10 (1000-1009) | deea8d2 |
 
 Exploratory sources (E): F3 (LM-410M, M - R and R - U, 6 seeds), F7/F8 (MLP,
 U - B and M - U, 20 and 10 seeds), the BERT hard decomposition (10 seeds,

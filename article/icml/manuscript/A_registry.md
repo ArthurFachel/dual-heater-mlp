@@ -22,6 +22,9 @@ the Lab (/mnt/B-SSD/fachel/...) unless they start with ~/ (laptop).
 | U - V FAA in Qwen-LoRA (derived) | 0.5275 - 0.5879 = -6.04 pp | derived from PM absolutes |
 | RC exact decomposition | frozen_A - vanilla -0.1118 (1+/9-, p_Holm 0.043); exact - frozen_A -0.0092 (5+/5-, p 1.000); FAA +0.69 pp; 611 s vs 336 s | dh-qwen-f14 docs/results/exact_decomposition_results.md; protocol @ f5d77ce |
 | R-E original claim | exact - lr control forgetting -0.0921, 9-/1+, p 0.02148; E 0.532 vs 0.850; A = 2,555,904 params | plasticity_matched_results.md, exact_decomposition_results.md |
+| 3b primary U - V, AP | lrc_exact +0.0294 [+0.0145, +0.0443] 10/10; lrc_lorafa +0.0289 [+0.0152, +0.0426] 10/10; p_Holm 2.0e-3 both; fraction D_matched/D_unmatched 0.673 / 0.668 | dh-qwen-f14 results/3b_confirm/analysis_preregistered.txt (script scripts/analyze_3b_confirm.py @ 0e56045, written after the run); protocol goals/protocol_3b_confirmatory.md @ deea8d2 |
+| 3b secondaries | S1 exact - lrc +0.0604 [+0.0472, +0.0736] 10/10; frozen_A - lrc +0.0581 [+0.0466, +0.0696] 10/10; S2 Fgt lrc - V -0.0353 / -0.0350; S3 exact - frozen_A AP +0.0028 [-0.0026, +0.0082] 5/10, Fgt -0.0044 [-0.0095, +0.0007]; means AP V .3723, exact .4620, frozen_A .4592, lrc_exact .4017, lrc_lorafa .4012 | same file |
+| 3b exact B-mask mean | 0.910 to 0.913 final per seed; 0.903 to 0.915 over all 15 boundaries x 10 seeds; E exact 0.5598 (s1000), 0.5593 (s1005) | results/3b_confirm/s*/main/manifest.json, field mask_mean_after_consolidation (read 11/11) |
 | R-A / R-B (companion) | magnitude - random +12.23 pp 10/10 p_Holm 0.0039; functional - magnitude -0.17 pp 5+/5 | dh-qwen-f14 docs/results/criterion_ablation_results.md; protocol @ a3f5117 |
 | Penalty pass 2 | mas - lr control forgetting -0.0400, 12/12, p 0.00049; final acc. .149/.198/.160, chance .10 | dh-qwen-f14 docs/results/penalty_pass2_results.md; protocol @ 22461f5 |
 

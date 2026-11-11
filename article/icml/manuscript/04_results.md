@@ -3,6 +3,7 @@
 Signs are oriented so that **positive = better for the first arm** in every
 cell. For the language model the endpoint is a loss, so we report the loss
 reduction (U - M in nats, etc.). C = confirmatory primary contrast;
+S = pre-registered secondary (declared before the run, no family correction);
 c = descriptive contrast from a confirmatory run (outside the tested family);
 E = exploratory. Intervals are 95% paired t intervals; "k/n" counts seeds in
 favor of the first arm.
@@ -21,6 +22,7 @@ favor of the first arm.
 | LM-410M, soft (MiniPile loss, nats) | not run | +0.00436, 6/6 E | +0.00339, 6/6 E | **+0.00764 [+0.00743, +0.00785] 10/10 C** |
 | Qwen-FT, hard (T1 retention, pp) | +1.60 [+0.29, +2.91] 8/10 c | +1.97 [+0.23, +3.71] 5/10 c | **+4.10 [+0.61, +7.59] 9/10 C** (re-drawn R); **+1.50 [-0.07, +3.07] 8/10 C, REFUTED** (fixed R) | **+5.67 [+3.00, +8.33] 9/10 C** |
 | Qwen-LoRA (FAA, pp) | -6.04 c | **+9.92, 10/10 C** (frozen A vs matched lr) | +0.69, 5/5 C, null (exact vs frozen A) | n/a |
+| Qwen-LoRA-Gen (AP, pp) | **+2.94 [+1.45, +4.43] 10/10 C** (E of exact); **+2.89 [+1.52, +4.26] 10/10 C** (E of frozen A) | +5.81 [+4.66, +6.96] 10/10 S (frozen A vs matched lr) | +0.28 [-0.26, +0.82] 5/10 c, null (exact vs frozen A; E not matched, 0.560 vs 0.615) | +6.04 [+4.72, +7.36] 10/10 S (exact vs its matched lr) |
 
 "c" values in the MLP-S plasticity column are differences of means from F11
 (FAA of B+U minus FAA of B); the paired versions come from the exploratory F7
@@ -42,6 +44,10 @@ removes 10.7% of the forgetting of the uniform arm. In Qwen-FT the gain is
 +5.67 pp of first-task retention with no visible acquisition cost
 (-0.10 pp [-1.99, +1.79] on the last task, descriptive).
 
+The generative LoRA host (3b) adds M - U as a pre-registered secondary: exact
+beats the lr control matched to its E by +6.04 pp of AP (10/10). We do not
+count it among the 11 primaries.
+
 ## 4.3 No term has a fixed sign
 
 **Plasticity.** Reducing plasticity uniformly helps a lot in BERT with a hard
@@ -51,7 +57,11 @@ Qwen-LoRA, where a learning-rate scale of 0.62246 lowers FAA by 6.04 pp and
 raises forgetting by 0.0616 (9/10 seeds, p = 0.0215, c). In the LoRA host a
 uniform scale of 0.85 had no detectable effect (p = 0.754) in an earlier run;
 the sign depends on the size of the cut as well as on the host (two points only,
-not a curve).
+not a curve). On the generative stream (3b) a similar cut helps: scales of
+0.560 and 0.615 raise AP by +2.94 and +2.89 pp and lower forgetting by 0.035,
+10/10 seeds, the primary of that run (p_Holm = 0.002). Same model, same
+adapter and nearly the same scale as the classification run, opposite sign.
+The stream matters, not only the size of the cut.
 
 The ER-ACE row shows why this matters for headline numbers. SlowHeat + ER-ACE
 beats ER-ACE + U by +0.39 pp (C), yet its FAA is 0.26 pp *below* ER-ACE alone
@@ -68,7 +78,8 @@ random arm is better than reduced lr (+1.97 pp, c, but only 5/10 seeds). In
 Qwen-LoRA the structural term (freezing A) is the largest gain in the table:
 +9.92 pp of FAA and -0.1260 forgetting against a learning-rate control with
 identical surface plasticity, 10/10 seeds on both endpoints, p_Holm = 0.0039,
-which is the floor for n = 10.
+which is the floor for n = 10. The generative stream repeats it: +5.81 pp of
+AP over the matched lr, 10/10 (S).
 
 A random mask is therefore not a neutral control. Depending on the host it
 inflates (BERT) or deflates (LM-410M) the apparent value of selection. Reporting
@@ -95,6 +106,11 @@ Where we could measure it:
 - Qwen-LoRA: exact - frozen_A = -0.0092 forgetting, 5+/5-, p = 1.000 (C).
   Selection adds nothing to LoRA-FA. The masked arm costs 1.8x the wall time
   (611 s vs 336 s per seed).
+- Qwen-LoRA-Gen: exact - frozen_A = +0.28 pp of AP [-0.26, +0.82], 5/10, and
+  forgetting -0.0044 [-0.0095, +0.0007] (c). The test is weak: the B mask of
+  exact keeps a mean factor of 0.91 (0.903 to 0.915 across all boundaries and
+  seeds), so it removes about 9% of B's plasticity, and E is not matched
+  between the two arms (0.560 vs 0.615).
 
 One plausible reason for the LoRA null is geometric: A is shared by all output
 rows through the rank-r bottleneck, so protecting rows of B leaks. We have not

@@ -11,19 +11,21 @@ the uniform scale), and *selection* (the method's chosen units versus random
 ones). We apply the decomposition to our own method, SlowHeat, across five
 hosts: an MLP on Split- and Permuted-MNIST, a 4-layer BERT on CLINC150, a 410M
 concept language model under continued pre-training, and Qwen2.5-0.5B under
-full fine-tuning and under LoRA. All primary contrasts were pre-registered and
+full fine-tuning and under LoRA (on a classification stream and on a
+generative instruction stream). All primary contrasts were pre-registered and
 run on fresh seeds. Three findings hold. First, the method beats a
 plasticity-matched uniform control in every host where we tested it (11 of 11
 pre-registered contrasts). Second, none of the three terms has a fixed sign: the
-plasticity term alone is worth +30.4 pp of retention in BERT and costs
--6.0 pp of accuracy in Qwen-LoRA, and a random mask is *worse* than a uniform
-scale in BERT but better in the language model (these sign results come from
-exploratory runs and from descriptive contrasts of confirmatory runs; Table 1
-tags each cell). Third, the selection term, the
+plasticity term alone is worth +30.4 pp of retention in BERT, costs
+-6.0 pp of accuracy in Qwen-LoRA on classification, and gains +2.9 pp of AP
+with a similar cut on the generative stream, and a random mask is *worse* than a uniform
+scale in BERT but better in the language model (the generative LoRA sign is a
+confirmatory primary; the others come from exploratory runs and from
+descriptive contrasts of confirmatory runs; Table 1 tags each cell). Third, the selection term, the
 part that justifies an importance criterion, is the smallest and least stable:
 large in BERT, present in the language model, small and not robust in Qwen
 (+4.10 pp, then refuted at +1.50 pp against a fixed random set), and zero under
-LoRA, where freezing the down-projection (LoRA-FA) already accounts for the
+LoRA on both streams, where freezing the down-projection (LoRA-FA) already accounts for the
 whole gain. Comparisons against vanilla, or against a random mask alone, cannot
 tell these cases apart. We release the controls and the pre-registration trail,
 including the refuted results.
