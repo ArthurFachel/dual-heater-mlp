@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import time
@@ -274,6 +275,43 @@ _METHOD_SPECS = {
         budget=0.25,
         protect_output=False,
     ),
+    # T3c (confirmatory, protocol docs/protocols/confirmatory_random_fixed_mlp.md):
+    # same-shape random control R. Each spec mirrors its SlowHeat arm field by
+    # field; after every consolidation the per-layer heat values are handed to the
+    # units of ONE random order per layer, drawn once per run from the seed
+    # (reassign_to_fixed_random_units). Same count, same values, same hardness.
+    "random_fixed_replay_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "random_fixed_derpp_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        derpp=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "random_fixed_replay_hidden_beta_30_budget_0.25_calibrated": MethodSpec(
+        slowheat=True,
+        replay=True,
+        calibrated=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "random_fixed_er_ace_hidden_beta_30_budget_0.25": MethodSpec(
+        slowheat=True,
+        replay=True,
+        er_ace=True,
+        strength=30.0,
+        budget=0.25,
+        protect_output=False,
+    ),
+    "random_fixed_hard_freeze": MethodSpec(slowheat=True),
 }
 
 UNIFORM_PLASTICITY_METHODS = {
@@ -283,7 +321,20 @@ UNIFORM_PLASTICITY_METHODS = {
     "uniform_hard_freeze",
     "uniform_er_ace_hidden_beta_30_budget_0.25",
 }
-HARD_MASK_METHODS = {"hard_freeze", "hard_freeze_replay", "uniform_hard_freeze"}
+RANDOM_FIXED_METHODS = {
+    "random_fixed_replay_hidden_beta_30_budget_0.25",
+    "random_fixed_derpp_hidden_beta_30_budget_0.25",
+    "random_fixed_replay_hidden_beta_30_budget_0.25_calibrated",
+    "random_fixed_er_ace_hidden_beta_30_budget_0.25",
+    "random_fixed_hard_freeze",
+}
+RANDOM_FIXED_ORDER_SEED_OFFSET = 500_000  # same offset as F16 / 3c
+HARD_MASK_METHODS = {
+    "hard_freeze",
+    "hard_freeze_replay",
+    "uniform_hard_freeze",
+    "random_fixed_hard_freeze",
+}
 
 FUNCTIONAL_DUALHEAT_METHODS = {
     "fastheat",
@@ -1244,6 +1295,49 @@ def apply_uniform_plasticity(optimizer) -> UniformPlasticityLevel:
 
 
 @torch.no_grad()
+def reassign_to_fixed_random_units(model: nn.Module, *, seed: int) -> dict[str, Any]:
+    """Hand each layer's heat values to the units of one fixed random order.
+
+    The order of layer k is drawn once per run with seed
+    (seed + RANDOM_FIXED_ORDER_SEED_OFFSET) * 1009 + k and cached on the model. The
+    i-th largest heat value goes to unit order[i], so the protected units are
+    order[:count] at every boundary (nested when the count grows). Values,
+    protected count and hardness are those the arm's own importance produced;
+    importance_memory is untouched, so tracking stays on the arm's trajectory.
+    """
+
+    layers = _slow_states(model)
+    orders = getattr(model, "_random_fixed_orders", None)
+    if orders is None:
+        orders = []
+        for index, layer in enumerate(layers):
+            generator = torch.Generator().manual_seed(
+                (seed + RANDOM_FIXED_ORDER_SEED_OFFSET) * 1009 + index
+            )
+            orders.append(torch.randperm(layer.slow_heat.numel(), generator=generator))
+        model._random_fixed_orders = orders
+    digests, counts, own, shared = [], [], 0, 0
+    for layer, order in zip(layers, orders):
+        heat = layer.slow_heat
+        flat = heat.detach().flatten()
+        own_set = set(torch.nonzero(flat > 0.0).flatten().tolist())
+        values = torch.sort(flat, descending=True, stable=True).values
+        moved = torch.empty_like(values)
+        moved[order.to(values.device)] = values
+        heat.copy_(moved.view_as(heat))
+        protected = torch.nonzero(moved > 0.0).flatten().tolist()
+        digests.append(hashlib.sha1(",".join(map(str, sorted(protected))).encode()).hexdigest()[:16])
+        counts.append(len(protected))
+        own += len(own_set)
+        shared += len(own_set & set(protected))
+    return {
+        "digests": digests,
+        "protected_counts": counts,
+        "overlap_with_own_selection": (shared / own) if own else 0.0,
+    }
+
+
+@torch.no_grad()
 def _accuracy(
     model: nn.Module,
     inputs: Tensor,
@@ -1973,6 +2067,7 @@ def run_split_mnist(
         validation_history: list[list[float]] = []
         completed_epochs: list[int] = []
         capacity_history: list[list[dict[str, float]]] = []
+        random_fixed_history: list[dict[str, Any]] = []
         teacher: nn.Module | None = None
         replay_buffer = ReplayBuffer()
         ewc_importance: dict[str, Tensor] = {}
@@ -2594,6 +2689,10 @@ def run_split_mnist(
                         maximum=config.adaptive_maximum,
                     )
                 model.consolidate(strategy="max")
+                if method in RANDOM_FIXED_METHODS:
+                    random_fixed_history.append(
+                        reassign_to_fixed_random_units(model, seed=config.seed)
+                    )
                 cost["consolidation_seconds"] += (
                     time.perf_counter() - consolidation_started
                 )
@@ -2696,6 +2795,7 @@ def run_split_mnist(
             "baseline_scores": baseline_scores.tolist(),
             "pretrain_scores": pretrain_scores.tolist(),
             "capacity_history": capacity_history,
+            "random_fixed_history": random_fixed_history,
             "selection_history": replay_buffer.selection_history,
             "final_logit_bias": logit_bias.detach().cpu().tolist(),
             "elapsed_seconds": elapsed,
