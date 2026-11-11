@@ -11,7 +11,7 @@ method fails some of them.
 | M - R(fixed) = +1.50 pp [-0.07, +3.07], p = 0.060 | Qwen-FT | C, REFUTED | selection under a hard mask is not robust |
 | gradient term of the importance criterion: abs(z * dL/dz) - abs(z) = -0.17 pp, 5+/5- | BERT | C, null (Section 5.5) | the expensive part of the criterion buys nothing |
 | exact - random_fixed on the generative stream = +0.06 pp AP [-0.14, +0.27], 5/10 | Qwen-LoRA-Gen | C, null bounded within 1 pp | selection of B rows adds nothing on the second stream either |
-| high-loss replay selection: -2.72 to -4.05 pp FAA, 0/20 in each learner | CIFAR-replay | pre-registered within learner | the intuitive importance criterion hurts (Section 5.5) |
+| our mask on DER++ under representative replay memory: -0.61 pp FAA, 1/20, p_Holm 8.0e-5; the pre-registered sign inversion between selectors did not replicate (high-loss: +0.20 pp, p_Holm 0.115) | CIFAR-replay | C, failed (RD) | with a good replay selector our mask costs accuracy |
 | SlowHeat + ER-ACE FAA 0.7083 < ER-ACE 0.7109 | MLP-S | c | the uniform reduction costs ER-ACE more than selection gives back |
 | mask timing pilot: freezing the mask after 1 or 3 boundaries, -1.31 and -1.30 pp FAA; head warm-up -2.90 pp | Qwen-FT | E, negative | none of the timing variants helps |
 | lr control below vanilla at E = 0.85 did not replicate (p = 0.754) | Qwen-LoRA | c, null | can hurt (Section 6.1) or do nothing; we corrected 7 places in our docs that stated it as a rule |

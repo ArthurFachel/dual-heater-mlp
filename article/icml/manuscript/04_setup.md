@@ -11,12 +11,16 @@
 | Qwen-FT | Qwen2.5-0.5B, full fine-tuning of FFN + head | CLINC150 "plus" as class-IL classification, 10 domains, 120 steps/task, lr 1e-5, batch 2, seq 64, fp32 | FFN units | hard, top 25% per layer frozen (E* = 0.75) | first-task retention |
 | Qwen-LoRA | Qwen2.5-0.5B + LoRA r = 16 | Split-CLINC150, 10 tasks | LoRA A, B | frozen A; mask on rows of B | forgetting |
 | Qwen-LoRA-Gen | Qwen2.5-0.5B + LoRA r = 8, alpha 16, FFN | SuperNI-15 (SAPT order 1) [CITE SAPT], generative, loss on answer tokens, 1 epoch/task, lr 1e-4, batch 2, greedy decoding up to 50 tokens, fp32 | LoRA A, B | frozen A; soft mask on rows of B (p = 0.50, beta = 3) | AP, ROUGE-L, as in SAPT |
-| BERT-crit | same BERT host as above | Split-CLINC150, 2 tasks | FFN + attention | hard, slow_strength 3.0, 2,364,672 protected entries in every protected arm | task-1 retention |
+| BERT-crit | same model as BERT | Split-CLINC150, 2 tasks, 4 epochs/task, seq 128, batch 2 (protocol I11) | FFN + attention | hard, slow_strength 3.0, 2,364,672 protected entries in every protected arm | task-1 retention |
 | CIFAR-replay | MLP [TODO: width from replay_selection config] | Split-CIFAR-100, replay buffer, 6 learners | replay memory (which examples are stored) | n/a | FAA |
 
 The MLP and BERT hosts ran on CPU; LM-410M and Qwen ran on one GPU per seed
 (GTX 1080 Ti or Titan Xp, fp32; Pascal has no bf16). All arms of a seed share a
-process and a device. [TODO: MLP width/depth and Split-MNIST epochs from
+process and a device, with three declared exceptions: in F13 the two arms of a
+seed ran as separate runs on any of the three GPUs; in 3b the matched-lr arms ran
+in a chained second process; in 3c the new arm ran alone and is paired by seed
+with the 3b runs, after a CPU check that the shared arms are bit-identical across
+the two code versions. [TODO: MLP width/depth and Split-MNIST epochs from
 FROZEN_CONFIG in experiments/confirmatory_split_mnist.py.]
 
 **On the LM-410M host.** Continuing pre-training of Pythia on MiniPile, a subset
@@ -49,7 +53,9 @@ Every confirmatory contrast in this paper followed the same procedure:
    CONFIRMED if the mean is in the predicted direction and p (adjusted) < 0.05;
    REFUTED if the 95% CI includes zero or the mean has the wrong sign.
 
-Integrity checks run before any endpoint is read: matched E between arms, equal
+Where a protocol declares integrity checks (F15, F16, PM, 3b, 3c, RA/RB, T3c; F11
+to F14 and RC declare none, PEN2 and RD only pre-run checks), they run before any
+endpoint is read: matched E between arms, equal
 protected counts, that the control actually received its scale and the method
 arm did not, and for random arms that the drawn set differs from the selected
 one and is constant (fixed) or re-drawn (permuted) as declared. A failed check
@@ -73,7 +79,9 @@ never use them as the basis of a claim stated without that tag.
 | 3b | Qwen-LoRA-Gen | U - V with U matched to exact and to frozen_A (primary, Holm over 2); M - U and frozen_A - U (secondary). Pre-registered with declared deviations (Section 4.2, item 3) | 10 (1000-1009) | deea8d2 |
 | 3c | Qwen-LoRA-Gen | M - R(fixed) (primary, single test); R - U (secondary) | same 10 seeds as 3b, paired by design (declared deviation from rule 2) | 842f54f |
 | RA/RB | BERT-crit | magnitude - random; functional - magnitude (Holm over 2, exact sign test) | 10 (4.000.003+) | a3f5117 |
-| RD | CIFAR-replay | high-loss and representative selectors vs the same learner without selection, per learner (Holm per family) | 20 | [TODO: hash of protocol_replay_selector_confirmation.md]; the report self-declares exploratory_not_independent_confirmation for cross-learner contrasts |
+| RD | CIFAR-replay | pre-registered: slowheat_derpp - derpp per selector (loss, representative), exact sign test, Holm over 2, success = both significant with opposite median signs. Selector-vs-reference contrasts are exploratory (protocol R2) | 20 | b12ba31 (goals/protocol_replay_selector_confirmation.md) |
+| PEN2 | MLP (256, 128), plain SGD, Split-MNIST | mas - lr_control (Section 5.7) | 12 | 22461f5 |
+| T3c | MLP-S, MLP-P | M - R(fixed) for 4 baselines + hard (Holm over 5); R - U, U - B secondary | 20 + 10, new bands | ac20479 (in progress) |
 
 Exploratory sources (E): F3 (LM-410M, M - R and R - U, 6 seeds), F7/F8 (MLP,
 U - B and M - U, 20 and 10 seeds), the BERT hard decomposition (10 seeds,

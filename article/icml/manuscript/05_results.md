@@ -133,7 +133,7 @@ task-1 retention (10/10, p_Holm = 0.0039), and the functional score
 Absolute task-1 retention: magnitude 44.23%, functional 44.07%, random 32.00%,
 vanilla 8.87%. The tie is not a degenerate ranking: the variance of the
 normalized ranking differs by 0.2% between the two criteria, and the top-k
-overlap between magnitude and random is 0.5748, below the 0.80 threshold that
+Jaccard overlap between magnitude and random is 0.5748, below the 0.80 threshold that
 the protocol declared would make a tie inconclusive (magnitude vs functional:
 0.8814). The expensive half of our criterion buys nothing here; the
 magnitude arm is essentially the saliency criterion of AWARe
@@ -143,14 +143,16 @@ This contrast is M - R in Table 1's sense, measured against random units, so it
 inherits the shape caveat of Section 5.3: against a uniform scale the same host
 keeps only +3.90 pp (E).
 
-**The same pattern in replay selection.** Choosing which examples a replay
-memory keeps is another importance criterion. On Split-CIFAR-100 with 20 seeds,
-storing the highest-loss examples lowers FAA in all four learners (-2.72 to
--4.05 pp, 0/20 seeds in favor in each), while storing representative examples
-raises it (+0.67 to +1.01 pp, 19/20 or 20/20). The pattern holds with and
-without our mask. Within-learner contrasts are pre-registered; the report marks
-cross-learner comparisons as exploratory (Appendix K). The intuitive notion of
-importance is again not the one that pays.
+**Replay selection (E).** Choosing which examples a replay memory keeps is
+another importance criterion. On Split-CIFAR-100 (20 seeds), storing the
+highest-loss examples lowered FAA relative to the reference selector in all four
+learners (-2.72 to -4.05 pp, 0/20 in favor each) and storing representative ones
+raised it (+0.67 to +1.01 pp). These selector contrasts are exploratory by the
+protocol's own declaration. The pre-registered question of that run was
+different: whether our mask's effect on DER++ changes sign between the two
+selectors. It did not replicate: +0.20 pp with high-loss memory (14/20,
+p_Holm = 0.115) and -0.61 pp with representative memory (1/20,
+p_Holm = 8.0e-5). Details in Appendix K and Section 7.
 
 ## 5.6 Rankings change when plasticity is matched (E)
 

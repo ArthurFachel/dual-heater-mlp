@@ -49,8 +49,9 @@ marked in place and move to the appendix.
    band, NOT 500-519: 500-509 were used by P1).
 2. External methods decomposed (plan T4): UPGD in MLP-S; EWC/SI/MAS from the
    existing penalty runs.
-3. R-D: protocol commit hash and backbone/width to fill in; decide body
-   paragraph vs appendix only.
+3. R-D: its pre-registered primary failed (sign inversion did not replicate);
+   selector contrasts are exploratory. Body keeps one paragraph tagged E;
+   consider moving it entirely to Appendix K. Backbone/width still to fill.
 4. Retention floor in Qwen-FT (4.8 to 9.0%): limitation, or a 5-task
    calibration in the appendix.
 
