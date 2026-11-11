@@ -29,3 +29,27 @@ Também se registra o custo (horas por braço) para dimensionar o confirmatório
 ## Limitações
 Uma seed: a calibração mede regime e custo, não efeito. O AP e o Fgt do exact e do LoRA-FA aparecem no manifest, mas
 não entram na escolha.
+
+## Resultado e emenda post hoc (10/11/2026, decisão do Fachel)
+EMENDA FEITA DEPOIS DE VER OS DADOS. O critério acima continua sendo o pré-registrado; o que segue é desvio declarado.
+
+Resultado pelo critério original (manifests ep1 e ep3, commit c103f4b, seed 950):
+| épocas | G-aq vanilla | Fgt vanilla | G-imp exact | AP vanilla / exact / LoRA-FA | horas por braço (vanilla / exact / LoRA-FA) |
+|---|---|---|---|---|---|
+| 1 | 11/15 | 0,133 | passa | 0,388 / 0,453 / 0,448 | 0,6 / 0,8 / 0,6 |
+| 3 | 11/15 | 0,172 | passa | 0,345 / 0,424 / 0,410 | 1,4 / 1,7 / 1,4 |
+| 5 | sem manifest: vanilla terminou (AP 0,195, Fgt 0,329), exact deu OOM na geração (Titan Xp) | | | | |
+
+Nenhum número de épocas passa o item 1 (12/15). Pela regra 5 caberia aumentar lr ou épocas e replanejar.
+
+Por que não se seguiu a regra 5: três tarefas de geração aberta não respondem ao treino em nenhum orçamento testado
+(delta ROUGE-L ep1 / ep3): task1729_personachat_generate_next +0,018 / +0,010; task1590_diplomacy_text_generation
+-0,006 / -0,003; task511_reddit_tifu_long_text_summarization +0,044 / +0,047. A quarta falha troca de tarefa e fica
+colada no limiar (samsum +0,044 no ep1; multi_woz +0,049 no ep3). Mais épocas não muda o G-aq (11/15 nos dois) e ep5
+degrada o vanilla (AP 0,195), então o limiar de 12/15 mede o teto do ROUGE-L nessas tarefas, não a falta de treino.
+
+Emenda: G-aq passa a exigir >= 11/15 tarefas com delta >= 0,05. G-disp, G-imp e as 15 tarefas do benchmark (AP e Fgt)
+ficam iguais. Com a emenda ep1 e ep3 passam; pela regra 3 (menor número de épocas) escolhe-se 1 época por tarefa.
+Essa escolha vale para a calibração; qualquer texto que use o 3b deve citar este desvio.
+
+Próximo passo previsto pelo plano: os dois lr_control (pareados ao E medido do exact e do LoRA-FA) em 1 época.
