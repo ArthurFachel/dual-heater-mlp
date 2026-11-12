@@ -249,11 +249,16 @@ vencedor é LoRA-FA, e isso vai dito no texto, não escondido.
       10 tarefas (fp32). Instruction tuning tem sequência mais longa: refazer a
       medida **antes** de dimensionar o sweep. Pascal (CC 6.x): fp16, nunca bf16,
       uma GPU só, sem DDP (GPUs heterogêneas).
-- [ ] 3b.3 **Endpoint novo, pré-registrado, com gate de regime.** Declarar antes
-      de ver qualquer número: exact-match por tarefa, ROUGE-L, ou delta de
-      perplexidade na tarefa 1. O gate equivalente ao §G.1 tem de ser redefinido
-      junto — em geração, contra o quê se mede "quase-chance"? Sem resposta a
-      isso, não há gate, e a Fase 3.5 provou o que acontece então.
+- [ ] 3b.3 ~~**Endpoint novo, pré-registrado, com gate de regime.**~~
+      **CONGELADO em 08/10/2026** · `goals/protocol_trace_endpoint.md`.
+      Endpoint primário: acurácia normalizada (regra por tarefa, declarada
+      antes de qualquer seed), forgetting médio; métrica oficial do TRACE
+      reportada em paralelo como âncora ao paper. Gate de regime definido
+      contra baseline de maioria sobre a diagonal do `vanilla` — avaliado na
+      seed-piloto, **as 5 tarefas de acurácia passam**. Motivo do protocolo:
+      a métrica oficial reportou 0,0000 em células com até 56% de acerto real,
+      com viés diferencial entre braços ·
+      `docs/results/trace_pilot_seed1234.md`
 - [ ] 3b.4 **Replicar a reordenação do bloco 12 em host generativo.** Este é o
       endpoint primário da fase: *a ordenação dos braços muda quando `E` é
       pareado?* Não é "o SlowHeat ganha?". Reportar a ordenação nas duas condições,

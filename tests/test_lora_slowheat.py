@@ -580,6 +580,148 @@ def test_controller_reports_failure_below_the_analytic_floor(method: str) -> Non
     assert solved["solved"] == 0.0
 
 
+@pytest.mark.parametrize("method", ["exact", "rank", "leak"])
+def test_hard_controller_solves_the_budget_not_the_strength(method: str) -> None:
+    """A hard mask is blind to slow_strength; its knob is the protected set.
+
+    Regression for a silent mispairing: ``_factor`` returns
+    ``(slow_heat <= 0)`` under ``hard``, which never reads ``slow_strength``.
+    The controller solved ``slow_strength`` anyway, so every arm with
+    ``hard=True`` trained at whatever the default budget produced while the
+    manifest recorded the target it had been asked for.
+    """
+
+    model, instrumentation = _build(method, plasticity_budget=0.5, hard=True)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    instrumentation.consolidate()
+
+    before = instrumentation.effective_plasticity()
+    strengths = [
+        adapted.tracker.slow_strength
+        for adapted in instrumentation.modules
+        if adapted.tracker is not None
+    ]
+
+    target = 0.9
+    solved = instrumentation.calibrate_to_target_plasticity(target)
+
+    assert solved["solved"] == 1.0
+    # A binary mask is a step function of its knob: one unit at a time enters
+    # or leaves the protected set, so landing exactly on the target is not
+    # achievable. Demanding it here would make the test lie about precision.
+    assert instrumentation.effective_plasticity() == pytest.approx(target, abs=0.05)
+    assert abs(instrumentation.effective_plasticity() - target) < abs(before - target)
+
+    # The soft knob must be untouched: moving it would be a no-op that also
+    # corrupts the arm's recorded hyperparameters.
+    after = [
+        adapted.tracker.slow_strength
+        for adapted in instrumentation.modules
+        if adapted.tracker is not None
+    ]
+    assert after == strengths
+
+
+def test_hard_controller_moves_the_protected_fraction() -> None:
+    """Pairing a hard arm must change WHICH units are protected, not a scale."""
+
+    model, instrumentation = _build("exact", plasticity_budget=0.5, hard=True)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    instrumentation.consolidate()
+
+    def protected() -> int:
+        return sum(
+            int((adapted.tracker.slow_heat > 0.0).sum())
+            for adapted in instrumentation.modules
+            if adapted.tracker is not None
+        )
+
+    before = protected()
+    instrumentation.calibrate_to_target_plasticity(0.95)
+    assert protected() < before, "mais plasticidade exige proteger menos unidades"
+
+
+def test_hard_mask_stays_binary_after_calibration() -> None:
+    """Calibration must not buy plasticity by softening the mask.
+
+    This is the property that separates option (a) from relaxing the mask to a
+    floor: a hard arm's whole claim is exactly-zero drift on protected units,
+    and a mask value strictly between 0 and 1 would void it.
+    """
+
+    model, instrumentation = _build("exact", plasticity_budget=0.5, hard=True)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    instrumentation.consolidate()
+    instrumentation.calibrate_to_target_plasticity(0.9)
+
+    for binding in instrumentation.mask_bindings():
+        mask = binding.mask() if callable(binding.mask) else binding.mask
+        unique = torch.unique(mask)
+        assert torch.all((unique == 0.0) | (unique == 1.0)), (
+            f"{binding.kind} deixou de ser binária: {unique.tolist()}"
+        )
+
+
+def test_soft_controller_still_solves_the_strength() -> None:
+    """The hard branch must not capture the soft path."""
+
+    model, instrumentation = _build("exact", plasticity_budget=0.5, hard=False)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    instrumentation.consolidate()
+
+    budgets = [
+        adapted.tracker.plasticity_budget
+        for adapted in instrumentation.modules
+        if adapted.tracker is not None
+    ]
+    floor = _plasticity_floor(instrumentation)
+    target = floor + 0.5 * (1.0 - floor)
+    solved = instrumentation.calibrate_to_target_plasticity(target)
+
+    assert solved["solved"] == 1.0
+    assert solved["achieved"] == pytest.approx(target, abs=1e-3)
+    after = [
+        adapted.tracker.plasticity_budget
+        for adapted in instrumentation.modules
+        if adapted.tracker is not None
+    ]
+    assert after == budgets, "o caminho soft não pode mexer no orçamento"
+
+
+def test_controller_fails_loudly_on_an_unreachable_hard_target() -> None:
+    """Both bracket ends are checked, so an impossible target reports 0.0.
+
+    A one-sided check returns ``solved = 1.0`` with ``achieved`` far from the
+    target, which is the exact failure mode this controller exists to prevent.
+    """
+
+    model, instrumentation = _build("exact", plasticity_budget=0.5, hard=True)
+    _randomize_b(instrumentation)
+    optimizer = _optimizer(model, instrumentation)
+    _train_step(model, instrumentation, optimizer)
+    instrumentation.consolidate()
+
+    # Budget 0.0 protects every unit with positive importance, which is the
+    # least plastic the arm can be. Anything below that is unreachable.
+    for adapted in instrumentation.modules:
+        assert adapted.tracker is not None
+        adapted.tracker.plasticity_budget = 0.0
+        adapted.tracker.reapply_capacity_budget()
+    lowest = instrumentation.effective_plasticity()
+    assert lowest > 0.0, "o teste precisa de um piso positivo para ser válido"
+
+    solved = instrumentation.calibrate_to_target_plasticity(lowest * 0.5)
+    assert solved["solved"] == 0.0
+
+
 def test_controller_solves_the_slice_floor_not_the_strength() -> None:
     """slice has no beta: its only knob is the floor on frozen dimensions."""
 

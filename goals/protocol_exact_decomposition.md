@@ -3,7 +3,18 @@
 > Pré-registro. Escrito **antes** de qualquer seed desta decomposição.
 > Emendas só valem antes da primeira seed e devem ser commitadas antes do disparo.
 
-**Estado:** congelado em 28/09/2026. Nenhuma seed executada.
+**Estado:** congelado em 28/09/2026. **EXECUTADO e FECHADO em 29/09/2026**,
+10 seeds da banda §D4. Desfecho **(a)**: todo o ganho do `exact` vem de
+congelar `A` (LoRA-FA); a máscara não adiciona nada (`exact − frozen_a_control`
+5+/5, p = 1,000). Resultado em
+[`docs/results/exact_decomposition_results.md`](../docs/results/exact_decomposition_results.md),
+artefatos em `results/exact_decomposition/seed_5*`, fechado como R-C no
+roadmap. **Este protocolo não aceita mais emenda nem nova seed.**
+
+> Correção de 08/10/2026: esta linha dizia "Nenhuma seed executada" por
+> esquecimento de atualização após a run de 28-29/09. O estado errado é
+> perigoso — convida a re-executar um protocolo fechado ou a emendá-lo
+> retroativamente. Nada do conteúdo pré-registrado abaixo foi alterado.
 
 ---
 

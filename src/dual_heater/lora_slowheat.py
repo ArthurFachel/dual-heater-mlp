@@ -554,8 +554,16 @@ class QwenLoRASlowHeat:
         measured before any accuracy is read, instead of an arbitrary
         protection strength. Which knob is solved depends on the mechanism:
 
-        ``exact``/``rank``/``leak``
+        ``exact``/``rank``/``leak`` with ``hard=False``
             ``slow_strength``, monotonically decreasing in plasticity.
+        ``exact``/``rank``/``leak`` with ``hard=True``
+            ``plasticity_budget``, monotonically increasing in plasticity. A
+            binary mask is ``(slow_heat <= 0)`` and does NOT read
+            ``slow_strength``, so the soft knob cannot move it at all; the only
+            thing that changes a hard mask is how many units it protects, which
+            ``_apply_capacity_budget`` derives from ``plasticity_budget``.
+            Pairing by protected fraction is also what makes the arm comparable
+            to the BERT host, whose arms were matched on protected entries.
         ``slice``
             the floor applied to frozen rank dimensions. Under a strict
             partition with ``task_count`` tasks, a frozen dimension is exactly
@@ -564,6 +572,11 @@ class QwenLoRASlowHeat:
             exists solely to make the arm cost-matched.
         ``vanilla``
             no knob; plasticity is 1.0 by definition.
+
+        A hard mask is a STEP function of its knob: one unit enters or leaves
+        the protected set at a time, so ``achieved`` lands within one unit's
+        worth of ``target`` rather than on it exactly. Read ``achieved``, never
+        assume ``target`` was met.
         """
 
         if not 0.0 < target <= 1.0:
@@ -580,6 +593,30 @@ class QwenLoRASlowHeat:
                 return self.effective_plasticity()
 
             reset = self._slice_floor
+            # Plasticity is monotonically INCREASING in the slice floor.
+            increasing = True
+            low, high = 0.0, 1.0
+        elif self.config.hard:
+            # A binary mask is (slow_heat <= 0) and never reads slow_strength,
+            # so solving the soft knob here runs every iteration and changes
+            # NOTHING: the arm trains at whatever plasticity the default budget
+            # produced while the manifest reports the target it was asked for.
+            # The knob that does move a hard mask is how many units it
+            # protects, which _apply_capacity_budget derives from
+            # plasticity_budget.
+            def measure(value: float) -> float:
+                for adapted in self.modules:
+                    tracker = adapted.tracker
+                    assert tracker is not None
+                    tracker.plasticity_budget = value
+                    tracker.reapply_capacity_budget()
+                return self.effective_plasticity()
+
+            reset = self.config.plasticity_budget
+            # More budget means fewer protected units, so plasticity is
+            # monotonically INCREASING in plasticity_budget.
+            increasing = True
+            low, high = 0.0, 1.0
         else:
             def measure(value: float) -> float:
                 for adapted in self.modules:
@@ -588,50 +625,34 @@ class QwenLoRASlowHeat:
                 return self.effective_plasticity()
 
             reset = self.config.slow_strength
-
-        # Plasticity is monotonically INCREASING in the slice floor and
-        # monotonically DECREASING in slow_strength, so the bracket differs.
-        if method == "slice":
-            low, high = 0.0, 1.0
-            if measure(high) < target - tolerance:
-                measure(reset)
-                return {
-                    "knob": reset,
-                    "achieved": self.effective_plasticity(),
-                    "solved": 0.0,
-                }
-            for _ in range(iterations):
-                middle = 0.5 * (low + high)
-                if measure(middle) < target:
-                    low = middle
-                else:
-                    high = middle
-            solution = 0.5 * (low + high)
-        else:
+            # Plasticity is monotonically DECREASING in slow_strength.
+            increasing = False
             low, high = 0.0, 1e6
-            if measure(low) < target - tolerance:
-                # Even with no protection the mask is already below target:
-                # the budget alone removed more than the target allows.
-                measure(reset)
-                return {
-                    "knob": reset,
-                    "achieved": self.effective_plasticity(),
-                    "solved": 0.0,
-                }
-            if measure(high) > target + tolerance:
-                measure(reset)
-                return {
-                    "knob": reset,
-                    "achieved": self.effective_plasticity(),
-                    "solved": 0.0,
-                }
-            for _ in range(iterations):
-                middle = 0.5 * (low + high)
-                if measure(middle) > target:
-                    low = middle
-                else:
-                    high = middle
-            solution = 0.5 * (low + high)
+
+        # Both ends are checked. A one-sided bracket check can return
+        # ``solved = 1.0`` with ``achieved`` far from ``target`` when the knob
+        # cannot reach it, which is the silent mispairing this controller
+        # exists to prevent.
+        reachable_low = measure(low)
+        reachable_high = measure(high)
+        lowest = min(reachable_low, reachable_high)
+        highest = max(reachable_low, reachable_high)
+        if lowest > target + tolerance or highest < target - tolerance:
+            measure(reset)
+            return {
+                "knob": reset,
+                "achieved": self.effective_plasticity(),
+                "solved": 0.0,
+            }
+
+        for _ in range(iterations):
+            middle = 0.5 * (low + high)
+            below = measure(middle) < target
+            if below == increasing:
+                low = middle
+            else:
+                high = middle
+        solution = 0.5 * (low + high)
 
         achieved = measure(solution)
         return {"knob": solution, "achieved": achieved, "solved": 1.0}

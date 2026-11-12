@@ -396,6 +396,23 @@ class _SlowHeatImportanceMixin:
             raise ValueError("plasticity_budget deve estar em [0, 1]")
         self.plasticity_budget_state.fill_(value)
 
+    def reapply_capacity_budget(self) -> None:
+        """Recompute ``slow_heat`` from the current budget and importance.
+
+        ``_apply_capacity_budget`` normally runs inside :meth:`consolidate`.
+        A controller that solves ``plasticity_budget`` must re-derive the
+        protected set after each trial value WITHOUT consolidating again,
+        because a second consolidation would fold ``task_ema`` into
+        ``importance_memory`` and change the very ranking being calibrated.
+
+        Safe before any consolidation: ``importance_memory`` is then all
+        zeros, no unit has positive importance, and the protected set is
+        correctly empty.
+        """
+
+        with torch.no_grad():
+            self._apply_capacity_budget()
+
     def adapt_capacity(
         self,
         *,
