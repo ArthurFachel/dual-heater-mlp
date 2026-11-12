@@ -81,7 +81,7 @@ never use them as the basis of a claim stated without that tag.
 | RA/RB | BERT-crit | magnitude - random; functional - magnitude (Holm over 2, exact sign test) | 10 (4.000.003+) | a3f5117 |
 | RD | CIFAR-replay | pre-registered: slowheat_derpp - derpp per selector (loss, representative), exact sign test, Holm over 2, success = both significant with opposite median signs. Selector-vs-reference contrasts are exploratory (protocol R2) | 20 | b12ba31 (goals/protocol_replay_selector_confirmation.md) |
 | PEN2 | MLP (256, 128), plain SGD, Split-MNIST | mas - lr_control (Section 5.7) | 12 | 22461f5 |
-| T3c | MLP-S, MLP-P | M - R(fixed) for 4 baselines + hard (Holm over 5); R - U, U - B secondary | 20 + 10, new bands | ac20479 (in progress) |
+| T3c | MLP-S, MLP-P | M - R(fixed) for 4 baselines + hard (Holm over 5); R - U, U - B secondary | 20 + 10, new bands | ac20479 |
 
 Exploratory sources (E): F3 (LM-410M, M - R and R - U, 6 seeds), F7/F8 (MLP,
 U - B and M - U, 20 and 10 seeds), the BERT hard decomposition (10 seeds,

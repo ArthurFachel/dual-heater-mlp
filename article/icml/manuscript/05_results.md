@@ -28,11 +28,11 @@ count it among the 11 primaries.
 
 | host (endpoint) | plasticity U - V | shape R - U | selection M - R | M - U (shape + selection) |
 |---|---|---|---|---|
-| MLP-S + DER++ (FAA, pp) | +1.51 c / +1.40 [+0.95, +1.86] 19/20 E | not run | not run | **+1.91 [+1.39, +2.43] 19/20 C** |
-| MLP-S + replay calibrated | +1.05 c / +0.84 [+0.49, +1.19] 18/20 E | not run | not run | **+1.49 [+1.21, +1.78] 20/20 C** |
-| MLP-S + replay | +0.58 c | not run | not run | **+0.62 [+0.25, +0.98] 17/20 C** |
-| MLP-S + ER-ACE | -0.65 c | not run | not run | **+0.39 [+0.15, +0.64] 15/20 C** |
-| MLP-P, hard (FAA, pp) | +3.02 [+1.41, +4.63] 9/10 E | not run | not run | +13.47 [+11.57, +15.36] 10/10 E |
+| MLP-S + DER++ (FAA, pp) | +1.59 [+1.11, +2.06] 19/20 S | +0.47 [+0.15, +0.80] 15/20 S | **+1.14 [+0.87, +1.40] 20/20 C** | **+1.91 [+1.39, +2.43] 19/20 C** (F11); +1.61 S (T3c) |
+| MLP-S + replay calibrated | +0.66 [+0.36, +0.97] 14/20 S | +0.09 [-0.26, +0.44] 9/20 S | **+1.19 [+0.71, +1.66] 18/20 C** | **+1.49 [+1.21, +1.78] 20/20 C** (F11); +1.28 S (T3c) |
+| MLP-S + replay | +0.02 [-0.41, +0.46] 11/20 S | -0.28 [-0.66, +0.10] 6/20 S | **+1.14 [+0.64, +1.64] 16/20 C** | **+0.62 [+0.25, +0.98] 17/20 C** (F11); +0.86 S (T3c) |
+| MLP-S + ER-ACE | -0.56 [-1.07, -0.06] 4/20 S | -0.37 [-0.70, -0.05] 6/20 S | **+0.79 [+0.37, +1.20] 15/20 C** | **+0.39 [+0.15, +0.64] 15/20 C** (F11); +0.41 S (T3c) |
+| MLP-P, hard (FAA, pp) | +3.17 [+0.30, +6.04] 8/10 S | +12.34 [+8.78, +15.90] 10/10 S | **+3.22 [+1.95, +4.49] 9/10 C** | +15.56 [+12.11, +19.02] 10/10 S (T3c); +13.47 E (F8) |
 | BERT, hard (T1 retention, pp) | +30.44 E | **-5.93**, 0/10 E | +9.83, 10/10 E | +3.90, 10/10 E |
 | BERT, soft (T1 retention, pp), 5 pairs | +5.48 to +12.10 c | not run | not run | **+2.93 to +5.20, 19-20/20 per pair, C (5/5)** |
 | LM-410M, soft (MiniPile loss, nats) | not run | +0.00436, 6/6 E | +0.00339, 6/6 E | **+0.00764 [+0.00743, +0.00785] 10/10 C** |
@@ -40,9 +40,10 @@ count it among the 11 primaries.
 | Qwen-LoRA (FAA, pp) | -6.04 c | **+9.92, 10/10 C** (frozen A vs matched lr) | +0.69, 5/5 C, null (exact vs frozen A) | n/a |
 | Qwen-LoRA-Gen (AP, pp) | **+2.94 [+1.45, +4.43] 10/10 C** (E of exact); **+2.89 [+1.52, +4.26] 10/10 C** (E of frozen A) | +5.97 [+4.64, +7.30] 10/10 S (random_fixed vs lr matched to exact) | **+0.06 [-0.14, +0.27] 5/10 C, null bounded within 1 pp** (exact vs random_fixed) | +6.04 [+4.72, +7.36] 10/10 S (exact vs its matched lr) |
 
-"c" values in the MLP-S plasticity column are differences of means from F11
-(FAA of B+U minus FAA of B); the paired versions come from the exploratory F7
-seeds. The LM-410M shape and selection terms come from F3 with 6 seeds; the
+The MLP-S and MLP-P rows come from T3c (protocol ac20479): the four arms B, U, R
+and M ran in one process per seed on new seed bands (20 and 10 seeds), so the
+three terms share seeds and sum to M - B. The M - U column also lists F11 (an
+earlier band) for reference. The LM-410M shape and selection terms come from F3 with 6 seeds; the
 plasticity term was not measured there. In Qwen-LoRA-Gen the three terms come from the same
 10 seeds and sum to M - V = +8.97 pp (2.94 + 5.97 + 0.06), the only GPU row
 with a complete decomposition on shared seeds; the frozen-A arm, a published
@@ -89,10 +90,18 @@ inflates (BERT) or deflates (LM-410M) the apparent value of selection. Reporting
 M - R alone, as is common, measures selection plus an unknown shape term
 measured against the wrong reference.
 
-## 5.4 Selection is the smallest and least stable term
+## 5.4 Selection is the least stable term
 
 Where we could measure it:
 
+- MLP-S: +0.79 to +1.19 pp of FAA over fixed random units in all four
+  baselines (T3c, C, Holm over 5, p_Holm <= 8.7e-4). Here selection is most of
+  the gain: shape is near zero or negative (-0.37 to +0.47 pp), and with replay
+  the selection term (+1.14) exceeds the total M - B (+0.88). With ER-ACE the
+  method still ends 0.15 pp below the baseline alone, as in F11.
+- MLP-P, hard: +3.22 pp over fixed random units (9/10, C), but shape carries
+  most of the gain (+12.34 pp, 10/10): freezing a random 75% of units already
+  beats a uniform scale by far on Permuted-MNIST.
 - BERT, hard: +9.83 pp of retention over a random mask, 10/10 (E). This
   replicates the +12.23 pp (C) of Section 5.5 in a new seed band. Against U,
   only +3.90 pp survives, and FAA ties (+0.65 pp, 6/10).

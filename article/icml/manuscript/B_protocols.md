@@ -629,7 +629,10 @@ is recomputed.
   overlap of R with its own selection.
 - **Declared deviations and amendments.** not declared.
 - **Protocol commit.** ac20479.
-- **Outcome.** Run in progress at the time of writing.
+- **Outcome.** Integrity G1-G4 OK. CONFIRMED in 5 of 5 contrasts (Holm over 5): M - R(fixed) FAA
+  replay +1.14 pp [+0.64, +1.64] 16/20; DER++ +1.14 [+0.87, +1.40] 20/20; replay calibrated +1.19
+  [+0.71, +1.66] 18/20; ER-ACE +0.79 [+0.37, +1.20] 15/20; MLP-P hard +3.22 [+1.95, +4.49] 9/10;
+  p_Holm <= 8.7e-4.
 
 ## Unresolved
 

@@ -74,10 +74,9 @@ LoRA comes from the LoRA-FA freeze.
 - **Floors.** Qwen-FT retention is 4.8 to 9.0% absolute in the best arm, and
   BERT at T = 5 has zero retention (Section 6.2). Terms measured near a floor
   are compressed toward zero.
-- **Missing cells.** Table 1 has no random arm in MLP-S or MLP-P, no vanilla
-  arm in LM-410M, and only exploratory random arms in BERT and LM-410M. The
-  shape and selection terms are confirmatory only in Qwen-FT and in the two
-  LoRA settings. [TODO: update after the planned confirmatory runs.]
+- **Missing cells.** Table 1 has no vanilla arm in LM-410M and only exploratory
+  random arms in BERT and LM-410M. The shape and selection terms are
+  confirmatory in MLP-S, MLP-P, Qwen-FT and the two LoRA settings. [TODO: update after the planned confirmatory runs.]
 - **Hyperparameters** (beta = 30, budgets) were chosen in exploratory runs and
   not tuned per host or per baseline; the controls inherit them.
 - **Non-uniqueness.** The order of the decomposition is a choice

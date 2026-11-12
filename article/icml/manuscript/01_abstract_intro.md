@@ -18,12 +18,14 @@ instruction stream. Primary contrasts were pre-registered and run on fresh
 seeds. Three findings hold. First, the method beats a plasticity-matched
 uniform control in all 11 pre-registered contrasts. Second, inside the
 criterion, activation magnitude alone matches the first-order utility
-(-0.17 pp) and both beat a same-size random mask by +12.23 pp. Third, most of
-the gain is not selection. The plasticity term ranges from +30.4 to -6.0 pp
-across settings, a random mask is worse than a uniform scale in one host and
-better in others, and the selection term is large in BERT, small and once
-refuted in Qwen, and zero under LoRA on both streams (within 1 pp of AP on the
-generative one), where freezing the LoRA down-projection explains the gain.
+(-0.17 pp) and both beat a same-size random mask by +12.23 pp. Third, no term
+has a fixed size or sign, and selection, the term that justifies an importance
+criterion, is the least stable. The plasticity term ranges from +30.4 to
+-6.0 pp across settings and the shape term changes sign. Selection carries most
+of the gain in the MLP with replay baselines (+0.79 to +1.19 pp, all four
+confirmed), about a third in BERT, is small and once refuted in Qwen, and is
+zero under LoRA on both streams (within 1 pp of AP on the generative one), where
+freezing the LoRA down-projection explains the gain.
 Comparisons against the unconstrained learner, or against a random mask alone,
 cannot tell these cases apart. We release the controls and the full
 pre-registration trail, including the refuted results.
@@ -76,13 +78,14 @@ evidence that the importance criterion matters.
 2. *A cheap criterion is enough.* Ranking units by activation magnitude |z|
    matches the first-order utility |z * dL/dz| (-0.17 pp, 5/10 seeds), and both
    beat a random mask of the same capacity by +12.23 pp of retention (10/10).
-3. *Most of the gain is not selection.* The plasticity term ranges from
-   +30.4 pp of retention to -6.0 pp of accuracy. The shape term changes sign
-   across hosts. The selection term is +9.8 pp in BERT, present in the language
-   model, +4.10 pp in Qwen in one pre-registered band and refuted at +1.50 pp
-   against a fixed random set in the next, and zero under LoRA on both streams,
-   where freezing the LoRA down-projection, a published method (LoRA-FA),
-   explains the gain.
+3. *Selection is the least stable term.* The plasticity term ranges from
+   +30.4 pp of retention to -6.0 pp of accuracy, and the shape term changes sign
+   across hosts. Selection beats fixed random units in all five MLP contrasts
+   (+0.79 to +3.22 pp) and is most of the gain with replay baselines; it is
+   +9.8 pp in BERT, present in the language model, +4.10 pp in Qwen in one
+   pre-registered band and refuted at +1.50 pp against a fixed random set in
+   the next, and zero under LoRA on both streams, where freezing the LoRA
+   down-projection, a published method (LoRA-FA), explains the gain.
 4. *Rankings move.* Among five LoRA variants, an arm that removed 94% of the
    plasticity ranks second unmatched, above vanilla, and below vanilla once
    matched (Section 5.6, exploratory).
