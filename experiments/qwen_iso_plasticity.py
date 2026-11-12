@@ -89,7 +89,13 @@ from experiments.split_clinc150 import (
     text_task_fingerprint,
 )
 
-ArmKind = Literal["iso", "permuted", "hard", "vanilla", "reduced_lr"]
+ArmKind = Literal[
+    "iso", "permuted", "hard", "hard_permuted", "hard_random_fixed", "vanilla", "reduced_lr"
+]
+
+# Kinds that register a mask, and the subset whose mask is binary.
+MASKED_KINDS = frozenset({"iso", "permuted", "hard", "hard_permuted", "hard_random_fixed"})
+HARD_KINDS = frozenset({"hard", "hard_permuted", "hard_random_fixed"})
 
 # Declared in the frozen protocol, section E.
 ISO_BUDGETS: tuple[float, ...] = (0.05, 0.10, 0.25, 0.50)
@@ -109,7 +115,7 @@ class ArmSpec:
     def __post_init__(self) -> None:
         if not 0.0 < self.target_plasticity <= 1.0:
             raise ValueError("target_plasticity deve estar em (0, 1]")
-        masked = self.kind in {"iso", "permuted", "hard"}
+        masked = self.kind in MASKED_KINDS
         if masked and self.budget is None:
             raise ValueError(f"braço {self.name} com máscara exige budget")
         if not masked and self.budget is not None:
@@ -121,6 +127,8 @@ def build_arms(
     target_plasticity: float,
     budgets: Sequence[float],
     permuted_budget: float,
+    include_hard_permuted: bool = False,
+    include_hard_random_fixed: bool = False,
 ) -> list[ArmSpec]:
     """Declared arms for one family: every budget plus the three controls.
 
@@ -173,6 +181,30 @@ def build_arms(
             target_plasticity=target_plasticity,
         )
     )
+    if include_hard_permuted:
+        # F15: same budget and same binary mask as the hard arm, protected
+        # identity shuffled at every boundary. Opt-in so that every manifest
+        # written before F15 keeps its declared arm list.
+        arms.append(
+            ArmSpec(
+                name=f"hard_permuted_b{target_plasticity:g}",
+                kind="hard_permuted",
+                target_plasticity=target_plasticity,
+                budget=target_plasticity,
+            )
+        )
+    if include_hard_random_fixed:
+        # F16: same budget and binary mask as the hard arm, but the protected
+        # units come from ONE random ordering per layer, drawn once per run and
+        # kept across boundaries (hard_permuted redraws at every boundary).
+        arms.append(
+            ArmSpec(
+                name=f"hard_random_fixed_b{target_plasticity:g}",
+                kind="hard_random_fixed",
+                target_plasticity=target_plasticity,
+                budget=target_plasticity,
+            )
+        )
     return arms
 
 
@@ -245,6 +277,47 @@ def permute_slowheat_heat(model, *, seed: int) -> bool:
                 reordered = True
             heat.copy_(heat[permutation.to(heat.device)])
     return reordered
+
+
+def protected_digest(model) -> str:
+    """Short fingerprint of WHICH units are protected (heat > 0), per tracker.
+
+    Lets the analysis check, from the manifest alone, that a fixed set stayed
+    fixed and a permuted set moved, without storing every index.
+    """
+
+    digest = hashlib.sha1()
+    for tracker in model.get_slow_states():
+        indices = torch.nonzero(tracker.slow_heat > 0.0).flatten().cpu().tolist()
+        digest.update((",".join(map(str, indices)) + ";").encode())
+    return digest.hexdigest()[:16]
+
+
+def fix_random_heat(model, *, seed: int) -> bool:
+    """Replace each tracker's protected set by the first k units of a fixed random order.
+
+    k is the count the capacity budget just protected (heat > 0), so E is
+    identical to the hard arm. The order depends only on ``seed`` and the
+    tracker index, so calling this at every boundary with the same seed keeps
+    the SAME units frozen for the whole run (nested if k grows). Heat values are
+    set to 1: under a hard mask only heat > 0 matters.
+
+    Returns whether any unit was protected.
+    """
+
+    protected_any = False
+    with torch.no_grad():
+        for index, tracker in enumerate(model.get_slow_states()):
+            heat = tracker.slow_heat
+            k = int(torch.count_nonzero(heat > 0.0).item())
+            if k == 0:
+                continue
+            generator = torch.Generator(device="cpu").manual_seed(seed * 1009 + index)
+            order = torch.randperm(heat.numel(), generator=generator).to(heat.device)
+            heat.zero_()
+            heat[order[:k]] = 1.0
+            protected_any = True
+    return protected_any
 
 
 def layer_importances(model) -> list[Tensor]:
@@ -610,8 +683,8 @@ def _run_arm_body(
     generator: torch.Generator,
     optimizer_sink,
 ) -> dict[str, Any]:
-    masked = arm.kind in {"iso", "permuted", "hard"}
-    hard = arm.kind == "hard"
+    masked = arm.kind in MASKED_KINDS
+    hard = arm.kind in HARD_KINDS
     lr = (
         learning_rate * arm.target_plasticity
         if arm.kind == "reduced_lr"
@@ -707,6 +780,24 @@ def _run_arm_body(
             achieved = free_fraction_scoped(
                 layer_importances(model), arm.budget, scope=scope
             )
+            hard_permuted = None
+            random_fixed = None
+            if arm.kind == "hard_random_fixed":
+                # Same seed at every boundary: the set is drawn once per run.
+                random_fixed = fix_random_heat(model, seed=seed + 500_000)
+                if not random_fixed:
+                    raise RuntimeError(
+                        f"nenhuma unidade protegida na fronteira {stage}->{stage + 1}"
+                    )
+            if arm.kind == "hard_permuted":
+                # After consolidate, which rebuilds slow_heat from importance
+                # at every boundary; permuting earlier would be overwritten.
+                hard_permuted = permute_slowheat_heat(model, seed=seed + 1000 * stage)
+                if not hard_permuted:
+                    raise RuntimeError(
+                        f"permutação identidade na fronteira {stage}->{stage + 1}: "
+                        "o controle aleatório não seria aleatório"
+                    )
             boundaries.append(
                 {
                     "boundary": f"{stage}->{stage + 1}",
@@ -719,7 +810,9 @@ def _run_arm_body(
                         int(torch.count_nonzero(tracker.slow_heat > 0.0).item())
                         for tracker in model.get_ffn_trackers()
                     ),
-                    "permutation_reordered": None,
+                    "permutation_reordered": hard_permuted,
+                    "random_fixed": random_fixed,
+                    "protected_digest": protected_digest(model),
                 }
             )
             continue
@@ -853,6 +946,22 @@ def main() -> None:
     parser.add_argument(
         "--output", default="results/qwen_iso_plasticity/manifest.json"
     )
+    parser.add_argument(
+        "--arms",
+        nargs="+",
+        default=None,
+        help="F14: run only these declared arm names (e.g. hard_b0.75 reduced_lr vanilla); default all",
+    )
+    parser.add_argument(
+        "--hard-permuted-control",
+        action="store_true",
+        help="F15: also declare hard_permuted_b<E*> (hard mask on shuffled units, same E)",
+    )
+    parser.add_argument(
+        "--hard-random-fixed-control",
+        action="store_true",
+        help="F16: also declare hard_random_fixed_b<E*> (hard mask on a random set fixed for the run)",
+    )
     args = parser.parse_args()
 
     unknown = [name for name in args.domains if name not in CLINC150_DOMAINS]
@@ -899,6 +1008,13 @@ def main() -> None:
         "consolidation_strategy": "max",
         "evaluation": "class-il with seen-class logit masking",
     }
+    if args.arms:
+        protocol["arms_filter"] = sorted(args.arms)
+    if args.hard_permuted_control:
+        # Only written when set, so pre-F15 protocol hashes are unchanged.
+        protocol["hard_permuted_control"] = True
+    if args.hard_random_fixed_control:
+        protocol["hard_random_fixed_control"] = True
 
     families: dict[str, Any] = {}
     for target in targets:
@@ -906,7 +1022,14 @@ def main() -> None:
             target_plasticity=target,
             budgets=ISO_BUDGETS,
             permuted_budget=args.permuted_budget,
+            include_hard_permuted=args.hard_permuted_control,
+            include_hard_random_fixed=args.hard_random_fixed_control,
         )
+        if args.arms:
+            missing = sorted(set(args.arms) - {arm.name for arm in arms})
+            if missing:
+                raise ValueError("braço não declarado: " + ", ".join(missing))
+            arms = [arm for arm in arms if arm.name in args.arms]
         records = []
         for arm in arms:
             print(f"[E*={target:g}] arm {arm.name} ({arm.kind}) ...", flush=True)
