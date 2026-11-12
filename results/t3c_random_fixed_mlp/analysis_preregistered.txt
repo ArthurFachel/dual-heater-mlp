@@ -1,0 +1,44 @@
+results/t3c_random_fixed_mlp/split: n seeds = 20 [19000033, 19008242, 19016451, 19024660, 19032869, 19041078, 19049287, 19057496, 19065705, 19073914, 19082123, 19090332, 19098541, 19106750, 19114959, 19123168, 19131377, 19139586, 19147795, 19156004]
+results/t3c_random_fixed_mlp/permuted: n seeds = 10 [19500017, 19508334, 19516651, 19524968, 19533285, 19541602, 19549919, 19558236, 19566553, 19574870]
+
+INTEGRITY (checked before reading the primary)
+  OK: fixed order at every boundary, protected fraction matched (<= 0.01), random set != selection, all arms present
+
+PRIMARY: selection = FAA(M) - FAA(R_fixed), paired t two-sided, Holm over 5, alpha 0.05
+  MLP-S replay           +1.14 pp IC95 [+0.64; +1.64] p 1.33e-04 Holm 3.98e-04 16/20 sign p 0.0118 -> CONFIRMED
+  MLP-S derpp            +1.14 pp IC95 [+0.87; +1.40] p 3.32e-08 Holm 1.66e-07 20/20 sign p 0.0000 -> CONFIRMED
+  MLP-S replay_calibrated +1.19 pp IC95 [+0.71; +1.66] p 4.61e-05 Holm 1.84e-04 18/20 sign p 0.0004 -> CONFIRMED
+  MLP-S er_ace           +0.79 pp IC95 [+0.37; +1.20] p 8.67e-04 Holm 8.67e-04 15/20 sign p 0.0414 -> CONFIRMED
+  MLP-P hard             +3.22 pp IC95 [+1.95; +4.49] p 2.80e-04 Holm 5.61e-04 9/10 sign p 0.0215 -> CONFIRMED
+
+SECONDARY (descriptive, no correction)
+  MLP-S replay           shape R - U: -0.28 pp [-0.66; +0.10] 6/20 p 1.40e-01
+  MLP-S replay           plasticity U - B: +0.02 pp [-0.41; +0.46] 11/20 p 9.10e-01
+  MLP-S replay           M - U (replication): +0.86 pp [+0.39; +1.33] 15/20 p 1.16e-03
+  MLP-S replay           M - B: +0.88 pp [+0.36; +1.41] 17/20 p 2.41e-03
+  MLP-S replay           forgetting M - R: -1.48 pp [-2.10; -0.87] 3/20 p 6.80e-05
+  MLP-S replay           mean overlap of R with own selection: 0.740
+  MLP-S derpp            shape R - U: +0.47 pp [+0.15; +0.80] 15/20 p 6.72e-03
+  MLP-S derpp            plasticity U - B: +1.59 pp [+1.11; +2.06] 19/20 p 1.14e-06
+  MLP-S derpp            M - U (replication): +1.61 pp [+1.21; +2.01] 19/20 p 7.45e-08
+  MLP-S derpp            M - B: +3.20 pp [+2.76; +3.63] 20/20 p 4.20e-12
+  MLP-S derpp            forgetting M - R: -1.99 pp [-2.35; -1.63] 0/20 p 4.24e-10
+  MLP-S derpp            mean overlap of R with own selection: 0.731
+  MLP-S replay_calibrated shape R - U: +0.09 pp [-0.26; +0.44] 9/20 p 5.96e-01
+  MLP-S replay_calibrated plasticity U - B: +0.66 pp [+0.36; +0.97] 14/20 p 2.33e-04
+  MLP-S replay_calibrated M - U (replication): +1.28 pp [+0.89; +1.66] 19/20 p 1.45e-06
+  MLP-S replay_calibrated M - B: +1.94 pp [+1.50; +2.38] 19/20 p 1.86e-08
+  MLP-S replay_calibrated forgetting M - R: -1.82 pp [-2.42; -1.21] 2/20 p 5.10e-06
+  MLP-S replay_calibrated mean overlap of R with own selection: 0.740
+  MLP-S er_ace           shape R - U: -0.37 pp [-0.70; -0.05] 6/20 p 2.78e-02
+  MLP-S er_ace           plasticity U - B: -0.56 pp [-1.07; -0.06] 4/20 p 3.10e-02
+  MLP-S er_ace           M - U (replication): +0.41 pp [+0.03; +0.80] 14/20 p 3.75e-02
+  MLP-S er_ace           M - B: -0.15 pp [-0.82; +0.52] 10/20 p 6.48e-01
+  MLP-S er_ace           forgetting M - R: -0.17 pp [-0.50; +0.16] 8/20 p 2.94e-01
+  MLP-S er_ace           mean overlap of R with own selection: 0.733
+  MLP-P hard             shape R - U: +12.34 pp [+8.78; +15.90] 10/10 p 2.59e-05
+  MLP-P hard             plasticity U - B: +3.17 pp [+0.30; +6.04] 8/10 p 3.39e-02
+  MLP-P hard             M - U (replication): +15.56 pp [+12.11; +19.02] 10/10 p 3.06e-06
+  MLP-P hard             M - B: +18.73 pp [+16.13; +21.33] 10/10 p 5.51e-08
+  MLP-P hard             forgetting M - R: -4.81 pp [-6.41; -3.20] 0/10 p 8.29e-05
+  MLP-P hard             mean overlap of R with own selection: 0.709

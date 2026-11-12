@@ -1,0 +1,3 @@
+launch 2026-11-11T18:47:56-03:00 commit ac20479a28ee81a15c68b26b93dc2af6eae23cf2 protocol docs/protocols/confirmatory_random_fixed_mlp.md
+permuted DONE exit=0 2026-11-11T19:06:34-03:00
+split DONE exit=0 2026-11-11T19:14:29-03:00
